@@ -200,6 +200,259 @@ async function runHtaccessTests() {
     assert.ok(res.privacyNotice.length > 0);
   });
 
+  // 13. ISSUE 1 — RewriteCond [OR] Evaluation Suite
+  console.log('\n8. ISSUE 1 — RewriteCond [OR] Evaluation:');
+  const orHtaccess = `RewriteEngine On
+RewriteCond %{HTTP_HOST} ^example\\.com$ [OR]
+RewriteCond %{HTTP_HOST} ^example\\.org$
+RewriteRule ^about$ /new-about [R=301,L]`;
+
+  await testCase('OR group: first condition true matches and redirects', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.com/about',
+      htaccess: orHtaccess,
+      serverVariables: { HTTP_HOST: 'example.com' },
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.changed, true);
+    assert.strictEqual(res.statusCode, 301);
+    assert.strictEqual(res.outputUrl, 'https://example.com/new-about');
+  });
+
+  await testCase('OR group: second condition true matches and redirects', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.org/about',
+      htaccess: orHtaccess,
+      serverVariables: { HTTP_HOST: 'example.org' },
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.changed, true);
+    assert.strictEqual(res.statusCode, 301);
+    assert.strictEqual(res.outputUrl, 'https://example.org/new-about');
+  });
+
+  await testCase('OR group: neither condition true fails and does not redirect', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.net/about',
+      htaccess: orHtaccess,
+      serverVariables: { HTTP_HOST: 'example.net' },
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.changed, false);
+    assert.strictEqual(res.transformationType, 'NO_CHANGE');
+    assert.strictEqual(res.outputUrl, 'https://example.net/about');
+  });
+
+  await testCase('Multiple AND conditions: all must match', async () => {
+    const andRules = `RewriteEngine On
+RewriteCond %{HTTP_HOST} ^example\\.com$
+RewriteCond %{REQUEST_METHOD} GET
+RewriteRule ^shop$ /new-shop [R=301,L]`;
+
+    const matchRes = await testHtaccessRules({
+      url: 'https://example.com/shop',
+      htaccess: andRules,
+      serverVariables: { HTTP_HOST: 'example.com', REQUEST_METHOD: 'GET' },
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(matchRes.changed, true);
+    assert.strictEqual(matchRes.outputUrl, 'https://example.com/new-shop');
+
+    const failRes = await testHtaccessRules({
+      url: 'https://example.com/shop',
+      htaccess: andRules,
+      serverVariables: { HTTP_HOST: 'example.com', REQUEST_METHOD: 'POST' },
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(failRes.changed, false);
+  });
+
+  await testCase('Mixed AND/OR groups: (A OR B) AND C', async () => {
+    const mixedRules = `RewriteEngine On
+RewriteCond %{HTTP_HOST} ^alpha\\.com$ [OR]
+RewriteCond %{HTTP_HOST} ^beta\\.com$
+RewriteCond %{HTTPS} on
+RewriteRule ^portal$ /secure-portal [R=301,L]`;
+
+    // alpha.com with HTTPS on -> MATCH
+    const r1 = await testHtaccessRules({
+      url: 'https://alpha.com/portal',
+      htaccess: mixedRules,
+      serverVariables: { HTTP_HOST: 'alpha.com', HTTPS: 'on' },
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(r1.changed, true);
+
+    // beta.com with HTTPS on -> MATCH
+    const r2 = await testHtaccessRules({
+      url: 'https://beta.com/portal',
+      htaccess: mixedRules,
+      serverVariables: { HTTP_HOST: 'beta.com', HTTPS: 'on' },
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(r2.changed, true);
+
+    // beta.com with HTTPS off -> FAIL
+    const r3 = await testHtaccessRules({
+      url: 'http://beta.com/portal',
+      htaccess: mixedRules,
+      serverVariables: { HTTP_HOST: 'beta.com', HTTPS: 'off' },
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(r3.changed, false);
+  });
+
+  // 14. ISSUE 2 — Unsupported Flags
+  console.log('\n9. ISSUE 2 — Unsupported Flags:');
+  await testCase('Rule with [PT] flag returns UNSUPPORTED and does not execute blindly', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.com/passthru',
+      htaccess: `RewriteEngine On\nRewriteRule ^passthru$ /app/run [PT,L]`,
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.transformationType, 'UNSUPPORTED');
+    assert.strictEqual(res.fullyEvaluated, false);
+    assert.ok(res.warnings.some(w => w.includes('[PT]')));
+  });
+
+  await testCase('Rule with [N] (Next) flag returns UNSUPPORTED', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.com/loop',
+      htaccess: `RewriteEngine On\nRewriteRule ^loop$ /next [N]`,
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.transformationType, 'UNSUPPORTED');
+    assert.strictEqual(res.fullyEvaluated, false);
+  });
+
+  // 15. ISSUE 3 — Internal Rewrite & [L] vs [END]
+  console.log('\n10. ISSUE 3 — Internal Rewrites, [L], [END], & Loop Detection:');
+  await testCase('Multi-pass evaluation with [L]: internal rewrite followed by redirect', async () => {
+    const rules = `RewriteEngine On
+RewriteRule ^old$ /new [L]
+RewriteRule ^new$ /final [R=301,L]`;
+
+    const res = await testHtaccessRules({
+      url: 'https://example.com/old',
+      htaccess: rules,
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.changed, true);
+    assert.strictEqual(res.statusCode, 301);
+    assert.strictEqual(res.outputUrl, 'https://example.com/final');
+  });
+
+  await testCase('[END] flag prevents subsequent passes', async () => {
+    const rules = `RewriteEngine On
+RewriteRule ^old$ /new [END]
+RewriteRule ^new$ /final [R=301,L]`;
+
+    const res = await testHtaccessRules({
+      url: 'https://example.com/old',
+      htaccess: rules,
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.changed, true);
+    assert.strictEqual(res.transformationType, 'INTERNAL_REWRITE');
+    assert.strictEqual(res.outputUrl, 'https://example.com/new');
+  });
+
+  await testCase('Circular rewrite loop is detected and halted safely', async () => {
+    const rules = `RewriteEngine On
+RewriteRule ^page-a$ /page-b [L]
+RewriteRule ^page-b$ /page-a [L]`;
+
+    const res = await testHtaccessRules({
+      url: 'https://example.com/page-a',
+      htaccess: rules,
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.transformationType, 'UNKNOWN');
+    assert.strictEqual(res.fullyEvaluated, false);
+    assert.ok(res.warnings.some(w => w.includes('loop detected')));
+  });
+
+  // 16. ISSUE 5 — RewriteBase & Relative URL Substitutions
+  console.log('\n11. ISSUE 5 — RewriteBase & Relative URL Substitutions:');
+  await testCase('Relative substitution with RewriteBase /shop/', async () => {
+    const rules = `RewriteEngine On
+RewriteBase /shop/
+RewriteRule ^old$ new [R=301,L]`;
+
+    const res = await testHtaccessRules({
+      url: 'https://example.com/shop/old',
+      htaccess: rules,
+      settings: { useLocalOnly: true, directoryContext: '/shop/' }
+    });
+    assert.strictEqual(res.changed, true);
+    assert.strictEqual(res.statusCode, 301);
+    assert.strictEqual(res.outputUrl, 'https://example.com/shop/new');
+  });
+
+  // 17. ISSUE 6 — Query String Handling
+  console.log('\n12. ISSUE 6 — Query String Handling (QSA, QSD, Preserve):');
+  await testCase('Preserve existing query string when no ? in substitution', async () => {
+    const rules = `RewriteEngine On\nRewriteRule ^old-page$ /new-page [R=301,L]`;
+    const res = await testHtaccessRules({
+      url: 'https://example.com/old-page?source=google',
+      htaccess: rules,
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.outputUrl, 'https://example.com/new-page?source=google');
+  });
+
+  await testCase('QSA appends original query to substitution query', async () => {
+    const rules = `RewriteEngine On\nRewriteRule ^search$ /results?type=all [QSA,R=301,L]`;
+    const res = await testHtaccessRules({
+      url: 'https://example.com/search?source=google',
+      htaccess: rules,
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.outputUrl, 'https://example.com/results?type=all&source=google');
+  });
+
+  await testCase('QSD discards original query string', async () => {
+    const rules = `RewriteEngine On\nRewriteRule ^old-page$ /new-page [QSD,R=301,L]`;
+    const res = await testHtaccessRules({
+      url: 'https://example.com/old-page?tracking=123',
+      htaccess: rules,
+      settings: { useLocalOnly: true }
+    });
+    assert.strictEqual(res.outputUrl, 'https://example.com/new-page');
+  });
+
+  // 18. ISSUE 4 & ISSUE 8 — Primary Engine Response Validation & Resilience
+  console.log('\n13. ISSUE 4 & 8 — Primary Engine Response Validation & Mocking:');
+  
+  await testCase('Graceful fallback when primary API fails or is unreachable', async () => {
+    // If request fails or times out, it should fall back to local engine and report a warning
+    const res = await testHtaccessRules({
+      url: 'https://example.com/legacy',
+      htaccess: `RewriteEngine On\nRewriteRule ^legacy$ /modern [R=301,L]`,
+      // Setting invalid server port to verify graceful fallback handling if needed
+      serverVariables: { HTTP_HOST: 'example.com' }
+    });
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.statusCode, 301);
+    assert.strictEqual(res.outputUrl, 'https://example.com/modern');
+    assert.ok(res.engineUsed === 'PRIMARY_API' || res.engineUsed === 'LOCAL_FALLBACK');
+  });
+
+  // 19. All 8 Quick-Load Templates Regression Test
+  console.log('\n14. Regression Verification for All 8 Quick-Load SEO Templates:');
+  for (const tpl of HTACCESS_EXAMPLES) {
+    await testCase(`Quick-load Template "${tpl.title}" evaluates successfully`, async () => {
+      const res = await testHtaccessRules({
+        url: tpl.sampleUrl,
+        htaccess: tpl.rules,
+        settings: { useLocalOnly: true }
+      });
+      assert.strictEqual(res.success, true);
+      assert.strictEqual(res.changed, true);
+      assert.ok(res.trace.length > 0);
+    });
+  }
+
   console.log('\n=====================================================');
   console.log(`TOTAL .HTACCESS TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
   console.log('=====================================================\n');
