@@ -11,7 +11,7 @@ const TOOLS_DATA = [
       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
     ),
     tools: [
-      { name: 'robots.txt Tester', description: 'Test whether URLs are allowed or blocked by robots.txt under official RFC 9309 rules with live editor and sitemap checks.', href: '/tools/robots-txt-tester', badge: 'Active' },
+      { name: 'robots.txt Tester', description: 'Test whether URLs are allowed or blocked by robots.txt under official RFC 9309 rules with live editor and sitemap checks.', href: '/tools/robots-txt-tester' },
       { name: 'AI Bot Access Tester', description: 'Check whether AI crawlers like GPTBot, ClaudeBot, and PerplexityBot can access your website.', href: '/tools/ai-bot-access-tester' },
       { name: '.htaccess Tester', description: 'Analyse common Apache .htaccess rewrite rules, HTTPS redirects, and header directives.', href: '/tools/htaccess-tester' },
       { name: 'Sitemap Generator', description: 'Generate and validate XML sitemaps to ensure search engine indexation coverage.', href: '/tools/sitemap-generator' }
@@ -167,11 +167,6 @@ export default function ToolsClient() {
                         <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors">
                           {tool.name}
                         </h3>
-                        {tool.badge && (
-                          <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-black rounded-full uppercase tracking-wider border border-green-300">
-                            {tool.badge}
-                          </span>
-                        )}
                       </div>
 
                       <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg flex-1 mb-6 leading-relaxed font-normal">
