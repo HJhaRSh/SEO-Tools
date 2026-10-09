@@ -680,19 +680,33 @@ export default function SitemapGenerator() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {zipDownloadId && (
+                {/* When only 1 file is generated, offer direct XML download as the primary button */}
+                {files.length === 1 && (
                   <a
-                    href={`/api/seo/sitemap/download/${zipDownloadId}`}
-                    className="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-sm"
+                    href={`/api/seo/sitemap/download/${files[0].downloadId}`}
+                    download={files[0].filename}
+                    className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-sm"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download ZIP (All Sitemaps)
+                    Download XML ({files[0].filename})
                   </a>
                 )}
+
+                {/* When multiple sitemap chunks or an index is generated, offer ZIP as the bundle option */}
+                {files.length > 1 && zipDownloadId && (
+                  <a
+                    href={`/api/seo/sitemap/download/${zipDownloadId}`}
+                    className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-sm"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download ZIP (All {files.length} Sitemaps)
+                  </a>
+                )}
+
                 {reportDownloadId && (errors.length > 0 || warnings.length > 0) && (
                   <a
                     href={`/api/seo/sitemap/download/${reportDownloadId}`}
-                    className="px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 font-bold text-xs transition-colors flex items-center gap-2"
+                    className="px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 font-bold text-xs transition-colors flex items-center gap-2"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                     Validation Report CSV ({errors.length + warnings.length} Alerts)
@@ -701,20 +715,23 @@ export default function SitemapGenerator() {
               </div>
             </div>
 
-            {/* Individual File Chips */}
-            <div className="flex flex-wrap gap-2">
-              {files.map(file => (
-                <a
-                  key={file.filename}
-                  href={`/api/seo/sitemap/download/${file.downloadId}`}
-                  className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-green-500 dark:hover:border-green-400 text-xs font-mono text-slate-800 dark:text-slate-200 transition-colors flex items-center gap-2"
-                >
-                  <span className={`w-2 h-2 rounded-full ${file.type === 'sitemapindex' ? 'bg-purple-500' : 'bg-green-500'}`}></span>
-                  <strong>{file.filename}</strong>
-                  <span className="text-slate-400">({(file.byteSize / 1024).toFixed(1)} KB | {file.urlCount} URLs)</span>
-                </a>
-              ))}
-            </div>
+            {/* Individual File Chips (if multiple files exist) */}
+            {files.length > 1 && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {files.map(file => (
+                  <a
+                    key={file.filename}
+                    href={`/api/seo/sitemap/download/${file.downloadId}`}
+                    download={file.filename}
+                    className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-green-500 dark:hover:border-green-400 text-xs font-mono text-slate-800 dark:text-slate-200 transition-colors flex items-center gap-2"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${file.type === 'sitemapindex' ? 'bg-purple-500' : 'bg-green-500'}`}></span>
+                    <strong>{file.filename}</strong>
+                    <span className="text-slate-400">({(file.byteSize / 1024).toFixed(1)} KB | {file.urlCount} URLs)</span>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* SECTION G: XML PREVIEW */}
