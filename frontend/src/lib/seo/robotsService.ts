@@ -15,6 +15,7 @@ export interface RobotsTxtCacheEntry {
 
 // In-memory cache for robots.txt (TTL: 10 minutes)
 const ROBOTS_CACHE = new Map<string, RobotsTxtCacheEntry>();
+const IN_FLIGHT_FETCHES = new Map<string, Promise<RobotsTxtCacheEntry>>();
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
 export interface TestRobotsOptions {
@@ -191,21 +192,33 @@ export async function testRobotsTxt(options: TestRobotsOptions): Promise<RobotsT
   let cached = ROBOTS_CACHE.get(origin);
   if (forceRefresh || !cached || Date.now() - cached.fetchedAt > CACHE_TTL_MS) {
     try {
-      const fetchRes = await safeFetch(robotsTxtUrl);
-      const parsed = parseRobotsTxt(fetchRes.body);
+      let fetchPromise = !forceRefresh ? IN_FLIGHT_FETCHES.get(origin) : undefined;
+      if (!fetchPromise) {
+        fetchPromise = (async () => {
+          const fetchRes = await safeFetch(robotsTxtUrl);
+          const parsed = parseRobotsTxt(fetchRes.body);
+          const entry: RobotsTxtCacheEntry = {
+            rawUrl: robotsTxtUrl,
+            statusCode: fetchRes.statusCode,
+            statusText: fetchRes.statusText,
+            content: fetchRes.body,
+            parsed,
+            fetchedAt: Date.now(),
+            durationMs: fetchRes.durationMs,
+            redirectHistory: fetchRes.redirectHistory
+          };
+          ROBOTS_CACHE.set(origin, entry);
+          return entry;
+        })();
 
-      cached = {
-        rawUrl: robotsTxtUrl,
-        statusCode: fetchRes.statusCode,
-        statusText: fetchRes.statusText,
-        content: fetchRes.body,
-        parsed,
-        fetchedAt: Date.now(),
-        durationMs: fetchRes.durationMs,
-        redirectHistory: fetchRes.redirectHistory
-      };
+        IN_FLIGHT_FETCHES.set(origin, fetchPromise);
+      }
 
-      ROBOTS_CACHE.set(origin, cached);
+      try {
+        cached = await fetchPromise;
+      } finally {
+        IN_FLIGHT_FETCHES.delete(origin);
+      }
     } catch (err: any) {
       // Network, DNS, timeout, or SSRF block error
       return {

@@ -114,9 +114,32 @@ async function runAiBotTests() {
     assert.strictEqual(res.wordCount, 10);
   });
 
-  testCase('Identify HTTP 403 Access Denied', () => {
-    const res = analyzePageContent(403, 'text/html', 'Forbidden');
+  testCase('Do not falsely classify a blog article discussing CAPTCHA as a challenge', () => {
+    const html = '<html><head><title>A Comprehensive Guide to Modern CAPTCHA Systems</title></head><body><h1>Understanding CAPTCHAs in 2026</h1><p>Many modern websites use tools like Google reCAPTCHA, Cloudflare Turnstile, and hCaptcha to distinguish bots from legitimate visitors. In this article, we explain how bot management systems work under the hood and why security teams configure them.</p></body></html>';
+    const res = analyzePageContent(200, 'text/html', html);
+    assert.strictEqual(res.status, 'CONTENT_RETRIEVED');
+    assert.strictEqual(res.challengeDetected, false);
+    assert.ok(res.wordCount > 30);
+  });
+
+  testCase('Detect Cloudflare Mitigated Challenge from headers', () => {
+    const html = '<html><head><title>Processing Request</title></head><body>Please wait</body></html>';
+    const res = analyzePageContent(200, 'text/html', html, { 'cf-mitigated': 'challenge' });
+    assert.strictEqual(res.status, 'POSSIBLE_CHALLENGE');
+    assert.strictEqual(res.challengeDetected, true);
+  });
+
+  testCase('Identify HTTP 403 with challenge screen as POSSIBLE_CHALLENGE', () => {
+    const html = '<html><head><title>Access Denied | Cloudflare</title></head><body>cf-browser-verification required. Ray ID: 893719</body></html>';
+    const res = analyzePageContent(403, 'text/html', html);
+    assert.strictEqual(res.status, 'POSSIBLE_CHALLENGE');
+    assert.strictEqual(res.challengeDetected, true);
+  });
+
+  testCase('Identify HTTP 403 standard forbidden without challenge', () => {
+    const res = analyzePageContent(403, 'text/html', 'Forbidden: You do not have permission to view this resource.');
     assert.strictEqual(res.status, 'ACCESS_DENIED');
+    assert.strictEqual(res.challengeDetected, false);
   });
 
   // 4. Fallback Isolation Test (Issue 4)

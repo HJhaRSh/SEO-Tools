@@ -12,6 +12,7 @@ export interface SafeFetchOptions {
   maxBytes?: number; // 500 KiB limit default
   headers?: Record<string, string>;
   userAgent?: string;
+  beforeRedirect?: (nextUrl: string, currentUrl: string) => Promise<{ allow: boolean; reason?: string }>;
 }
 
 export interface SafeFetchResult {
@@ -26,6 +27,8 @@ export interface SafeFetchResult {
   contentType: string;
   timestamp: string;
   isTruncated: boolean;
+  blockedByRedirectHook?: boolean;
+  redirectBlockedReason?: string;
 }
 
 const DEFAULT_MAX_REDIRECTS = 5;
@@ -243,6 +246,30 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         to: nextUrl,
         statusCode: res.statusCode
       });
+
+      // Redirect-aware security and robots check
+      if (options.beforeRedirect) {
+        const check = await options.beforeRedirect(nextUrl, currentUrl);
+        if (!check.allow) {
+          const durationMs = Date.now() - startTime;
+          return {
+            requestedUrl: rawUrl,
+            finalUrl: nextUrl,
+            statusCode: res.statusCode,
+            statusText: `Redirect stopped: ${check.reason || 'Blocked'}`,
+            headers: res.headers,
+            body: '',
+            redirectHistory,
+            durationMs,
+            contentType: 'text/plain',
+            timestamp: new Date().toISOString(),
+            isTruncated: false,
+            blockedByRedirectHook: true,
+            redirectBlockedReason: check.reason || 'Blocked by redirect policy'
+          };
+        }
+      }
+
       currentUrl = nextUrl;
       continue;
     }
