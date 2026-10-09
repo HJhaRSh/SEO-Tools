@@ -106,11 +106,6 @@ export default function SitemapGenerator() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Quick template download
-  const handleDownloadTemplate = (type: 'simple' | 'hreflang-wide' | 'hreflang-long') => {
-    window.open(`/api/seo/sitemap/templates/${type}`, '_blank');
-  };
-
   // Handle CSV/XLSX File selection
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -349,29 +344,6 @@ export default function SitemapGenerator() {
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">1. Select URL Input Method</h2>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Choose how you want to provide your URLs for sitemap generation</p>
             </div>
-          </div>
-
-          {/* Quick template download buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Sample CSVs:</span>
-            <button
-              onClick={() => handleDownloadTemplate('simple')}
-              className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
-            >
-              Simple
-            </button>
-            <button
-              onClick={() => handleDownloadTemplate('hreflang-wide')}
-              className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
-            >
-              Hreflang (Wide)
-            </button>
-            <button
-              onClick={() => handleDownloadTemplate('hreflang-long')}
-              className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
-            >
-              Hreflang (Long)
-            </button>
           </div>
         </div>
 
