@@ -31,6 +31,8 @@ export interface HtaccessTestRequest {
     directoryContext?: string;
     maxRewritePasses?: number;
     useLocalOnly?: boolean;
+    mockApiResponse?: any;
+    mockApiError?: string;
   };
 }
 

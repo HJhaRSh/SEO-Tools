@@ -9,8 +9,8 @@ import {
 import { validateHtaccessInput } from './htaccessValidation';
 
 const REMOTE_API_TIMEOUT_MS = 8000;
-const PRIVACY_NOTICE_API = 'Simulation processed via Apache rule engine (htaccess.madewithlove.com). Rules are evaluated in memory for diagnostics and are not saved.';
-const PRIVACY_NOTICE_LOCAL = 'Simulation processed via Indian Marketers local rule engine. All rules were evaluated entirely within our secure backend.';
+const PRIVACY_NOTICE_API = 'Simulation processed via external Apache rule engine (htaccess.madewithlove.com). Submitted rules are securely transmitted to the testing provider for evaluation.';
+const PRIVACY_NOTICE_LOCAL = 'Simulation processed via Indian Marketers deterministic local rule engine. All rules were evaluated entirely within our secure backend.';
 
 /**
  * Derives default Apache server variables from an input URL.
@@ -869,7 +869,14 @@ export async function testHtaccessRules(request: HtaccessTestRequest): Promise<H
   }
 
   try {
-    const apiRes = await callPrimaryApi(rawUrl, cleanedHtaccess, serverVars);
+    let apiRes: any;
+    if (request.settings?.mockApiError) {
+      throw new Error(request.settings.mockApiError);
+    } else if (request.settings?.mockApiResponse !== undefined) {
+      apiRes = request.settings.mockApiResponse;
+    } else {
+      apiRes = await callPrimaryApi(rawUrl, cleanedHtaccess, serverVars);
+    }
 
     // Validate structure of API response
     if (!apiRes || typeof apiRes !== 'object') {

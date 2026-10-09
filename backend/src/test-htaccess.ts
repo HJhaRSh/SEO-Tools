@@ -421,21 +421,96 @@ RewriteRule ^old$ new [R=301,L]`;
     assert.strictEqual(res.outputUrl, 'https://example.com/new-page');
   });
 
-  // 18. ISSUE 4 & ISSUE 8 — Primary Engine Response Validation & Resilience
-  console.log('\n13. ISSUE 4 & 8 — Primary Engine Response Validation & Mocking:');
+  // 18. ISSUE 4 & ISSUE 8 & FIX 9 — Primary Engine Response Validation & Mocking
+  console.log('\n13. Primary Engine Response Validation & Mock Scenarios:');
   
-  await testCase('Graceful fallback when primary API fails or is unreachable', async () => {
-    // If request fails or times out, it should fall back to local engine and report a warning
+  await testCase('Primary API Mock: Successful 301 evaluation', async () => {
     const res = await testHtaccessRules({
-      url: 'https://example.com/legacy',
-      htaccess: `RewriteEngine On\nRewriteRule ^legacy$ /modern [R=301,L]`,
-      // Setting invalid server port to verify graceful fallback handling if needed
-      serverVariables: { HTTP_HOST: 'example.com' }
+      url: 'https://example.com/mock-test',
+      htaccess: `RewriteEngine On\nRewriteRule ^mock-test$ /target [R=301,L]`,
+      settings: {
+        mockApiResponse: {
+          output_url: 'https://example.com/target',
+          output_status_code: 301,
+          lines: [
+            { value: 'RewriteEngine On', isValid: true, wasReached: true, isMet: true, isSupported: true, message: 'RewriteEngine turned ON' },
+            { value: 'RewriteRule ^mock-test$ /target [R=301,L]', isValid: true, wasReached: true, isMet: true, isSupported: true, message: 'Redirected to https://example.com/target' }
+          ]
+        }
+      }
+    });
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.transformationType, 'EXTERNAL_REDIRECT');
+    assert.strictEqual(res.statusCode, 301);
+    assert.strictEqual(res.outputUrl, 'https://example.com/target');
+    assert.strictEqual(res.engineUsed, 'PRIMARY_API');
+    assert.strictEqual(res.fullyEvaluated, true);
+  });
+
+  await testCase('Primary API Mock: Invalid directive reports INVALID_RULES and syntax error', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.com/broken',
+      htaccess: `RewriteRuleInvalidPattern`,
+      settings: {
+        mockApiResponse: {
+          output_url: 'https://example.com/broken',
+          output_status_code: null,
+          lines: [
+            { value: 'RewriteRuleInvalidPattern', isValid: false, wasReached: true, isMet: false, message: 'Syntax error: invalid directive' }
+          ]
+        }
+      }
+    });
+    assert.strictEqual(res.success, false);
+    assert.strictEqual(res.transformationType, 'INVALID_RULES');
+    assert.strictEqual(res.fullyEvaluated, false);
+    assert.ok(res.errors.length > 0);
+  });
+
+  await testCase('Primary API Mock: Unsupported directive reports warning and fullyEvaluated false', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.com/custom',
+      htaccess: `SomeUnsupportedModuleDirective on`,
+      settings: {
+        mockApiResponse: {
+          output_url: 'https://example.com/custom',
+          output_status_code: null,
+          lines: [
+            { value: 'SomeUnsupportedModuleDirective on', isValid: true, wasReached: true, isMet: false, isSupported: false, message: 'Directive not supported by Apache tester' }
+          ]
+        }
+      }
+    });
+    assert.strictEqual(res.fullyEvaluated, false);
+    assert.ok(res.warnings.some(w => w.includes('unsupported by the primary simulation engine')));
+  });
+
+  await testCase('Primary API Mock: Malformed/Empty object response falls back to local engine', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.com/malformed',
+      htaccess: `RewriteEngine On\nRewriteRule ^malformed$ /recovered [R=301,L]`,
+      settings: {
+        mockApiResponse: null
+      }
+    });
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.engineUsed, 'LOCAL_FALLBACK');
+    assert.strictEqual(res.outputUrl, 'https://example.com/recovered');
+  });
+
+  await testCase('Primary API Mock: Timeout / HTTP 500 error triggers local fallback', async () => {
+    const res = await testHtaccessRules({
+      url: 'https://example.com/timeout-test',
+      htaccess: `RewriteEngine On\nRewriteRule ^timeout-test$ /fallback-target [R=301,L]`,
+      settings: {
+        mockApiError: 'Primary testing API returned HTTP status 500: Server Error'
+      }
     });
     assert.strictEqual(res.success, true);
     assert.strictEqual(res.statusCode, 301);
-    assert.strictEqual(res.outputUrl, 'https://example.com/modern');
-    assert.ok(res.engineUsed === 'PRIMARY_API' || res.engineUsed === 'LOCAL_FALLBACK');
+    assert.strictEqual(res.outputUrl, 'https://example.com/fallback-target');
+    assert.strictEqual(res.engineUsed, 'LOCAL_FALLBACK');
+    assert.ok(res.warnings.some(w => w.includes('Primary engine unavailable')));
   });
 
   // 19. All 8 Quick-Load Templates Regression Test

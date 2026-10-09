@@ -10,6 +10,8 @@ export default function HtaccessTester() {
   const [htaccessInput, setHtaccessInput] = useState(`RewriteEngine On
 RewriteRule ^old-page$ /new-page [R=301,L]`);
   
+  const [directoryContext, setDirectoryContext] = useState('');
+  
   // Advanced Server Variables State
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [serverVars, setServerVars] = useState<HtaccessServerVariables>({
@@ -26,11 +28,15 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedTrace, setCopiedTrace] = useState(false);
 
+  // In-flight request sequencing reference to prevent stale responses from overwriting current state
+  const activeRequestIdRef = React.useRef(0);
+
   const handleApplyExample = (exampleId: string) => {
     const ex = HTACCESS_EXAMPLES.find(e => e.id === exampleId);
     if (ex) {
       setHtaccessInput(ex.rules);
       setUrlInput(ex.sampleUrl);
+      setDirectoryContext('');
       setErrorMessage(null);
       setResultData(null);
       setStatus('idle');
@@ -48,6 +54,15 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
 
   const handleHtaccessChange = (val: string) => {
     setHtaccessInput(val);
+    if (resultData || status !== 'idle') {
+      setResultData(null);
+      setStatus('idle');
+      setErrorMessage(null);
+    }
+  };
+
+  const handleDirectoryContextChange = (val: string) => {
+    setDirectoryContext(val);
     if (resultData || status !== 'idle') {
       setResultData(null);
       setStatus('idle');
@@ -76,6 +91,7 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
       return;
     }
 
+    const currentRequestId = ++activeRequestIdRef.current;
     setStatus('loading');
     setErrorMessage(null);
 
@@ -94,11 +110,20 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
         body: JSON.stringify({
           url: urlInput.trim(),
           htaccess: htaccessInput.trim(),
-          serverVariables: cleanVars
+          serverVariables: cleanVars,
+          settings: {
+            directoryContext: directoryContext.trim() || undefined
+          }
         })
       });
 
       const data = await res.json();
+
+      // Guard against race conditions: ignore response if a newer request was dispatched
+      if (currentRequestId !== activeRequestIdRef.current) {
+        return;
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to simulate .htaccess rules');
       }
@@ -106,8 +131,10 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
       setResultData(data);
       setStatus('success');
     } catch (err: any) {
-      setErrorMessage(err.message || 'An unexpected error occurred.');
-      setStatus('error');
+      if (currentRequestId === activeRequestIdRef.current) {
+        setErrorMessage(err.message || 'An unexpected error occurred.');
+        setStatus('error');
+      }
     }
   };
 
@@ -115,6 +142,7 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
     setUrlInput('https://example.com/old-page');
     setHtaccessInput(`RewriteEngine On
 RewriteRule ^old-page$ /new-page [R=301,L]`);
+    setDirectoryContext('');
     setServerVars({
       HTTP_HOST: '',
       HTTPS: '',
@@ -145,6 +173,28 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
     const a = document.createElement('a');
     a.href = url;
     a.download = `htaccess-test-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAsCsv = () => {
+    if (!resultData) return;
+    const headers = ['Line', 'Directive', 'Original Text', 'Valid', 'Reached', 'Matched', 'Message'];
+    const rows = resultData.trace.map(t => [
+      t.lineNumber,
+      `"${(t.directive || '').replace(/"/g, '""')}"`,
+      `"${(t.originalText || '').replace(/"/g, '""')}"`,
+      t.isValid ? 'Yes' : 'No',
+      t.wasReached ? 'Yes' : 'No',
+      t.isMet ? 'Yes' : 'No',
+      `"${(t.message || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `htaccess-trace-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -296,6 +346,16 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
                     onChange={(e) => handleServerVarChange('HTTP_REFERER', e.target.value)}
                   />
                 </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Directory Context (e.g. /shop/)</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg font-mono text-slate-800"
+                    placeholder="/ or /subdirectory/"
+                    value={directoryContext}
+                    onChange={(e) => handleDirectoryContextChange(e.target.value)}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -371,6 +431,12 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
                     className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer transition-all"
                   >
                     Export JSON
+                  </button>
+                  <button
+                    onClick={exportAsCsv}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer transition-all"
+                  >
+                    Export CSV
                   </button>
                 </div>
               </div>
