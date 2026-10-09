@@ -23,15 +23,17 @@ export interface HtaccessServerVariables {
   [key: string]: string | undefined;
 }
 
+export interface HtaccessPublicSettings {
+  directoryContext?: string;
+  maxRewritePasses?: number;
+  useLocalOnly?: boolean;
+}
+
 export interface HtaccessTestRequest {
   url: string;
   htaccess: string;
   serverVariables?: HtaccessServerVariables;
-  settings?: {
-    directoryContext?: string;
-    maxRewritePasses?: number;
-    useLocalOnly?: boolean;
-  };
+  settings?: HtaccessPublicSettings;
 }
 
 export interface HtaccessTraceLine {

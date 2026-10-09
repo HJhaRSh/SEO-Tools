@@ -53,3 +53,37 @@ export function validateHtaccessInput(urlInput: string, htaccessInput: string): 
     lineCount: lines.length
   };
 }
+
+/**
+ * Whitelists allowed production settings at the API boundary.
+ * Strictly strips or ignores mock fields, non-whitelisted properties, or dangerous flags.
+ */
+export function sanitizeHtaccessSettings(settings: any): {
+  directoryContext?: string;
+  maxRewritePasses?: number;
+  useLocalOnly?: boolean;
+} {
+  if (!settings || typeof settings !== 'object') {
+    return {};
+  }
+
+  const clean: {
+    directoryContext?: string;
+    maxRewritePasses?: number;
+    useLocalOnly?: boolean;
+  } = {};
+
+  if (typeof settings.directoryContext === 'string' && settings.directoryContext.trim()) {
+    clean.directoryContext = settings.directoryContext.trim();
+  }
+
+  if (typeof settings.maxRewritePasses === 'number' && Number.isInteger(settings.maxRewritePasses) && settings.maxRewritePasses > 0 && settings.maxRewritePasses <= 20) {
+    clean.maxRewritePasses = settings.maxRewritePasses;
+  }
+
+  if (typeof settings.useLocalOnly === 'boolean') {
+    clean.useLocalOnly = settings.useLocalOnly;
+  }
+
+  return clean;
+}
