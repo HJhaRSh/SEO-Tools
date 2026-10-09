@@ -103,8 +103,8 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const parsedUrl = validateUrl(currentUrl);
-    // SSRF DNS re-check on every hop
-    await validateAndResolveHost(parsedUrl.hostname);
+    // SSRF DNS re-check on every hop and pin validated IP
+    const resolvedIp = await validateAndResolveHost(parsedUrl.hostname);
 
     const client = parsedUrl.protocol === 'https:' ? https : http;
 
@@ -114,7 +114,19 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
       port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
       path: parsedUrl.pathname + parsedUrl.search,
       method: 'GET',
+      // Pin connection to validated IP to prevent DNS rebinding (TOCTOU attacks)
+      lookup: (_hostname: string, optionsOrCallback: any, maybeCallback?: any) => {
+        const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
+        const opts = typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
+        const family = resolvedIp.includes(':') ? 6 : 4;
+        if (opts && opts.all) {
+          cb(null, [{ address: resolvedIp, family }]);
+        } else {
+          cb(null, resolvedIp, family);
+        }
+      },
       headers: {
+        'Host': parsedUrl.hostname + (parsedUrl.port ? `:${parsedUrl.port}` : ''),
         'User-Agent': customUserAgent,
         'Accept': 'text/plain, text/html, application/xml, text/xml, */*;q=0.8',
         'Accept-Encoding': 'identity', // avoid compressed streams that could bypass byte counting or cause zip bombs

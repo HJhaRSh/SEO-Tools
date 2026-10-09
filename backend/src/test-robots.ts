@@ -119,6 +119,32 @@ const emptyRules = selectRulesForUserAgent(emptyParsed.groups, '*');
 const emptyRes = evaluateCrawlability(emptyRules.rules, '/anything', 'Generic', '*');
 assert.strictEqual(emptyRes.status, 'ALLOWED', 'Empty Disallow should allow all');
 
+// G. Issue 5 Required Specification Test:
+// User-agent: * Disallow: /admin/ Allow: /admin/public/
+const adminRobots = `
+User-agent: *
+Disallow: /admin/
+Allow: /admin/public/
+`;
+const adminParsed = parseRobotsTxt(adminRobots);
+const adminRules = selectRulesForUserAgent(adminParsed.groups, '*');
+const adminDashboard = evaluateCrawlability(adminRules.rules, '/admin/dashboard', 'Googlebot', '*');
+const adminPublicHelp = evaluateCrawlability(adminRules.rules, '/admin/public/help', 'Googlebot', '*');
+assert.strictEqual(adminDashboard.status, 'BLOCKED', '/admin/dashboard should be BLOCKED');
+assert.strictEqual(adminPublicHelp.status, 'ALLOWED', '/admin/public/help should be ALLOWED');
+
+// H. UTF-8 multi-byte specificity test per RFC 9309
+const unicodeRobots = `
+User-agent: *
+Disallow: /café/
+Allow: /café/menu
+`;
+const unicodeParsed = parseRobotsTxt(unicodeRobots);
+const unicodeRules = selectRulesForUserAgent(unicodeParsed.groups, '*');
+const uniRes = evaluateCrawlability(unicodeRules.rules, '/café/menu', 'Googlebot', '*');
+assert.strictEqual(uniRes.status, 'ALLOWED', 'Longer octet rule /café/menu must take precedence');
+assert.strictEqual(uniRes.specificity, Buffer.byteLength('/café/menu', 'utf8'));
+
 console.log('   ✓ Rule evaluation & RFC 9309 specificity tests passed.');
 
 // 4. Repeated User-Agent group combination test

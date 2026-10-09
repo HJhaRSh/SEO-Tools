@@ -25,16 +25,18 @@ app.get('/api/health', (req: Request, res: Response) => {
 // POST /api/seo/robots/test
 app.post('/api/seo/robots/test', async (req: Request, res: Response) => {
   try {
-    const { websiteUrl, customContent, path, userAgent } = req.body;
+    const { websiteUrl, customContent, customRobotsTxt, path, userAgent, mode, forceRefresh } = req.body;
     if (!websiteUrl) {
       return res.status(400).json({ success: false, error: 'websiteUrl is required' });
     }
 
     const result = await testRobotsTxt({
       websiteUrl,
-      customContent,
-      path,
-      userAgent
+      customRobotsTxt: customRobotsTxt || customContent || null,
+      path: path || '/',
+      userAgent: userAgent || 'Googlebot',
+      mode: mode || (customRobotsTxt || customContent ? 'editor' : 'live'),
+      forceRefresh: Boolean(forceRefresh)
     });
 
     res.json(result);

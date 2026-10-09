@@ -330,13 +330,14 @@ export function evaluateCrawlability(
     }
 
     if (matchPattern(rule.pattern, normalized)) {
-      const specificity = rule.pattern.length;
+      // RFC 9309 section 2.2.2: The most specific rule is determined by the longest matching pattern in octets (UTF-8 bytes)
+      const specificity = Buffer.byteLength(rule.pattern, 'utf8');
 
       if (specificity > bestSpecificity) {
         bestSpecificity = specificity;
         bestRule = rule;
       } else if (specificity === bestSpecificity) {
-        // Tie-breaker: Allow takes precedence over Disallow per RFC 9309 section 2.2.2
+        // Tie-breaker: Allow takes precedence over Disallow with equal specificity per RFC 9309 section 2.2.2
         if (rule.type === 'allow' && bestRule && bestRule.type === 'disallow') {
           bestRule = rule;
         }

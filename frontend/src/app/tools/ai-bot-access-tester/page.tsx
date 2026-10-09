@@ -435,6 +435,21 @@ export default function AiBotAccessTester() {
               </div>
             </div>
 
+            {/* URL SUBMISSION & DUPLICATE REPORT BANNER */}
+            {resultData.urlStats && resultData.urlStats.duplicateCount > 0 && (
+              <div className="p-3.5 px-4 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded">URL Notice</span>
+                  <span>
+                    Submitted: <strong>{resultData.urlStats.submittedCount}</strong> &bull; Unique Tested: <strong>{resultData.urlStats.uniqueCount}</strong> &bull; Duplicates Removed: <strong>{resultData.urlStats.duplicateCount}</strong>
+                  </span>
+                </div>
+                <span className="text-[11px] text-amber-700 font-normal hidden sm:inline">
+                  Redundant URLs were automatically deduplicated to optimize performance.
+                </span>
+              </div>
+            )}
+
             {/* URL SELECTION HEADER / TABS (If multiple URLs tested) */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               {matrixUrls.length > 1 ? (

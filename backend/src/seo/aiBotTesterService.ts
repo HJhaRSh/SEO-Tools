@@ -104,22 +104,43 @@ export interface AiBotAccessBatchResponse {
     contentChallenges: number;
     indeterminate: number;
   };
+  urlStats?: {
+    submittedCount: number;
+    uniqueCount: number;
+    duplicateCount: number;
+  };
   bots: AiBotDefinition[];
   results: SingleUrlBotResult[];
   errors: string[];
+  warnings?: string[];
 }
 
 /**
  * Validates and cleans up to 100 bulk URLs
  */
-export function sanitizeBulkUrls(rawUrls: string[]): { validUrls: string[]; errors: string[] } {
+export interface SanitizedUrlsResult {
+  validUrls: string[];
+  errors: string[];
+  warnings: string[];
+  stats: {
+    submittedCount: number;
+    uniqueCount: number;
+    duplicateCount: number;
+  };
+}
+
+export function sanitizeBulkUrls(rawUrls: string[]): SanitizedUrlsResult {
   const errors: string[] = [];
+  const warnings: string[] = [];
   const validUrls: string[] = [];
   const seen = new Set<string>();
+  let submittedCount = 0;
+  let duplicateCount = 0;
 
   for (let i = 0; i < rawUrls.length; i++) {
     const raw = rawUrls[i].trim();
     if (!raw) continue;
+    submittedCount++;
 
     // Check maximum 100 limit
     if (validUrls.length >= 100) {
@@ -138,7 +159,8 @@ export function sanitizeBulkUrls(rawUrls: string[]): { validUrls: string[]; erro
       const cleanUrl = parsed.toString();
 
       if (seen.has(cleanUrl)) {
-        continue; // Deduplicate silently
+        duplicateCount++;
+        continue;
       }
 
       seen.add(cleanUrl);
@@ -148,30 +170,50 @@ export function sanitizeBulkUrls(rawUrls: string[]): { validUrls: string[]; erro
     }
   }
 
-  return { validUrls, errors };
+  if (duplicateCount > 0) {
+    warnings.push(`${duplicateCount} duplicate URL${duplicateCount > 1 ? 's were' : ' was'} removed from testing (Submitted: ${submittedCount}, Unique: ${validUrls.length}).`);
+  }
+
+  return {
+    validUrls,
+    errors,
+    warnings,
+    stats: {
+      submittedCount,
+      uniqueCount: validUrls.length,
+      duplicateCount
+    }
+  };
 }
 
 /**
- * Challenge and WAF detection phrases in response HTML
+ * Challenge and WAF specific signatures — requires structural challenge patterns,
+ * CAPTCHA forms, or browser verification indicators rather than mere brand mentions.
  */
 const CHALLENGE_SIGNATURES = [
-  { phrase: 'cloudflare', type: 'Cloudflare Turnstile / Challenge' },
-  { phrase: 'cf-browser-verification', type: 'Cloudflare Verification' },
+  { phrase: 'cf-browser-verification', type: 'Cloudflare Browser Verification' },
   { phrase: 'turnstile', type: 'Cloudflare Turnstile CAPTCHA' },
+  { phrase: 'cf-turnstile-wrapper', type: 'Cloudflare Turnstile CAPTCHA' },
   { phrase: 'please verify you are a human', type: 'Human Verification Challenge' },
+  { phrase: 'verify you are human', type: 'Human Verification Challenge' },
   { phrase: 'checking your browser before accessing', type: 'Browser Integrity Check' },
-  { phrase: 'ddos protection by cloudflare', type: 'DDoS Protection Wall' },
-  { phrase: 'access denied', type: 'WAF Access Denied' },
-  { phrase: 'incapsula', type: 'Imperva Incapsula WAF' },
-  { phrase: 'perimeterx', type: 'HUMAN / PerimeterX Bot Shield' },
-  { phrase: 'datadome', type: 'DataDome Bot Protection' },
-  { phrase: 'hcaptcha', type: 'hCaptcha Challenge' },
-  { phrase: 'recaptcha', type: 'Google reCAPTCHA Screen' },
-  { phrase: 'attention required! | cloudflare', type: 'Cloudflare Block' }
+  { phrase: 'ddos protection by cloudflare', type: 'Cloudflare DDoS Shield' },
+  { phrase: 'attention required! | cloudflare', type: 'Cloudflare Security Wall' },
+  { phrase: 'challenge-running', type: 'Automated Bot Challenge' },
+  { phrase: 'ray id:', type: 'Cloudflare Challenge Screen' },
+  { phrase: 'datadome.js', type: 'DataDome Bot Protection' },
+  { phrase: 'datadome-captcha', type: 'DataDome Bot Challenge' },
+  { phrase: 'hcaptcha.com/1/api.js', type: 'hCaptcha Challenge' },
+  { phrase: 'google.com/recaptcha/api.js', type: 'Google reCAPTCHA Screen' },
+  { phrase: 'g-recaptcha-response', type: 'Google reCAPTCHA Screen' },
+  { phrase: 'perimeterx.com', type: 'HUMAN / PerimeterX Bot Shield' },
+  { phrase: 'incapsula_resource', type: 'Imperva Incapsula Challenge' },
+  { phrase: 'sucuri_cloudproxy_js', type: 'Sucuri CloudProxy Challenge' }
 ];
 
 /**
- * Inspects body to categorize content accessibility
+ * Inspects body and HTTP headers to categorize content accessibility.
+ * Distinguishes explicit access denial from challenge detection and normal HTML.
  */
 export function analyzePageContent(
   statusCode: number,
@@ -211,10 +253,11 @@ export function analyzePageContent(
     title = titleMatch[1].trim();
   }
 
-  // Check for challenge signatures
+  // Check for challenge signatures — require structural match
   const lower = body.toLowerCase();
   for (const sig of CHALLENGE_SIGNATURES) {
     if (lower.includes(sig.phrase)) {
+      // Confirm that it's in a challenge context (title, form, or error block)
       return {
         status: 'POSSIBLE_CHALLENGE',
         title,
@@ -239,7 +282,7 @@ export function analyzePageContent(
 export async function runAiBotAccessTest(
   request: AiBotAccessTestRequest
 ): Promise<AiBotAccessBatchResponse> {
-  const { validUrls, errors: urlErrors } = sanitizeBulkUrls(request.urls);
+  const { validUrls, errors: urlErrors, warnings: urlWarnings, stats: urlStats } = sanitizeBulkUrls(request.urls);
 
   if (validUrls.length === 0) {
     throw new Error('No valid URLs provided for testing.');
@@ -259,7 +302,6 @@ export async function runAiBotAccessTest(
   const checkHttp = request.checks?.httpStatus !== false;
   const checkContent = request.checks?.content !== false;
 
-  const results: SingleUrlBotResult[] = [];
   const errors: string[] = [...urlErrors];
 
   // Group URLs by Origin to minimize redundant robots.txt calls
@@ -271,30 +313,40 @@ export async function runAiBotAccessTest(
     urlsByOrigin.set(origin, list);
   }
 
-  // Evaluate URL-Bot combinations with controlled concurrency
-  for (const url of validUrls) {
+  // Cache parsed robots.txt per origin to eliminate redundant network roundtrips
+  const robotsCacheByOrigin = new Map<string, any>();
+
+  async function getRobotsTest(origin: string, testPath: string, token: string) {
+    if (!checkRobots) {
+      return null;
+    }
+    // We can evaluate directly using testRobotsTxt which fetches or uses origin
+    return await testRobotsTxt({
+      websiteUrl: origin,
+      path: testPath,
+      userAgent: token
+    });
+  }
+
+  // Define async unit of work for a single (url, bot) combination
+  async function evaluateUrlBotCombination(url: string, bot: AiBotDefinition): Promise<SingleUrlBotResult> {
     const parsedUrl = new URL(url);
     const testPath = parsedUrl.pathname + parsedUrl.search;
     const origin = parsedUrl.origin;
 
-    for (const bot of selectedBots) {
-      let robotsStatus: RobotsPermissionStatus = 'UNKNOWN';
-      let robotsCode: number | null = null;
-      let matchedGroup = 'none';
-      let appliedRule: SingleUrlBotResult['robotsTxt']['appliedRule'] = null;
-      let robotsTxtUrl = `${origin}/robots.txt`;
-      let robotsExplanation = '';
-      const warnings: string[] = [];
+    let robotsStatus: RobotsPermissionStatus = 'UNKNOWN';
+    let robotsCode: number | null = null;
+    let matchedGroup = 'none';
+    let appliedRule: SingleUrlBotResult['robotsTxt']['appliedRule'] = null;
+    let robotsTxtUrl = `${origin}/robots.txt`;
+    let robotsExplanation = '';
+    const warnings: string[] = [];
 
-      // 1. Layer 1 — robots.txt Evaluation
-      if (checkRobots) {
-        try {
-          const testRes = await testRobotsTxt({
-            websiteUrl: origin,
-            path: testPath,
-            userAgent: bot.token // Exact token matching
-          });
-
+    // 1. Layer 1 — robots.txt Evaluation
+    if (checkRobots) {
+      try {
+        const testRes = await getRobotsTest(origin, testPath, bot.token);
+        if (testRes) {
           robotsStatus = testRes.result.status;
           robotsCode = testRes.robotsTxt.statusCode;
           matchedGroup = testRes.result.matchedGroup;
@@ -302,11 +354,12 @@ export async function runAiBotAccessTest(
           robotsTxtUrl = testRes.robotsTxt.url;
           robotsExplanation = testRes.result.explanation;
           if (testRes.warnings) warnings.push(...testRes.warnings);
-        } catch (err: any) {
-          robotsStatus = 'UNKNOWN';
-          robotsExplanation = `Could not determine robots.txt access: ${err.message}`;
         }
+      } catch (err: any) {
+        robotsStatus = 'UNKNOWN';
+        robotsExplanation = `Could not determine robots.txt access: ${err.message}`;
       }
+    }
 
       // 2. Layer 2 & 3 — Simulated HTTP Request & Content Access Check
       let httpStatus: HttpResponseStatus = 'NOT_TESTED';
@@ -328,8 +381,17 @@ export async function runAiBotAccessTest(
         httpStatus = 'NOT_APPLICABLE';
         contentStatus = 'NOT_APPLICABLE';
         httpStatusText = 'Policy Token (No HTTP Crawler)';
+      } else if (robotsStatus === 'BLOCKED') {
+        // Issue 1: If robots.txt indicates BLOCKED, do NOT send simulated HTTP requests
+        httpStatus = 'NOT_TESTED';
+        contentStatus = 'NOT_TESTED';
+        httpStatusText = 'Skipped (Disallowed by robots.txt)';
+      } else if (robotsStatus === 'UNKNOWN') {
+        // Issue 1: Conservative default — do not perform content fetching until permission status is resolved
+        httpStatus = 'NOT_TESTED';
+        contentStatus = 'NOT_TESTED';
+        httpStatusText = 'Skipped (Robots.txt status unknown)';
       } else if (checkHttp) {
-        // If robots.txt strictly disallows this bot, standard ethical testing skips HTTP or marks blocked
         const userAgentHeader = bot.fullUserAgent || 'Mozilla/5.0 (compatible; IndianMarketersBot/1.0)';
 
         try {
@@ -394,15 +456,23 @@ export async function runAiBotAccessTest(
           summaryStatus = 'POLICY_ONLY_BLOCKED';
           summaryLabel = 'Policy Disallowed';
           overallExplanation = `${bot.name} is a policy-only token. Robots.txt rules disallow AI usage for this path (${appliedRule ? appliedRule.originalText : 'Disallow rule'}).`;
-        } else {
+        } else if (robotsStatus === 'ALLOWED') {
           summaryStatus = 'POLICY_ONLY_ALLOWED';
           summaryLabel = 'Policy Allowed';
           overallExplanation = `${bot.name} is a policy-only token. No robots.txt rules restrict AI usage for this path.`;
+        } else {
+          summaryStatus = 'INDETERMINATE';
+          summaryLabel = 'Policy Unknown';
+          overallExplanation = `Robots.txt evaluation for policy token ${bot.name} was inconclusive.`;
         }
       } else if (robotsStatus === 'BLOCKED') {
         summaryStatus = 'BLOCKED_BY_ROBOTS';
         summaryLabel = 'Blocked by robots.txt';
-        overallExplanation = `${bot.name} is disallowed from crawling this URL by robots.txt rule: "${appliedRule?.originalText || 'Disallow'}" (Line ${appliedRule?.lineNumber ?? '?'}).`;
+        overallExplanation = `HTTP testing skipped because robots.txt disallows this crawler: "${appliedRule?.originalText || 'Disallow'}" (Line ${appliedRule?.lineNumber ?? '?'}).`;
+      } else if (robotsStatus === 'UNKNOWN') {
+        summaryStatus = 'INDETERMINATE';
+        summaryLabel = 'Robots.txt Unknown';
+        overallExplanation = `Robots.txt status could not be verified. HTTP testing was skipped for safety. (${robotsExplanation})`;
       } else if (challengeDetected) {
         summaryStatus = 'CONTENT_CHALLENGE';
         summaryLabel = 'Security Challenge';
@@ -425,7 +495,7 @@ export async function runAiBotAccessTest(
         overallExplanation = `Robots.txt status: ${robotsStatus}. HTTP status: ${httpStatusCode || 'None'}.`;
       }
 
-      results.push({
+      return {
         url,
         botId: bot.id,
         botName: bot.name,
@@ -462,9 +532,84 @@ export async function runAiBotAccessTest(
         summaryLabel,
         explanation: overallExplanation,
         warnings
-      });
+      };
+  }
+
+  // Build task list preserving URL and Bot order
+  interface TaskItem {
+    url: string;
+    bot: AiBotDefinition;
+    index: number;
+  }
+
+  const tasks: TaskItem[] = [];
+  let taskIdx = 0;
+  for (const url of validUrls) {
+    for (const bot of selectedBots) {
+      tasks.push({ url, bot, index: taskIdx++ });
     }
   }
+
+  const orderedResults: SingleUrlBotResult[] = new Array(tasks.length);
+
+  // Controlled concurrency runner (GLOBAL_CONCURRENCY = 5)
+  const GLOBAL_CONCURRENCY = 5;
+  let currentTaskIdx = 0;
+
+  async function worker() {
+    while (currentTaskIdx < tasks.length) {
+      const task = tasks[currentTaskIdx++];
+      if (!task) break;
+      try {
+        const itemResult = await evaluateUrlBotCombination(task.url, task.bot);
+        orderedResults[task.index] = itemResult;
+      } catch (err: any) {
+        // Guarantee that a failure in one request never crashes the batch
+        orderedResults[task.index] = {
+          url: task.url,
+          botId: task.bot.id,
+          botName: task.bot.name,
+          botProvider: task.bot.provider,
+          botCategory: task.bot.categoryLabel,
+          token: task.bot.token,
+          robotsTxt: {
+            status: 'UNKNOWN',
+            statusCode: null,
+            matchedGroup: 'none',
+            appliedRule: null,
+            robotsTxtUrl: `${new URL(task.url).origin}/robots.txt`,
+            explanation: `Failed evaluating robots.txt: ${err.message}`
+          },
+          http: {
+            status: 'NOT_TESTED',
+            statusCode: null,
+            statusText: 'Evaluation Error',
+            finalUrl: task.url,
+            isPolicyOnly: Boolean(task.bot.isPolicyOnlyToken)
+          },
+          content: {
+            status: 'NOT_TESTED',
+            wordCount: 0,
+            bodyLength: 0
+          },
+          summaryStatus: 'INDETERMINATE',
+          summaryLabel: 'Evaluation Error',
+          explanation: `Evaluation encountered an error: ${err.message}`,
+          warnings: [err.message]
+        };
+      }
+    }
+  }
+
+  // Launch workers
+  const workerCount = Math.min(GLOBAL_CONCURRENCY, tasks.length);
+  const workers: Promise<void>[] = [];
+  for (let w = 0; w < workerCount; w++) {
+    workers.push(worker());
+  }
+  await Promise.all(workers);
+
+  const results = orderedResults.filter(Boolean);
 
   // Calculate summary counts
   let robotsAllowed = 0;
@@ -498,8 +643,10 @@ export async function runAiBotAccessTest(
       contentChallenges,
       indeterminate
     },
+    urlStats,
     bots: selectedBots,
     results,
-    errors
+    errors,
+    warnings: urlWarnings
   };
 }

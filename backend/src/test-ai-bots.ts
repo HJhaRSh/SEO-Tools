@@ -98,11 +98,20 @@ async function runAiBotTests() {
     assert.strictEqual(res.challengeDetected, true);
   });
 
-  testCase('Identify normal HTML content', () => {
+  testCase('Do not falsely classify normal pages mentioning Cloudflare as challenges', () => {
+    const html = '<html><head><title>Cloudflare Review & Features</title></head><body><h1>About Cloudflare CDN</h1><p>We use Cloudflare for our DNS and SSL acceleration.</p></body></html>';
+    const res = analyzePageContent(200, 'text/html', html);
+    assert.strictEqual(res.status, 'CONTENT_RETRIEVED');
+    assert.strictEqual(res.challengeDetected, false);
+    assert.ok(res.wordCount > 5);
+  });
+
+  testCase('Identify normal HTML content and word count', () => {
     const html = '<html><head><title>SEO Articles</title></head><body><h1>Welcome to Indian Marketers SEO Suite</h1><p>Comprehensive tools.</p></body></html>';
     const res = analyzePageContent(200, 'text/html', html);
     assert.strictEqual(res.status, 'CONTENT_RETRIEVED');
     assert.strictEqual(res.title, 'SEO Articles');
+    assert.strictEqual(res.wordCount, 10);
   });
 
   testCase('Identify HTTP 403 Access Denied', () => {
@@ -110,9 +119,36 @@ async function runAiBotTests() {
     assert.strictEqual(res.status, 'ACCESS_DENIED');
   });
 
-  // 4. Batch 3-Layer Evaluation Test
-  console.log('\n4. Batch 3-Layer Access Evaluation:');
-  await testCaseAsync('Evaluate Wikipedia against GPTBot & Google-Extended', async () => {
+  // 4. Fallback Isolation Test (Issue 4)
+  console.log('\n4. Fallback Independence Tests:');
+  testCase('Verify OAI-SearchBot and GPTBot have independent tokens and no borrowed fallbacks', () => {
+    const gpt = getAiBotById('gptbot');
+    const oaiSearch = getAiBotById('oai-searchbot');
+    assert.strictEqual(gpt?.token, 'GPTBot');
+    assert.strictEqual(oaiSearch?.token, 'OAI-SearchBot');
+    assert.strictEqual(oaiSearch?.fallbackToken, undefined);
+  });
+
+  // 5. Duplicate URL Reporting Test (Issue 8)
+  console.log('\n5. Duplicate URL Reporting:');
+  testCase('Accurately track submitted, unique, and duplicate counts', () => {
+    const raw = [
+      'https://example.com/blog',
+      'https://example.com/about',
+      'https://example.com/blog',
+      'https://example.com/blog#ref'
+    ];
+    const { validUrls, stats, warnings } = sanitizeBulkUrls(raw);
+    assert.strictEqual(stats.submittedCount, 4);
+    assert.strictEqual(stats.uniqueCount, 2);
+    assert.strictEqual(stats.duplicateCount, 2);
+    assert.ok(warnings.length > 0);
+    assert.match(warnings[0], /2 duplicate URLs were removed/);
+  });
+
+  // 6. Batch 3-Layer Evaluation & Blocked-Skip Test (Issue 1 & 2)
+  console.log('\n6. Batch 3-Layer Access Evaluation:');
+  await testCaseAsync('Evaluate Wikipedia: GPTBot (Blocked & Skipped HTTP) & Google-Extended (Policy Only)', async () => {
     const res = await runAiBotAccessTest({
       urls: ['https://en.wikipedia.org/wiki/Special:Search'],
       botIds: ['gptbot', 'google-extended']
@@ -123,10 +159,15 @@ async function runAiBotTests() {
 
     const gptResult = res.results.find(r => r.botId === 'gptbot');
     assert.strictEqual(gptResult?.robotsTxt.status, 'BLOCKED');
+    // Issue 1: HTTP must be NOT_TESTED when robots.txt is BLOCKED
+    assert.strictEqual(gptResult?.http.status, 'NOT_TESTED');
+    assert.strictEqual(gptResult?.content.status, 'NOT_TESTED');
+    assert.match(gptResult?.explanation || '', /HTTP testing skipped because robots\.txt disallows/);
 
     const gExtResult = res.results.find(r => r.botId === 'google-extended');
     assert.strictEqual(gExtResult?.http.isPolicyOnly, true);
     assert.strictEqual(gExtResult?.http.status, 'NOT_APPLICABLE');
+    assert.strictEqual(gExtResult?.content.status, 'NOT_APPLICABLE');
   });
 
   console.log('\n=====================================================');
