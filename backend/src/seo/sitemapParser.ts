@@ -13,7 +13,7 @@ import { parse as parseCsv } from 'csv-parse/sync';
 import ExcelJS from 'exceljs';
 import { ColumnMapping, SpreadsheetParseResult, SitemapUrlEntry } from './sitemapTypes.js';
 
-export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB (consistent with gateway limit)
 export const MAX_ALLOWED_ROWS = 100000;
 export const MAX_ALLOWED_COLUMNS = 100;
 
@@ -105,8 +105,20 @@ export function parseCsvContent(
     };
   }
 
-  // Deduplicate headers if identical
-  const headers = rawHeaders.map((h, i) => (h && h.trim()) ? h.trim() : `Column_${i + 1}`);
+  // Deduplicate headers and preserve physical positions
+  const seenHeaderCounts = new Map<string, number>();
+  const duplicateHeaderWarnings: string[] = [];
+
+  const headers = rawHeaders.map((rawH, i) => {
+    let clean = (rawH && rawH.trim()) ? rawH.trim() : `Column_${i + 1}`;
+    const count = (seenHeaderCounts.get(clean.toLowerCase()) || 0) + 1;
+    seenHeaderCounts.set(clean.toLowerCase(), count);
+    if (count > 1) {
+      duplicateHeaderWarnings.push(`Duplicate header "${clean}" detected at column ${i + 1}.`);
+      clean = `${clean} (${count})`;
+    }
+    return clean;
+  });
 
   const dataRows = records.slice(1);
   const allRows = dataRows.map(row => {
@@ -128,7 +140,8 @@ export function parseCsvContent(
     rows: allRows,
     previewRows,
     detectedMapping,
-    suggestedType
+    suggestedType,
+    warnings: duplicateHeaderWarnings.length > 0 ? duplicateHeaderWarnings : undefined
   };
 }
 
@@ -199,14 +212,32 @@ export async function parseXlsxContent(
     };
   }
 
-  // Extract Header row (row 1)
+  // Extract Header row (row 1) preserving physical column indexes
   const headerRow = worksheet.getRow(1);
-  const headers: string[] = [];
-  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-    if (colNumber <= MAX_ALLOWED_COLUMNS) {
-      headers.push(String(cell.text || cell.value || `Column_${colNumber}`).trim());
+  const rawHeaders: { colNumber: number; text: string }[] = [];
+  const maxCol = Math.min(headerRow.cellCount || worksheet.columnCount || 0, MAX_ALLOWED_COLUMNS);
+
+  const seenHeaderCounts = new Map<string, number>();
+  const duplicateHeaderWarnings: string[] = [];
+
+  for (let c = 1; c <= maxCol; c++) {
+    const cell = headerRow.getCell(c);
+    let cellText = String(cell.text || cell.value || '').trim();
+    if (!cellText) {
+      cellText = `Column_${c}`; // Preserve physical position c
     }
-  });
+
+    const count = (seenHeaderCounts.get(cellText.toLowerCase()) || 0) + 1;
+    seenHeaderCounts.set(cellText.toLowerCase(), count);
+    if (count > 1) {
+      duplicateHeaderWarnings.push(`Duplicate header "${cellText}" detected at column ${c}.`);
+      cellText = `${cellText} (${count})`;
+    }
+
+    rawHeaders.push({ colNumber: c, text: cellText });
+  }
+
+  const headers = rawHeaders.map(h => h.text);
 
   if (headers.length === 0) {
     return {
@@ -222,7 +253,7 @@ export async function parseXlsxContent(
     };
   }
 
-  // Collect data rows
+  // Collect data rows using physical column indexes
   const allRows: Record<string, any>[] = [];
   let validDataRows = 0;
 
@@ -231,8 +262,8 @@ export async function parseXlsxContent(
     validDataRows++;
 
     const obj: Record<string, string> = {};
-    headers.forEach((h, idx) => {
-      const cell = row.getCell(idx + 1);
+    rawHeaders.forEach(({ colNumber, text }) => {
+      const cell = row.getCell(colNumber);
       let val = '';
       if (cell.type === ExcelJS.ValueType.Date && cell.value instanceof Date) {
         val = cell.value.toISOString().split('T')[0];
@@ -242,7 +273,7 @@ export async function parseXlsxContent(
       } else if (cell.value !== null && cell.value !== undefined) {
         val = String(cell.text || cell.value).trim();
       }
-      obj[h] = val;
+      obj[text] = val;
     });
     allRows.push(obj);
   });
@@ -260,7 +291,8 @@ export async function parseXlsxContent(
     rows: allRows,
     previewRows,
     detectedMapping,
-    suggestedType
+    suggestedType,
+    warnings: duplicateHeaderWarnings.length > 0 ? duplicateHeaderWarnings : undefined
   };
 }
 

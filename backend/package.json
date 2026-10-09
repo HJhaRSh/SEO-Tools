@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "tsx src/test-ai-bots.ts && tsx src/test-robots.ts && tsx src/test-sitemap.ts"
+    "test": "tsx src/test-ai-bots.ts && tsx src/test-robots.ts && tsx src/test-htaccess.ts && tsx src/test-sitemap.ts"
   },
   "dependencies": {
     "archiver": "^8.0.0",

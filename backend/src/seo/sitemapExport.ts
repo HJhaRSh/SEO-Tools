@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as archiverNamespace from 'archiver';
 import { GeneratedSitemapFile, SitemapValidationIssue } from './sitemapTypes.js';
 
@@ -5,47 +6,103 @@ interface DownloadPackage {
   filename: string;
   mimeType: string;
   buffer: Buffer;
+  byteSize: number;
   createdAt: number;
 }
 
-// In-memory download store with automatic 30-minute expiration
+// Bounded in-memory download store with automatic 15-minute expiration & LRU capacity control
 const downloadStore = new Map<string, DownloadPackage>();
-const TOKEN_TTL_MS = 30 * 60 * 1000; // 30 mins
+export const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 mins TTL
+export const MAX_RETAINED_DOWNLOAD_JOBS = 50; // Max 50 active packages
+export const MAX_TOTAL_RETAINED_BYTES = 100 * 1024 * 1024; // 100 MB max memory across all jobs
+export const MAX_PER_JOB_BYTES = 55 * 1024 * 1024; // 55 MB max per single job
 
-// Cleanup expired tokens every 5 minutes
-setInterval(() => {
+let totalRetainedBytes = 0;
+
+/**
+ * Removes expired tokens and trims memory
+ */
+export function pruneExpiredDownloads(): void {
   const now = Date.now();
   for (const [id, item] of downloadStore.entries()) {
     if (now - item.createdAt > TOKEN_TTL_MS) {
+      totalRetainedBytes -= item.byteSize;
       downloadStore.delete(id);
     }
   }
-}, 5 * 60 * 1000).unref();
+}
+
+// Periodic cleanup every 2 minutes
+setInterval(pruneExpiredDownloads, 2 * 60 * 1000).unref();
 
 /**
- * Stores a downloadable file buffer and returns a secure token
+ * Evicts oldest items when capacity is reached (LRU)
+ */
+function evictOldestIfNeeded(incomingBytes: number): void {
+  pruneExpiredDownloads();
+
+  // Evict until both count and byte bounds are satisfied
+  while (
+    downloadStore.size >= MAX_RETAINED_DOWNLOAD_JOBS ||
+    (totalRetainedBytes + incomingBytes > MAX_TOTAL_RETAINED_BYTES && downloadStore.size > 0)
+  ) {
+    const oldestKey = downloadStore.keys().next().value;
+    if (!oldestKey) break;
+    const oldItem = downloadStore.get(oldestKey);
+    if (oldItem) {
+      totalRetainedBytes -= oldItem.byteSize;
+    }
+    downloadStore.delete(oldestKey);
+  }
+}
+
+/**
+ * Stores a downloadable file buffer and returns a cryptographically secure token
  */
 export function storeDownload(filename: string, mimeType: string, buffer: Buffer): string {
-  const downloadId = `dl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  if (buffer.length > MAX_PER_JOB_BYTES) {
+    throw new Error(`Download package exceeds single-job limit of ${MAX_PER_JOB_BYTES / 1024 / 1024} MB.`);
+  }
+
+  evictOldestIfNeeded(buffer.length);
+
+  // Cryptographically strong random token: dl_<random-hex-32> (unpredictable, no filesystem paths)
+  const downloadId = `dl_${crypto.randomBytes(16).toString('hex')}`;
   downloadStore.set(downloadId, {
     filename,
     mimeType,
     buffer,
+    byteSize: buffer.length,
     createdAt: Date.now()
   });
+  totalRetainedBytes += buffer.length;
+
   return downloadId;
 }
 
 /**
- * Retrieves a downloadable package if valid and not expired
+ * Retrieves a downloadable package if valid and not expired.
+ * Refreshes position in Map for LRU semantics.
  */
 export function getDownload(downloadId: string): DownloadPackage | null {
+  // Validate token format to prevent any path traversal attempts
+  if (!downloadId || !/^dl_[a-f0-9]{32}$/i.test(downloadId)) {
+    return null;
+  }
+
   const item = downloadStore.get(downloadId);
   if (!item) return null;
+
   if (Date.now() - item.createdAt > TOKEN_TTL_MS) {
+    totalRetainedBytes -= item.byteSize;
     downloadStore.delete(downloadId);
     return null;
   }
+
+  // Refresh LRU order: delete and re-insert
+  downloadStore.delete(downloadId);
+  downloadStore.set(downloadId, item);
+
   return item;
 }
 

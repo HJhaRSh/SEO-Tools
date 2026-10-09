@@ -6,12 +6,12 @@
 
 import { XMLParser } from 'fast-xml-parser';
 import ExcelJS from 'exceljs';
-import { validateSitemapUrl, validateLastmodDate, validateChangeFreq, validatePriority, escapeXmlEntities } from './seo/sitemapValidation.js';
+import { validateSitemapUrl, validateLastmodDate, validateChangeFreq, validatePriority, escapeXmlEntities, validatePublicSitemapOptions } from './seo/sitemapValidation.js';
 import { validateHreflangCode, validateUrlAlternates, validateReciprocalHreflang, expandReciprocalEntries } from './seo/sitemapHreflang.js';
 import { parseCsvContent, parseXlsxContent, extractUrlEntriesFromRows, detectColumnMapping } from './seo/sitemapParser.js';
 import { generateSitemapXml, serializeUrlElement } from './seo/sitemapGenerator.js';
 import { buildIndexEntriesFromFiles, buildSitemapIndexXml } from './seo/sitemapIndex.js';
-import { createSitemapsZip, storeDownload, getDownload, sanitizeCsvCell, generateIssuesCsv } from './seo/sitemapExport.js';
+import { createSitemapsZip, storeDownload, getDownload, sanitizeCsvCell, generateIssuesCsv, pruneExpiredDownloads } from './seo/sitemapExport.js';
 
 let passed = 0;
 let failed = 0;
@@ -278,10 +278,101 @@ async function runTests() {
     ]);
     assert(zipBuf.length > 50 && zipBuf.slice(0, 4).toString('hex') === '504b0304', 'Generates valid ZIP buffer with PK signature');
 
-    // Download store and token TTL
+    // Download store, LRU eviction, and secure tokens
     const dlToken = storeDownload('test.xml', 'application/xml', Buffer.from('<xml/>'));
     const retrieved = getDownload(dlToken);
     assert(retrieved !== null && retrieved.filename === 'test.xml', 'Stores and retrieves downloadable package by token');
+    assert(dlToken.startsWith('dl_') && dlToken.length === 35, 'Generates cryptographically random 32-hex token without path traversal risk');
+
+    // Reject malformed or path traversal tokens
+    assert(getDownload('../etc/passwd') === null, 'Rejects directory traversal token attempt');
+    assert(getDownload('invalid-token') === null, 'Rejects malformed token');
+  }
+
+  // Group 7: Public API Options Boundary Validation (FIX 7)
+  console.log('\n7. Public API Options Boundary Validation:');
+  {
+    // Valid options
+    const valid = validatePublicSitemapOptions({
+      includeLastmod: true,
+      includeHreflang: false,
+      deduplicate: true
+    });
+    assert(valid.isValid && valid.options.includeLastmod === true && valid.options.includeHreflang === false, 'Validates and sanitizes standard options');
+
+    // Strict protocol ceiling: client cannot override maxUrlsPerSitemap to 999999
+    const overrideAttempt = validatePublicSitemapOptions({
+      maxUrlsPerSitemap: 999999,
+      maxBytesPerSitemap: 1000 * 1024 * 1024
+    });
+    assert(overrideAttempt.options.maxUrlsPerSitemap === 50000, 'Prevents client override of 50,000 URL limit');
+    assert(overrideAttempt.options.maxBytesPerSitemap === 50 * 1024 * 1024, 'Prevents client override of 50 MB byte limit');
+
+    // String coercion for booleans
+    const coerced = validatePublicSitemapOptions({
+      includeLastmod: 'false',
+      generateIndex: 'false'
+    });
+    assert(coerced.options.includeLastmod === false, 'Coerces string booleans safely');
+
+    // Missing publicBaseUrl when generateIndex is true
+    const missingBase = validatePublicSitemapOptions({
+      generateIndex: true
+    });
+    assert(!missingBase.isValid && Boolean(missingBase.error?.includes('publicBaseUrl is required')), 'Rejects generateIndex without publicBaseUrl');
+
+    // Valid publicBaseUrl with trailing slash enforcement
+    const validBase = validatePublicSitemapOptions({
+      generateIndex: true,
+      publicBaseUrl: 'https://example.com/sitemaps'
+    });
+    assert(validBase.isValid && validBase.options.publicBaseUrl === 'https://example.com/sitemaps/', 'Enforces trailing slash on publicBaseUrl');
+
+    // Invalid publicBaseUrl scheme (e.g. ftp or malformed)
+    const invalidBase = validatePublicSitemapOptions({
+      publicBaseUrl: 'ftp://invalidscheme.com'
+    });
+    assert(!invalidBase.isValid, 'Rejects non-HTTP/HTTPS publicBaseUrl');
+  }
+
+  // Group 8: Physical Column Alignment & Blank Header Preservation (FIX 6)
+  console.log('\n8. Spreadsheet Column Alignment & Blank Headers:');
+  {
+    // Excel workbook with: Col A = 'loc', Col B = blank, Col C = 'lastmod'
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Sheet1');
+    const headerRow = ws.getRow(1);
+    headerRow.getCell(1).value = 'loc';
+    headerRow.getCell(2).value = ''; // BLANK COLUMN B
+    headerRow.getCell(3).value = 'lastmod'; // COLUMN C
+
+    const dataRow = ws.getRow(2);
+    dataRow.getCell(1).value = 'https://example.com/page-1';
+    dataRow.getCell(2).value = 'ignored-middle-data';
+    dataRow.getCell(3).value = '2026-10-09';
+
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+    const parsedXlsx = await parseXlsxContent(buf);
+
+    assert(parsedXlsx.success, 'Parses workbook with blank header column');
+    assert(parsedXlsx.headers.length === 3, 'Preserves all 3 physical columns including blank Col B');
+    assert(parsedXlsx.headers[0] === 'loc', 'Column 1 is loc');
+    assert(parsedXlsx.headers[1] === 'Column_2', 'Column 2 placeholder preserves physical column B');
+    assert(parsedXlsx.headers[2] === 'lastmod', 'Column 3 remains lastmod (does not shift into Col B)');
+
+    const rowObj = parsedXlsx.rows?.[0];
+    assert(rowObj?.loc === 'https://example.com/page-1', 'Row loc matches Column 1 value');
+    assert(rowObj?.lastmod === '2026-10-09', 'Row lastmod matches Column 3 value without column shift');
+
+    // CSV with duplicate headers
+    const dupCsv = 'loc,lastmod,lastmod\nhttps://example.com/,2026-10-01,2026-10-02';
+    const parsedDup = parseCsvContent(dupCsv);
+    assert(parsedDup.success, 'Parses CSV with duplicate headers');
+    assert(parsedDup.headers[1] === 'lastmod', 'First header retains original name');
+    assert(parsedDup.headers[2] === 'lastmod (2)', 'Duplicate header is disambiguated with suffix');
+    assert(Boolean(parsedDup.warnings && parsedDup.warnings.length > 0), 'Flags duplicate header warning');
+    assert(parsedDup.rows?.[0]?.['lastmod'] === '2026-10-01', 'First duplicate column value preserved');
+    assert(parsedDup.rows?.[0]?.['lastmod (2)'] === '2026-10-02', 'Second duplicate column value preserved without overwrite');
   }
 
   console.log('\n=====================================================');

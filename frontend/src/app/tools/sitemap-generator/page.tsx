@@ -124,6 +124,19 @@ export default function SitemapGenerator() {
       return;
     }
 
+    if (file.size === 0) {
+      setErrorMessage('The selected file is empty (0 bytes). Please upload a file with URL entries.');
+      setFileParsing(false);
+      return;
+    }
+
+    const MAX_CLIENT_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+    if (file.size > MAX_CLIENT_FILE_SIZE) {
+      setErrorMessage(`The selected file is ${(file.size / 1024 / 1024).toFixed(1)} MB, which exceeds the maximum allowed size of 10 MB.`);
+      setFileParsing(false);
+      return;
+    }
+
     try {
       let parseResult: any;
 
@@ -149,8 +162,19 @@ export default function SitemapGenerator() {
 
         applyParsedData(parseResult, 'csv', text, undefined);
       } else {
-        const arrayBuf = await file.arrayBuffer();
-        const base64 = Buffer.from(arrayBuf).toString('base64');
+        // Browser-compatible Base64 conversion without relying on Node.js Buffer global
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Format is "data:application/...;base64,<encoded>"
+            const base64String = result.includes(',') ? result.split(',')[1] : result;
+            resolve(base64String);
+          };
+          reader.onerror = () => reject(new Error('Failed to read Excel file in browser'));
+          reader.readAsDataURL(file);
+        });
+
         const res = await fetch('/api/seo/sitemap/parse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -504,13 +528,57 @@ export default function SitemapGenerator() {
             </div>
 
             {parsedData && (
-              <div className="mt-4 p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  Detected: <strong className="text-green-600 dark:text-green-400">{parsedData.totalRows}</strong> rows | <strong className="text-green-600 dark:text-green-400">{parsedData.headers.length}</strong> columns
-                </span>
-                <span className="font-mono text-slate-500">
-                  Headers: {parsedData.headers.join(', ')}
-                </span>
+              <div className="mt-4 p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    Detected: <strong className="text-green-600 dark:text-green-400">{parsedData.totalRows}</strong> rows | <strong className="text-green-600 dark:text-green-400">{parsedData.headers.length}</strong> columns
+                  </span>
+                  <span className="font-mono text-slate-500 truncate max-w-md">
+                    Headers: {parsedData.headers.join(', ')}
+                  </span>
+                </div>
+
+                {/* Multiple worksheets selector */}
+                {parsedData.sheetNames && parsedData.sheetNames.length > 1 && (
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center gap-3">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">
+                      Worksheet:
+                    </label>
+                    <select
+                      value={parsedData.selectedSheet || parsedData.sheetNames[0]}
+                      onChange={async (e) => {
+                        const newSheet = e.target.value;
+                        if (!parsedData.rawFileBase64) return;
+                        setFileParsing(true);
+                        try {
+                          const res = await fetch('/api/seo/sitemap/parse', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              format: 'xlsx',
+                              content: parsedData.rawFileBase64,
+                              sheetName: newSheet
+                            })
+                          });
+                          const result = await res.json();
+                          if (result.success) {
+                            applyParsedData(result, 'xlsx', undefined, parsedData.rawFileBase64);
+                            await generateFromParsedData(result);
+                          }
+                        } catch (err: any) {
+                          setErrorMessage(err.message || 'Failed to switch worksheet');
+                        } finally {
+                          setFileParsing(false);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    >
+                      {parsedData.sheetNames.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
           </div>

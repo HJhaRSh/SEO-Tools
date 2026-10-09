@@ -97,4 +97,5 @@ export interface SpreadsheetParseResult {
   detectedMapping?: Partial<ColumnMapping>;
   suggestedType: 'simple' | 'hreflang-wide' | 'hreflang-long';
   errors?: string[];
+  warnings?: string[];
 }

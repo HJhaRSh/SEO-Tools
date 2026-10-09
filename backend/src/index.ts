@@ -14,7 +14,19 @@ const PORT = process.env.PORT || 5000;
 
 // Enable CORS for frontend
 app.use(cors());
-app.use(express.json({ limit: '5mb' }));
+// Consistent upload boundary limit: 10MB raw spreadsheet, with 15MB JSON limit to account for Base64 overhead
+app.use(express.json({ limit: '15mb' }));
+
+// Custom middleware to catch 413 Payload Too Large and return clean JSON response
+app.use((err: any, req: Request, res: Response, next: any) => {
+  if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+    return res.status(413).json({
+      success: false,
+      error: 'Upload payload is too large. Maximum supported spreadsheet size is 10 MB.'
+    });
+  }
+  next(err);
+});
 
 // Health Check
 app.get('/api/health', (req: Request, res: Response) => {
@@ -171,6 +183,7 @@ app.post('/api/seo/htaccess/test', async (req: Request, res: Response) => {
 // ==========================================
 import { parseCsvContent, parseXlsxContent, extractUrlEntriesFromRows } from './seo/sitemapParser.js';
 import { generateSitemapXml } from './seo/sitemapGenerator.js';
+import { validatePublicSitemapOptions } from './seo/sitemapValidation.js';
 import { storeDownload, getDownload, createSitemapsZip, generateIssuesCsv, SAMPLE_TEMPLATES } from './seo/sitemapExport.js';
 
 // GET /api/seo/sitemap/templates/:type
@@ -216,6 +229,12 @@ app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
   try {
     const { rows, mapping, formatType, options, manualUrls } = req.body;
 
+    // FIX 7: Strict boundary validation for public options
+    const validatedOpts = validatePublicSitemapOptions(options);
+    if (!validatedOpts.isValid) {
+      return res.status(400).json({ success: false, error: validatedOpts.error || 'Invalid generation options.' });
+    }
+
     let entries: any[] = [];
 
     if (manualUrls && typeof manualUrls === 'string') {
@@ -232,7 +251,7 @@ app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Please provide either manualUrls, mapped spreadsheet rows, or URL entry objects.' });
     }
 
-    const genResult = generateSitemapXml(entries, options || {});
+    const genResult = generateSitemapXml(entries, validatedOpts.options);
 
     // Store individual files in download manager and build zip
     for (const file of genResult.files) {

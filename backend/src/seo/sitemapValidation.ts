@@ -319,3 +319,96 @@ export function escapeXmlEntities(str: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 }
+
+/**
+ * Validates and sanitizes public SitemapOptions supplied via API boundaries.
+ * Enforces hard protocol and server limits; strips dangerous overrides.
+ */
+export function validatePublicSitemapOptions(raw: any): {
+  isValid: boolean;
+  options: {
+    includeLastmod: boolean;
+    includeHreflang: boolean;
+    includeChangefreq: boolean;
+    includePriority: boolean;
+    deduplicate: boolean;
+    generateIndex: boolean;
+    publicBaseUrl?: string;
+    autoExpandReciprocalHreflang: boolean;
+    maxUrlsPerSitemap: number;
+    maxBytesPerSitemap: number;
+  };
+  error?: string;
+} {
+  if (raw && typeof raw !== 'object') {
+    return {
+      isValid: false,
+      options: {} as any,
+      error: 'Options must be a JSON object.'
+    };
+  }
+
+  const safe = raw || {};
+
+  // Boolean helper that strictly coerces or defaults
+  const toBool = (val: any, fallback: boolean): boolean => {
+    if (val === undefined || val === null) return fallback;
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'string') {
+      if (val.toLowerCase() === 'true') return true;
+      if (val.toLowerCase() === 'false') return false;
+    }
+    return fallback;
+  };
+
+  const includeLastmod = toBool(safe.includeLastmod, true);
+  const includeHreflang = toBool(safe.includeHreflang, true);
+  const includeChangefreq = toBool(safe.includeChangefreq, false);
+  const includePriority = toBool(safe.includePriority, false);
+  const deduplicate = toBool(safe.deduplicate, true);
+  const generateIndex = toBool(safe.generateIndex, false);
+  const autoExpandReciprocalHreflang = toBool(safe.autoExpandReciprocalHreflang, false);
+
+  let publicBaseUrl: string | undefined = undefined;
+  if (safe.publicBaseUrl && typeof safe.publicBaseUrl === 'string' && safe.publicBaseUrl.trim()) {
+    const trimmed = safe.publicBaseUrl.trim();
+    const urlCheck = validateSitemapUrl(trimmed, undefined, 'publicBaseUrl');
+    if (!urlCheck.isValid || !urlCheck.sanitizedUrl) {
+      return {
+        isValid: false,
+        options: {} as any,
+        error: `Invalid publicBaseUrl: ${urlCheck.issues.map(i => i.message).join(' ')}`
+      };
+    }
+    publicBaseUrl = urlCheck.sanitizedUrl.endsWith('/') ? urlCheck.sanitizedUrl : `${urlCheck.sanitizedUrl}/`;
+  }
+
+  // If user requested sitemap index generation explicitly, require a valid public base URL
+  if (generateIndex && !publicBaseUrl) {
+    return {
+      isValid: false,
+      options: {} as any,
+      error: 'publicBaseUrl is required when generateIndex is enabled.'
+    };
+  }
+
+  // Hard Sitemap Protocol constants - clients CANNOT override beyond protocol bounds
+  const PROTOCOL_MAX_URLS = 50000;
+  const PROTOCOL_MAX_BYTES = 50 * 1024 * 1024; // 50MB
+
+  return {
+    isValid: true,
+    options: {
+      includeLastmod,
+      includeHreflang,
+      includeChangefreq,
+      includePriority,
+      deduplicate,
+      generateIndex,
+      publicBaseUrl,
+      autoExpandReciprocalHreflang,
+      maxUrlsPerSitemap: PROTOCOL_MAX_URLS,
+      maxBytesPerSitemap: PROTOCOL_MAX_BYTES
+    }
+  };
+}
