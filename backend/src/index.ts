@@ -166,6 +166,124 @@ app.post('/api/seo/htaccess/test', async (req: Request, res: Response) => {
   }
 });
 
+// ==========================================
+// TOOL 4: XML SITEMAP GENERATOR ENDPOINTS
+// ==========================================
+import { parseCsvContent, parseXlsxContent, extractUrlEntriesFromRows } from './seo/sitemapParser.js';
+import { generateSitemapXml } from './seo/sitemapGenerator.js';
+import { storeDownload, getDownload, createSitemapsZip, generateIssuesCsv, SAMPLE_TEMPLATES } from './seo/sitemapExport.js';
+
+// GET /api/seo/sitemap/templates/:type
+app.get('/api/seo/sitemap/templates/:type', (req: Request, res: Response) => {
+  const type = String(req.params.type || '');
+  const tpl = SAMPLE_TEMPLATES[type];
+  if (!tpl) {
+    return res.status(404).json({ success: false, error: `Template "${type}" not found.` });
+  }
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${tpl.filename}"`);
+  res.send(tpl.content);
+});
+
+// POST /api/seo/sitemap/parse
+app.post('/api/seo/sitemap/parse', async (req: Request, res: Response) => {
+  try {
+    const { format, content, sheetName } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ success: false, error: 'No content or file data provided.' });
+    }
+
+    if (format === 'csv') {
+      const result = parseCsvContent(content);
+      return res.json(result);
+    } else if (format === 'xlsx') {
+      // Buffer from base64 string
+      const buffer = Buffer.from(content, 'base64');
+      const result = await parseXlsxContent(buffer, sheetName);
+      return res.json(result);
+    } else {
+      return res.status(400).json({ success: false, error: `Unsupported format: ${format}. Use 'csv' or 'xlsx'.` });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Failed to parse spreadsheet file.' });
+  }
+});
+
+// POST /api/seo/sitemap/generate
+app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
+  try {
+    const { rows, mapping, formatType, options, manualUrls } = req.body;
+
+    let entries: any[] = [];
+
+    if (manualUrls && typeof manualUrls === 'string') {
+      // Manual URL entry
+      const lines = manualUrls.split(/\r?\n/).map((l: string) => l.trim()).filter((l: string) => Boolean(l));
+      entries = lines.map((url: string) => ({ loc: url }));
+    } else if (Array.isArray(rows) && mapping && formatType) {
+      // Spreadsheet rows mapped
+      entries = extractUrlEntriesFromRows(rows, mapping, formatType);
+    } else if (Array.isArray(rows)) {
+      // Direct raw entry objects
+      entries = rows;
+    } else {
+      return res.status(400).json({ success: false, error: 'Please provide either manualUrls, mapped spreadsheet rows, or URL entry objects.' });
+    }
+
+    const genResult = generateSitemapXml(entries, options || {});
+
+    // Store individual files in download manager and build zip
+    for (const file of genResult.files) {
+      const token = storeDownload(file.filename, 'application/xml; charset=utf-8', Buffer.from(file.content, 'utf-8'));
+      file.downloadId = token;
+    }
+
+    // Generate ZIP package containing all XML files + validation report
+    const zipBuffer = await createSitemapsZip(genResult.files, [...genResult.errors, ...genResult.warnings]);
+    const zipToken = storeDownload('sitemaps.zip', 'application/zip', zipBuffer);
+
+    // Also store CSV validation report
+    const reportCsv = generateIssuesCsv([...genResult.errors, ...genResult.warnings]);
+    const reportToken = storeDownload('sitemap-validation-report.csv', 'text/csv; charset=utf-8', Buffer.from(reportCsv, 'utf-8'));
+
+    res.json({
+      success: genResult.success,
+      summary: genResult.summary,
+      files: genResult.files.map(f => ({
+        filename: f.filename,
+        type: f.type,
+        urlCount: f.urlCount,
+        byteSize: f.byteSize,
+        downloadId: f.downloadId
+      })),
+      zipDownloadId: zipToken,
+      reportDownloadId: reportToken,
+      xmlPreview: genResult.xmlPreview,
+      isPreviewTruncated: genResult.isPreviewTruncated,
+      warnings: genResult.warnings,
+      errors: genResult.errors
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Failed to generate XML sitemap.' });
+  }
+});
+
+// GET /api/seo/sitemap/download/:downloadId
+app.get('/api/seo/sitemap/download/:downloadId', (req: Request, res: Response) => {
+  const downloadId = String(req.params.downloadId || '');
+  const pkg = getDownload(downloadId);
+
+  if (!pkg) {
+    return res.status(404).send('Download link expired or not found. Please regenerate sitemap.');
+  }
+
+  res.setHeader('Content-Type', pkg.mimeType);
+  res.setHeader('Content-Disposition', `attachment; filename="${pkg.filename}"`);
+  res.send(pkg.buffer);
+});
+
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`[Indian Marketers SEO Tools] Backend Server running on http://localhost:${PORT}`);
