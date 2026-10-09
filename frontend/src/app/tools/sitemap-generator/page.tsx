@@ -607,127 +607,21 @@ export default function SitemapGenerator() {
         </div>
       )}
 
-      {/* SECTION D: SITEMAP CONFIGURATION OPTIONS */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 mb-6 shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-700 pb-4 mb-6">
-          <span className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </span>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">3. Sitemap Generation Options</h2>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Configure XML tags, deduplication, and index rules</p>
-          </div>
+      {/* Error Notification */}
+      {errorMessage && (
+        <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 text-sm flex items-center gap-3">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>{errorMessage}</span>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={includeLastmod}
-              onChange={e => setIncludeLastmod(e.target.checked)}
-              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-            />
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Include &lt;lastmod&gt; dates</span>
-          </label>
-
-          <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={includeHreflang}
-              onChange={e => setIncludeHreflang(e.target.checked)}
-              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-            />
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Include &lt;xhtml:link&gt; hreflang</span>
-          </label>
-
-          <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={deduplicate}
-              onChange={e => setDeduplicate(e.target.checked)}
-              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-            />
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Deduplicate repeated URLs</span>
-          </label>
-
-          <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoExpandReciprocal}
-              onChange={e => setAutoExpandReciprocal(e.target.checked)}
-              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-            />
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Auto-expand reciprocal hreflang</span>
-          </label>
-
-          <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={includeChangefreq}
-              onChange={e => setIncludeChangefreq(e.target.checked)}
-              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-            />
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Include &lt;changefreq&gt; (Ignored by Google)</span>
-          </label>
-
-          <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={includePriority}
-              onChange={e => setIncludePriority(e.target.checked)}
-              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-            />
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Include &lt;priority&gt; (Ignored by Google)</span>
-          </label>
-        </div>
-
-        {/* Public Base URL for Sitemap Index */}
-        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <label className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
-              <input
-                type="checkbox"
-                checked={generateIndex}
-                onChange={e => setGenerateIndex(e.target.checked)}
-                className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-              />
-              Force Sitemap Index Generation
-            </label>
-            <span className="text-xs text-slate-500">Auto-created whenever file splitting occurs</span>
-          </div>
-
-          <div className="mt-2">
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-              Public Hosting Base URL (Required for &lt;sitemapindex&gt; &lt;loc&gt; paths)
-            </label>
-            <input
-              type="url"
-              value={publicBaseUrl}
-              onChange={e => setPublicBaseUrl(e.target.value)}
-              placeholder="https://example.com/sitemaps/"
-              className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-white"
-            />
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-              Example: Entering <code className="text-green-600 dark:text-green-400">https://example.com/sitemaps/</code> produces <code className="text-green-600 dark:text-green-400">https://example.com/sitemaps/sitemap-1.xml</code>.
-            </p>
-          </div>
-        </div>
-
-        {/* Error Notification */}
-        {errorMessage && (
-          <div className="mt-4 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 text-sm flex items-center gap-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
-        {/* Action Button */}
-        <div className="mt-6 flex flex-wrap items-center gap-4">
-          <button
-            onClick={handleGenerate}
-            disabled={status === 'loading'}
-            className="flex-1 sm:flex-none px-8 py-3.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-sm tracking-wide transition-all shadow-md hover:shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
+      {/* Action Button */}
+      <div className="mb-8 flex flex-wrap items-center gap-4">
+        <button
+          onClick={handleGenerate}
+          disabled={status === 'loading'}
+          className="flex-1 sm:flex-none px-8 py-3.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-sm tracking-wide transition-all shadow-md hover:shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
             {status === 'loading' ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -741,7 +635,6 @@ export default function SitemapGenerator() {
             )}
           </button>
         </div>
-      </div>
 
       {/* SECTION E: RESULTS SUMMARY CARDS */}
       {summary && (
