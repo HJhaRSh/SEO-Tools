@@ -137,7 +137,16 @@ export default function SitemapGenerator() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ format: 'csv', content: text })
         });
-        const data = await res.json();
+
+        const contentType = res.headers.get('content-type') || '';
+        let data: any;
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const rawText = await res.text();
+          throw new Error(rawText || `Server returned unexpected status ${res.status}`);
+        }
+
         if (!data.success) {
           throw new Error(data.errors?.join(', ') || 'Failed to parse CSV file');
         }
@@ -151,7 +160,16 @@ export default function SitemapGenerator() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ format: 'xlsx', content: base64 })
         });
-        const data = await res.json();
+
+        const contentType = res.headers.get('content-type') || '';
+        let data: any;
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const rawText = await res.text();
+          throw new Error(rawText || `Server returned unexpected status ${res.status}`);
+        }
+
         if (!data.success) {
           throw new Error(data.errors?.join(', ') || 'Failed to parse Excel file');
         }
@@ -241,7 +259,15 @@ export default function SitemapGenerator() {
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data: any;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const rawText = await res.text();
+        throw new Error(rawText || `Backend server returned status ${res.status}`);
+      }
+
       if (!res.ok && !data.summary) {
         throw new Error(data.error || 'Failed to generate XML sitemap');
       }
