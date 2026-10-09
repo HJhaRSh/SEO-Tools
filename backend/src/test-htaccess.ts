@@ -1,6 +1,6 @@
 import assert from 'assert';
-import { testHtaccessRules } from './seo/htaccessService.js';
-import { validateHtaccessInput } from './seo/htaccessValidation.js';
+import { testHtaccessRules, testOnlyEvaluateWithMocking } from './seo/htaccessService.js';
+import { validateHtaccessInput, sanitizeHtaccessSettings } from './seo/htaccessValidation.js';
 import { HTACCESS_EXAMPLES } from './seo/htaccessExamples.js';
 
 async function runHtaccessTests() {
@@ -425,18 +425,17 @@ RewriteRule ^old$ new [R=301,L]`;
   console.log('\n13. Primary Engine Response Validation & Mock Scenarios:');
   
   await testCase('Primary API Mock: Successful 301 evaluation', async () => {
-    const res = await testHtaccessRules({
+    const res = await testOnlyEvaluateWithMocking({
       url: 'https://example.com/mock-test',
-      htaccess: `RewriteEngine On\nRewriteRule ^mock-test$ /target [R=301,L]`,
-      settings: {
-        mockApiResponse: {
-          output_url: 'https://example.com/target',
-          output_status_code: 301,
-          lines: [
-            { value: 'RewriteEngine On', isValid: true, wasReached: true, isMet: true, isSupported: true, message: 'RewriteEngine turned ON' },
-            { value: 'RewriteRule ^mock-test$ /target [R=301,L]', isValid: true, wasReached: true, isMet: true, isSupported: true, message: 'Redirected to https://example.com/target' }
-          ]
-        }
+      htaccess: `RewriteEngine On\nRewriteRule ^mock-test$ /target [R=301,L]`
+    }, {
+      mockApiResponse: {
+        output_url: 'https://example.com/target',
+        output_status_code: 301,
+        lines: [
+          { value: 'RewriteEngine On', isValid: true, wasReached: true, isMet: true, isSupported: true, message: 'RewriteEngine turned ON' },
+          { value: 'RewriteRule ^mock-test$ /target [R=301,L]', isValid: true, wasReached: true, isMet: true, isSupported: true, message: 'Redirected to https://example.com/target' }
+        ]
       }
     });
     assert.strictEqual(res.success, true);
@@ -448,17 +447,16 @@ RewriteRule ^old$ new [R=301,L]`;
   });
 
   await testCase('Primary API Mock: Invalid directive reports INVALID_RULES and syntax error', async () => {
-    const res = await testHtaccessRules({
+    const res = await testOnlyEvaluateWithMocking({
       url: 'https://example.com/broken',
-      htaccess: `RewriteRuleInvalidPattern`,
-      settings: {
-        mockApiResponse: {
-          output_url: 'https://example.com/broken',
-          output_status_code: null,
-          lines: [
-            { value: 'RewriteRuleInvalidPattern', isValid: false, wasReached: true, isMet: false, message: 'Syntax error: invalid directive' }
-          ]
-        }
+      htaccess: `RewriteRuleInvalidPattern`
+    }, {
+      mockApiResponse: {
+        output_url: 'https://example.com/broken',
+        output_status_code: null,
+        lines: [
+          { value: 'RewriteRuleInvalidPattern', isValid: false, wasReached: true, isMet: false, message: 'Syntax error: invalid directive' }
+        ]
       }
     });
     assert.strictEqual(res.success, false);
@@ -468,17 +466,16 @@ RewriteRule ^old$ new [R=301,L]`;
   });
 
   await testCase('Primary API Mock: Unsupported directive reports warning and fullyEvaluated false', async () => {
-    const res = await testHtaccessRules({
+    const res = await testOnlyEvaluateWithMocking({
       url: 'https://example.com/custom',
-      htaccess: `SomeUnsupportedModuleDirective on`,
-      settings: {
-        mockApiResponse: {
-          output_url: 'https://example.com/custom',
-          output_status_code: null,
-          lines: [
-            { value: 'SomeUnsupportedModuleDirective on', isValid: true, wasReached: true, isMet: false, isSupported: false, message: 'Directive not supported by Apache tester' }
-          ]
-        }
+      htaccess: `SomeUnsupportedModuleDirective on`
+    }, {
+      mockApiResponse: {
+        output_url: 'https://example.com/custom',
+        output_status_code: null,
+        lines: [
+          { value: 'SomeUnsupportedModuleDirective on', isValid: true, wasReached: true, isMet: false, isSupported: false, message: 'Directive not supported by Apache tester' }
+        ]
       }
     });
     assert.strictEqual(res.fullyEvaluated, false);
@@ -486,12 +483,11 @@ RewriteRule ^old$ new [R=301,L]`;
   });
 
   await testCase('Primary API Mock: Malformed/Empty object response falls back to local engine', async () => {
-    const res = await testHtaccessRules({
+    const res = await testOnlyEvaluateWithMocking({
       url: 'https://example.com/malformed',
-      htaccess: `RewriteEngine On\nRewriteRule ^malformed$ /recovered [R=301,L]`,
-      settings: {
-        mockApiResponse: null
-      }
+      htaccess: `RewriteEngine On\nRewriteRule ^malformed$ /recovered [R=301,L]`
+    }, {
+      mockApiResponse: null
     });
     assert.strictEqual(res.success, true);
     assert.strictEqual(res.engineUsed, 'LOCAL_FALLBACK');
@@ -499,18 +495,48 @@ RewriteRule ^old$ new [R=301,L]`;
   });
 
   await testCase('Primary API Mock: Timeout / HTTP 500 error triggers local fallback', async () => {
-    const res = await testHtaccessRules({
+    const res = await testOnlyEvaluateWithMocking({
       url: 'https://example.com/timeout-test',
-      htaccess: `RewriteEngine On\nRewriteRule ^timeout-test$ /fallback-target [R=301,L]`,
-      settings: {
-        mockApiError: 'Primary testing API returned HTTP status 500: Server Error'
-      }
+      htaccess: `RewriteEngine On\nRewriteRule ^timeout-test$ /fallback-target [R=301,L]`
+    }, {
+      mockApiError: 'Primary testing API returned HTTP status 500: Server Error'
     });
     assert.strictEqual(res.success, true);
     assert.strictEqual(res.statusCode, 301);
     assert.strictEqual(res.outputUrl, 'https://example.com/fallback-target');
     assert.strictEqual(res.engineUsed, 'LOCAL_FALLBACK');
     assert.ok(res.warnings.some(w => w.includes('Primary engine unavailable')));
+  });
+
+  // 19. Security Boundary: Rejection / Stripping of Mock Fields on Public Contract
+  console.log('\n14. Security Boundary: Public Settings Whitelisting:');
+  await testCase('Public API settings sanitizer strips injected mockApiResponse and mockApiError', async () => {
+    const maliciousInput = {
+      directoryContext: '/shop/',
+      maxRewritePasses: 3,
+      useLocalOnly: true,
+      mockApiResponse: { output_url: 'https://evil.com/hacked', output_status_code: 301 },
+      mockApiError: 'Fake injected error',
+      unknownProperty: 12345
+    };
+
+    const sanitized = sanitizeHtaccessSettings(maliciousInput);
+    assert.strictEqual(sanitized.directoryContext, '/shop/');
+    assert.strictEqual(sanitized.maxRewritePasses, 3);
+    assert.strictEqual(sanitized.useLocalOnly, true);
+    assert.strictEqual((sanitized as any).mockApiResponse, undefined);
+    assert.strictEqual((sanitized as any).mockApiError, undefined);
+    assert.strictEqual((sanitized as any).unknownProperty, undefined);
+
+    // Call public testHtaccessRules with sanitized payload; verify local engine evaluates legitimately without being hijacked
+    const publicRes = await testHtaccessRules({
+      url: 'https://example.com/shop/test',
+      htaccess: `RewriteEngine On\nRewriteRule ^test$ /real-destination [R=301,L]`,
+      settings: sanitized
+    });
+    assert.strictEqual(publicRes.success, true);
+    assert.strictEqual(publicRes.outputUrl, 'https://example.com/real-destination');
+    assert.notStrictEqual(publicRes.outputUrl, 'https://evil.com/hacked');
   });
 
   // 19. All 8 Quick-Load Templates Regression Test

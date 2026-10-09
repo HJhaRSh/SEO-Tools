@@ -6,6 +6,7 @@ import { testRobotsTxt } from './seo/robotsService.js';
 import { checkPageResources } from './seo/resourceService.js';
 import { safeFetch } from './seo/safeFetch.js';
 import { testHtaccessRules } from './seo/htaccessService.js';
+import { sanitizeHtaccessSettings } from './seo/htaccessValidation.js';
 import { HTACCESS_EXAMPLES } from './seo/htaccessExamples.js';
 
 const app = express();
@@ -150,11 +151,13 @@ app.post('/api/seo/htaccess/test', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'The .htaccess content is required.' });
     }
 
+    const cleanSettings = sanitizeHtaccessSettings(settings);
+
     const result = await testHtaccessRules({
       url,
       htaccess,
       serverVariables: serverVariables || {},
-      settings: settings || {}
+      settings: cleanSettings
     });
 
     res.json(result);

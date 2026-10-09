@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { testHtaccessRules } from '@/lib/seo/htaccessService';
+import { sanitizeHtaccessSettings } from '@/lib/seo/htaccessValidation';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,11 +21,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanSettings = sanitizeHtaccessSettings(settings);
+
     const result = await testHtaccessRules({
       url,
       htaccess,
       serverVariables: serverVariables || {},
-      settings: settings || {}
+      settings: cleanSettings
     });
 
     return NextResponse.json(result, { status: 200 });

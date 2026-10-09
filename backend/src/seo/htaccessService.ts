@@ -857,10 +857,12 @@ function evaluateLocalFallback(
 }
 
 /**
- * Main function: Evaluates .htaccess rules against target URL.
- * Automatically validates API responses and falls back to local engine.
+ * Internal simulation engine runner supporting dependency injection for testing.
  */
-export async function testHtaccessRules(request: HtaccessTestRequest): Promise<HtaccessTestResult> {
+export async function testOnlyEvaluateWithMocking(
+  request: HtaccessTestRequest,
+  mockOptions?: { mockApiResponse?: any; mockApiError?: string }
+): Promise<HtaccessTestResult> {
   const { validUrl, rawUrl, cleanedHtaccess } = validateHtaccessInput(request.url, request.htaccess);
   const serverVars = deriveServerVariables(validUrl, request.serverVariables);
 
@@ -870,10 +872,10 @@ export async function testHtaccessRules(request: HtaccessTestRequest): Promise<H
 
   try {
     let apiRes: any;
-    if (request.settings?.mockApiError) {
-      throw new Error(request.settings.mockApiError);
-    } else if (request.settings?.mockApiResponse !== undefined) {
-      apiRes = request.settings.mockApiResponse;
+    if (mockOptions?.mockApiError) {
+      throw new Error(mockOptions.mockApiError);
+    } else if (mockOptions?.mockApiResponse !== undefined) {
+      apiRes = mockOptions.mockApiResponse;
     } else {
       apiRes = await callPrimaryApi(rawUrl, cleanedHtaccess, serverVars);
     }
@@ -993,5 +995,13 @@ export async function testHtaccessRules(request: HtaccessTestRequest): Promise<H
     fallback.warnings.push(`Primary engine unavailable (${apiErr.message}). Evaluated via local fallback engine.`);
     return fallback;
   }
+}
+
+/**
+ * Public test function. Only processes validated, sanitized production settings.
+ * Cannot be injected with mock API responses or mock errors.
+ */
+export async function testHtaccessRules(request: HtaccessTestRequest): Promise<HtaccessTestResult> {
+  return testOnlyEvaluateWithMocking(request);
 }
 
