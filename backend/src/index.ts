@@ -240,13 +240,17 @@ app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
       file.downloadId = token;
     }
 
-    // Generate ZIP package containing all XML files + validation report
-    const zipBuffer = await createSitemapsZip(genResult.files, [...genResult.errors, ...genResult.warnings]);
+    // Generate ZIP package containing all XML files + validation report (if any issues exist)
+    const allIssues = [...genResult.errors, ...genResult.warnings];
+    const zipBuffer = await createSitemapsZip(genResult.files, allIssues);
     const zipToken = storeDownload('sitemaps.zip', 'application/zip', zipBuffer);
 
-    // Also store CSV validation report
-    const reportCsv = generateIssuesCsv([...genResult.errors, ...genResult.warnings]);
-    const reportToken = storeDownload('sitemap-validation-report.csv', 'text/csv; charset=utf-8', Buffer.from(reportCsv, 'utf-8'));
+    // Only generate separate validation report if issues (errors or warnings) were found
+    let reportToken: string | undefined = undefined;
+    if (allIssues.length > 0) {
+      const reportCsv = generateIssuesCsv(allIssues);
+      reportToken = storeDownload('sitemap-validation-report.csv', 'text/csv; charset=utf-8', Buffer.from(reportCsv, 'utf-8'));
+    }
 
     res.json({
       success: genResult.success,
