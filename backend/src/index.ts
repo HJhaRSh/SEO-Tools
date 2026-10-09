@@ -5,6 +5,8 @@ import { runAiBotAccessTest } from './seo/aiBotTesterService.js';
 import { testRobotsTxt } from './seo/robotsService.js';
 import { checkPageResources } from './seo/resourceService.js';
 import { safeFetch } from './seo/safeFetch.js';
+import { testHtaccessRules } from './seo/htaccessService.js';
+import { HTACCESS_EXAMPLES } from './seo/htaccessExamples.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -122,6 +124,42 @@ app.post('/api/seo/ai-bot-access/test', async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message || 'Failed testing AI bot access.' });
+  }
+});
+
+// ==========================================
+// TOOL 3: .HTACCESS TESTER ENDPOINTS
+// ==========================================
+
+// GET /api/seo/htaccess/examples
+app.get('/api/seo/htaccess/examples', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    examples: HTACCESS_EXAMPLES
+  });
+});
+
+// POST /api/seo/htaccess/test
+app.post('/api/seo/htaccess/test', async (req: Request, res: Response) => {
+  try {
+    const { url, htaccess, serverVariables, settings } = req.body;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ success: false, error: 'A valid target URL is required.' });
+    }
+    if (!htaccess || typeof htaccess !== 'string') {
+      return res.status(400).json({ success: false, error: 'The .htaccess content is required.' });
+    }
+
+    const result = await testHtaccessRules({
+      url,
+      htaccess,
+      serverVariables: serverVariables || {},
+      settings: settings || {}
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Internal Server Error evaluating .htaccess' });
   }
 });
 
