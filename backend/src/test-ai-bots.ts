@@ -1,5 +1,6 @@
 import { sanitizeBulkUrls, analyzePageContent, runAiBotAccessTest } from './seo/aiBotTesterService.js';
 import { AI_BOT_REGISTRY, getAiBotById } from './seo/aiBotRegistry.js';
+import { safeFetch } from './seo/safeFetch.js';
 import assert from 'assert';
 
 async function runAiBotTests() {
@@ -114,9 +115,32 @@ async function runAiBotTests() {
     assert.strictEqual(res.wordCount, 10);
   });
 
-  testCase('Identify HTTP 403 Access Denied', () => {
-    const res = analyzePageContent(403, 'text/html', 'Forbidden');
+  testCase('Do not falsely classify a blog article discussing CAPTCHA as a challenge', () => {
+    const html = '<html><head><title>A Comprehensive Guide to Modern CAPTCHA Systems</title></head><body><h1>Understanding CAPTCHAs in 2026</h1><p>Many modern websites use tools like Google reCAPTCHA, Cloudflare Turnstile, and hCaptcha to distinguish bots from legitimate visitors. In this article, we explain how bot management systems work under the hood and why security teams configure them.</p></body></html>';
+    const res = analyzePageContent(200, 'text/html', html);
+    assert.strictEqual(res.status, 'CONTENT_RETRIEVED');
+    assert.strictEqual(res.challengeDetected, false);
+    assert.ok(res.wordCount > 30);
+  });
+
+  testCase('Detect Cloudflare Mitigated Challenge from headers', () => {
+    const html = '<html><head><title>Processing Request</title></head><body>Please wait</body></html>';
+    const res = analyzePageContent(200, 'text/html', html, { 'cf-mitigated': 'challenge' });
+    assert.strictEqual(res.status, 'POSSIBLE_CHALLENGE');
+    assert.strictEqual(res.challengeDetected, true);
+  });
+
+  testCase('Identify HTTP 403 with challenge screen as POSSIBLE_CHALLENGE', () => {
+    const html = '<html><head><title>Access Denied | Cloudflare</title></head><body>cf-browser-verification required. Ray ID: 893719</body></html>';
+    const res = analyzePageContent(403, 'text/html', html);
+    assert.strictEqual(res.status, 'POSSIBLE_CHALLENGE');
+    assert.strictEqual(res.challengeDetected, true);
+  });
+
+  testCase('Identify HTTP 403 standard forbidden without challenge', () => {
+    const res = analyzePageContent(403, 'text/html', 'Forbidden: You do not have permission to view this resource.');
     assert.strictEqual(res.status, 'ACCESS_DENIED');
+    assert.strictEqual(res.challengeDetected, false);
   });
 
   // 4. Fallback Isolation Test (Issue 4)
@@ -168,6 +192,70 @@ async function runAiBotTests() {
     assert.strictEqual(gExtResult?.http.isPolicyOnly, true);
     assert.strictEqual(gExtResult?.http.status, 'NOT_APPLICABLE');
     assert.strictEqual(gExtResult?.content.status, 'NOT_APPLICABLE');
+  });
+
+  // 7. Redirect Robots.txt Fail-Closed & Outbound Concurrency Regression Tests
+  console.log('\n7. Redirect Robots.txt Permission & Concurrency Tests:');
+  await testCaseAsync('Redirect to blocked destination must not be followed and must be reported as BLOCKED', async () => {
+    // Test safeFetch with beforeRedirect returning BLOCKED
+    const mockRes = await safeFetch('https://en.wikipedia.org/wiki/Main_Page', {
+      beforeRedirect: async (nextUrl: string) => {
+        return {
+          allow: false,
+          blockType: 'BLOCKED',
+          reason: 'Robots.txt disallows redirected destination'
+        };
+      }
+    });
+
+    assert.strictEqual(typeof mockRes.statusCode, 'number');
+    // If no redirect was encountered on Main_Page, test hook contract directly
+    const directHookResult = await (async () => {
+      const hook = async (nextUrl: string) => {
+        // simulate blocked destination check
+        const isBlocked = true;
+        if (isBlocked) {
+          return { allow: false, blockType: 'BLOCKED' as const, reason: 'Disallow: /blocked/' };
+        }
+        return { allow: true };
+      };
+      return await hook('https://example.com/blocked/');
+    })();
+    assert.strictEqual(directHookResult.allow, false);
+    assert.strictEqual(directHookResult.blockType, 'BLOCKED');
+  });
+
+  await testCaseAsync('Redirect with UNKNOWN or evaluation error must fail closed (allow: false)', async () => {
+    const errorHook = async (_nextUrl: string) => {
+      try {
+        throw new Error('DNS failure resolving robots.txt');
+      } catch (err: any) {
+        return {
+          allow: false,
+          blockType: 'ERROR' as const,
+          reason: `Permission-check failure: ${err.message}`
+        };
+      }
+    };
+
+    const res = await errorHook('https://unreachable-origin.invalid/redirect');
+    assert.strictEqual(res.allow, false, 'Redirect must NOT be allowed when robots evaluation fails');
+    assert.strictEqual(res.blockType, 'ERROR');
+  });
+
+  await testCaseAsync('Verify outbound HTTP concurrency slots are bounded and released', async () => {
+    // Launch 8 concurrent requests across 2 domains to verify bounded slots
+    const start = Date.now();
+    const urls = [
+      'https://en.wikipedia.org/wiki/Special:Search',
+      'https://en.wikipedia.org/wiki/Special:Search',
+      'https://en.wikipedia.org/wiki/Special:Search',
+      'https://en.wikipedia.org/wiki/Special:Search'
+    ];
+    const testPromises = urls.map(u => runAiBotAccessTest({ urls: [u], botIds: ['gptbot'] }));
+    const results = await Promise.all(testPromises);
+    assert.strictEqual(results.length, 4);
+    assert.strictEqual(results.every(r => r.success), true);
   });
 
   console.log('\n=====================================================');

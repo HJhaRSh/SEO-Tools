@@ -214,12 +214,15 @@ export function compileRobotsPatternToRegex(pattern: string): RegExp {
     return /^/;
   }
 
+  // Normalize pattern percent-encoding so unreserved characters match normalized paths
+  const normPattern = normalizePathAndQuery(pattern);
+
   let escaped = '';
-  for (let i = 0; i < pattern.length; i++) {
-    const ch = pattern[i];
+  for (let i = 0; i < normPattern.length; i++) {
+    const ch = normPattern[i];
     if (ch === '*') {
       escaped += '.*';
-    } else if (ch === '$' && i === pattern.length - 1) {
+    } else if (ch === '$' && i === normPattern.length - 1) {
       escaped += '$';
     } else if ('/.*+?^${}()|[]\\'.includes(ch)) {
       escaped += '\\' + ch;

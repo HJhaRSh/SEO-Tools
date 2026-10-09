@@ -145,6 +145,28 @@ const uniRes = evaluateCrawlability(unicodeRules.rules, '/café/menu', 'Googlebo
 assert.strictEqual(uniRes.status, 'ALLOWED', 'Longer octet rule /café/menu must take precedence');
 assert.strictEqual(uniRes.specificity, Buffer.byteLength('/café/menu', 'utf8'));
 
+// I. Dollar-sign ($) end-of-URL pattern and wildcard test per RFC 9309 & Googlebot spec
+const pdfRobots = `
+User-agent: *
+Disallow: /*.pdf$
+`;
+const pdfParsed = parseRobotsTxt(pdfRobots);
+const pdfRules = selectRulesForUserAgent(pdfParsed.groups, '*');
+const blockedPdf = evaluateCrawlability(pdfRules.rules, '/reports/annual.pdf', 'Googlebot', '*');
+const allowedPdfWithQuery = evaluateCrawlability(pdfRules.rules, '/reports/annual.pdf?download=1', 'Googlebot', '*');
+assert.strictEqual(blockedPdf.status, 'BLOCKED', 'Disallow: /*.pdf$ should block /reports/annual.pdf');
+assert.strictEqual(allowedPdfWithQuery.status, 'ALLOWED', 'Disallow: /*.pdf$ should allow /reports/annual.pdf?download=1');
+
+// J. Percent-encoded and unreserved normalization test
+const encodedRobots = `
+User-agent: *
+Disallow: /%7Euser/profile
+`;
+const encodedParsed = parseRobotsTxt(encodedRobots);
+const encodedRules = selectRulesForUserAgent(encodedParsed.groups, '*');
+const encRes = evaluateCrawlability(encodedRules.rules, '/~user/profile', 'Googlebot', '*');
+assert.strictEqual(encRes.status, 'BLOCKED', '/~user/profile should match /%7Euser/profile after unreserved normalization');
+
 console.log('   ✓ Rule evaluation & RFC 9309 specificity tests passed.');
 
 // 4. Repeated User-Agent group combination test

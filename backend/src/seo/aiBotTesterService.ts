@@ -218,7 +218,8 @@ const CHALLENGE_SIGNATURES = [
 export function analyzePageContent(
   statusCode: number,
   contentType: string,
-  body: string
+  body: string,
+  headers?: Record<string, string>
 ): { status: ContentAccessStatus; title?: string; wordCount: number; challengeDetected: boolean; challengeType?: string } {
   // Strip HTML tags and script/style contents for word count estimation
   const strippedText = body
@@ -230,6 +231,18 @@ export function analyzePageContent(
   const wordCount = strippedText ? strippedText.split(' ').filter(Boolean).length : 0;
 
   if (statusCode === 401 || statusCode === 403) {
+    // Check if it's an explicit challenge screen even with 403
+    const lower = body.toLowerCase();
+    for (const sig of CHALLENGE_SIGNATURES) {
+      if (lower.includes(sig.phrase)) {
+        return {
+          status: 'POSSIBLE_CHALLENGE',
+          wordCount,
+          challengeDetected: true,
+          challengeType: sig.type
+        };
+      }
+    }
     return { status: 'ACCESS_DENIED', wordCount, challengeDetected: false };
   }
 
@@ -253,18 +266,46 @@ export function analyzePageContent(
     title = titleMatch[1].trim();
   }
 
-  // Check for challenge signatures — require structural match
-  const lower = body.toLowerCase();
-  for (const sig of CHALLENGE_SIGNATURES) {
-    if (lower.includes(sig.phrase)) {
-      // Confirm that it's in a challenge context (title, form, or error block)
+  // Check response headers for explicit challenge flags (e.g. cf-mitigated: challenge)
+  if (headers) {
+    const cfMitigated = headers['cf-mitigated'] || '';
+    if (cfMitigated.toLowerCase().includes('challenge')) {
       return {
         status: 'POSSIBLE_CHALLENGE',
         title,
         wordCount,
         challengeDetected: true,
-        challengeType: sig.type
+        challengeType: 'Cloudflare Mitigated Challenge'
       };
+    }
+  }
+
+  // Check for challenge signatures — require structural indicators
+  const lower = body.toLowerCase();
+  const titleLower = (title || '').toLowerCase();
+
+  for (const sig of CHALLENGE_SIGNATURES) {
+    if (lower.includes(sig.phrase)) {
+      // Structural guard:
+      // If the page has high word count (> 250 words) and the title/headings are normal,
+      // it is a legitimate article discussing security/challenges, NOT a blocking challenge screen.
+      const isTitleChallenge = titleLower.includes('challenge') || 
+                               titleLower.includes('just a moment') || 
+                               titleLower.includes('attention required') || 
+                               titleLower.includes('security check') ||
+                               titleLower.includes('verify');
+      const isShortChallengeScreen = wordCount < 200;
+      const isFormOrScriptTag = lower.includes('<form') || lower.includes('<script');
+
+      if (isTitleChallenge || (isShortChallengeScreen && isFormOrScriptTag)) {
+        return {
+          status: 'POSSIBLE_CHALLENGE',
+          title,
+          wordCount,
+          challengeDetected: true,
+          challengeType: sig.type
+        };
+      }
     }
   }
 
@@ -375,6 +416,7 @@ export async function runAiBotAccessTest(
       let challengeType: string | undefined;
       let bodyLength = 0;
       let wordCount = 0;
+      let fetchRes: any = null;
 
       if (bot.isPolicyOnlyToken) {
         // Special case: Google-Extended & Applebot-Extended do NOT have independent HTTP crawlers
@@ -395,10 +437,54 @@ export async function runAiBotAccessTest(
         const userAgentHeader = bot.fullUserAgent || 'Mozilla/5.0 (compatible; IndianMarketersBot/1.0)';
 
         try {
-          const fetchRes = await safeFetch(url, {
+          fetchRes = await safeFetch(url, {
             userAgent: userAgentHeader,
             timeoutMs: 10000,
-            maxBytes: 1024 * 1024 // 1 MB
+            maxBytes: 1024 * 1024, // 1 MB
+            beforeRedirect: async (nextUrl: string) => {
+              // Redirect-Aware robots.txt check (Issue 1 & 2)
+              try {
+                const targetObj = new URL(nextUrl);
+                const nextOrigin = targetObj.origin;
+                const nextPath = targetObj.pathname + targetObj.search;
+                const nextRobots = await getRobotsTest(nextOrigin, nextPath, bot.token);
+
+                if (!nextRobots) {
+                  return {
+                    allow: false,
+                    blockType: 'UNKNOWN',
+                    reason: `Robots.txt evaluation disabled; cannot verify crawl permission for redirected destination "${nextUrl}".`
+                  };
+                }
+
+                if (nextRobots.result.status === 'BLOCKED') {
+                  const ruleText = nextRobots.result.appliedRule?.originalText;
+                  return {
+                    allow: false,
+                    blockType: 'BLOCKED',
+                    reason: `Robots.txt disallows redirected destination "${nextUrl}" (${ruleText || 'Disallow rule'}).`
+                  };
+                }
+
+                if (nextRobots.result.status === 'UNKNOWN') {
+                  return {
+                    allow: false,
+                    blockType: 'UNKNOWN',
+                    reason: `Robots.txt crawl permission for redirected destination "${nextUrl}" could not be determined (${nextRobots.result.explanation}).`
+                  };
+                }
+
+                // If ALLOWED, permit following redirect
+                return { allow: true };
+              } catch (evalErr: any) {
+                // Evaluation error: Do NOT follow redirect; report indeterminate failure
+                return {
+                  allow: false,
+                  blockType: 'ERROR',
+                  reason: `Permission-check failure evaluating robots.txt for redirected destination "${nextUrl}": ${evalErr.message}`
+                };
+              }
+            }
           });
 
           httpStatusCode = fetchRes.statusCode;
@@ -409,29 +495,42 @@ export async function runAiBotAccessTest(
           contentType = fetchRes.contentType;
           bodyLength = fetchRes.body.length;
 
-          if (httpStatusCode >= 200 && httpStatusCode < 300) {
-            httpStatus = 'HTTP_SUCCESS';
-          } else if (httpStatusCode === 401 || httpStatusCode === 403) {
-            httpStatus = 'HTTP_DENIED';
-          } else if (httpStatusCode === 404 || httpStatusCode === 410) {
-            httpStatus = 'HTTP_NOT_FOUND';
-          } else if (httpStatusCode === 429) {
-            httpStatus = 'HTTP_RATE_LIMITED';
-          } else if (httpStatusCode >= 500) {
-            httpStatus = 'HTTP_SERVER_ERROR';
+          if (fetchRes.blockedByRedirectHook) {
+            httpStatus = 'NOT_TESTED';
+            if (fetchRes.redirectBlockType === 'BLOCKED') {
+              httpStatusText = 'Skipped (Redirect destination blocked by robots.txt)';
+            } else if (fetchRes.redirectBlockType === 'UNKNOWN') {
+              httpStatusText = 'Skipped (Redirect destination robots.txt unknown)';
+            } else {
+              httpStatusText = 'Skipped (Redirect robots.txt check error)';
+            }
+            contentStatus = 'NOT_TESTED';
+            warnings.push(fetchRes.redirectBlockedReason || 'Redirect destination disallowed by robots.txt');
           } else {
-            httpStatus = 'HTTP_SUCCESS';
-          }
+            if (httpStatusCode !== null && httpStatusCode >= 200 && httpStatusCode < 300) {
+              httpStatus = 'HTTP_SUCCESS';
+            } else if (httpStatusCode === 401 || httpStatusCode === 403) {
+              httpStatus = 'HTTP_DENIED';
+            } else if (httpStatusCode === 404 || httpStatusCode === 410) {
+              httpStatus = 'HTTP_NOT_FOUND';
+            } else if (httpStatusCode === 429) {
+              httpStatus = 'HTTP_RATE_LIMITED';
+            } else if (httpStatusCode !== null && httpStatusCode >= 500) {
+              httpStatus = 'HTTP_SERVER_ERROR';
+            } else {
+              httpStatus = 'HTTP_SUCCESS';
+            }
 
-          // Content Check
-          wordCount = 0;
-          if (checkContent && httpStatusCode) {
-            const contentAnalysis = analyzePageContent(httpStatusCode, contentType, fetchRes.body);
-            contentStatus = contentAnalysis.status;
-            pageTitle = contentAnalysis.title;
-            wordCount = contentAnalysis.wordCount;
-            challengeDetected = contentAnalysis.challengeDetected;
-            challengeType = contentAnalysis.challengeType;
+            // Content Check
+            wordCount = 0;
+            if (checkContent && httpStatusCode !== null) {
+              const contentAnalysis = analyzePageContent(httpStatusCode, contentType, fetchRes.body, fetchRes.headers);
+              contentStatus = contentAnalysis.status;
+              pageTitle = contentAnalysis.title;
+              wordCount = contentAnalysis.wordCount;
+              challengeDetected = contentAnalysis.challengeDetected;
+              challengeType = contentAnalysis.challengeType;
+            }
           }
         } catch (fetchErr: any) {
           const msg = (fetchErr.message || '').toLowerCase();
@@ -473,6 +572,16 @@ export async function runAiBotAccessTest(
         summaryStatus = 'INDETERMINATE';
         summaryLabel = 'Robots.txt Unknown';
         overallExplanation = `Robots.txt status could not be verified. HTTP testing was skipped for safety. (${robotsExplanation})`;
+      } else if (fetchRes?.blockedByRedirectHook) {
+        if (fetchRes.redirectBlockType === 'BLOCKED') {
+          summaryStatus = 'BLOCKED_BY_ROBOTS';
+          summaryLabel = 'Redirect Blocked by robots.txt';
+          overallExplanation = `robots.txt allows the initial URL, but the redirected destination is disallowed: ${warnings[warnings.length - 1] || 'Disallowed by robots.txt'}`;
+        } else {
+          summaryStatus = 'INDETERMINATE';
+          summaryLabel = 'Redirect Permission Unknown';
+          overallExplanation = `robots.txt allows the initial URL, but the crawl permission for the redirected destination could not be determined: ${warnings[warnings.length - 1] || 'Unknown robots.txt status'}`;
+        }
       } else if (challengeDetected) {
         summaryStatus = 'CONTENT_CHALLENGE';
         summaryLabel = 'Security Challenge';
@@ -552,62 +661,100 @@ export async function runAiBotAccessTest(
 
   const orderedResults: SingleUrlBotResult[] = new Array(tasks.length);
 
-  // Controlled concurrency runner (GLOBAL_CONCURRENCY = 5)
+  // Controlled concurrency runner (GLOBAL_CONCURRENCY = 5, PER_DOMAIN_CONCURRENCY = 2)
   const GLOBAL_CONCURRENCY = 5;
-  let currentTaskIdx = 0;
+  const PER_DOMAIN_CONCURRENCY = 2;
 
-  async function worker() {
-    while (currentTaskIdx < tasks.length) {
-      const task = tasks[currentTaskIdx++];
-      if (!task) break;
-      try {
-        const itemResult = await evaluateUrlBotCombination(task.url, task.bot);
-        orderedResults[task.index] = itemResult;
-      } catch (err: any) {
-        // Guarantee that a failure in one request never crashes the batch
-        orderedResults[task.index] = {
-          url: task.url,
-          botId: task.bot.id,
-          botName: task.bot.name,
-          botProvider: task.bot.provider,
-          botCategory: task.bot.categoryLabel,
-          token: task.bot.token,
-          robotsTxt: {
-            status: 'UNKNOWN',
-            statusCode: null,
-            matchedGroup: 'none',
-            appliedRule: null,
-            robotsTxtUrl: `${new URL(task.url).origin}/robots.txt`,
-            explanation: `Failed evaluating robots.txt: ${err.message}`
-          },
-          http: {
-            status: 'NOT_TESTED',
-            statusCode: null,
-            statusText: 'Evaluation Error',
-            finalUrl: task.url,
-            isPolicyOnly: Boolean(task.bot.isPolicyOnlyToken)
-          },
-          content: {
-            status: 'NOT_TESTED',
-            wordCount: 0,
-            bodyLength: 0
-          },
-          summaryStatus: 'INDETERMINATE',
-          summaryLabel: 'Evaluation Error',
-          explanation: `Evaluation encountered an error: ${err.message}`,
-          warnings: [err.message]
-        };
+  // Active in-flight counters per origin
+  const activePerOrigin = new Map<string, number>();
+  let activeGlobal = 0;
+  const pendingQueue: TaskItem[] = [...tasks];
+  let completedCount = 0;
+
+  await new Promise<void>((resolve) => {
+    if (tasks.length === 0) {
+      return resolve();
+    }
+
+    function tryDispatchNext() {
+      if (completedCount >= tasks.length) {
+        return resolve();
+      }
+
+      while (activeGlobal < GLOBAL_CONCURRENCY && pendingQueue.length > 0) {
+        // Find next task whose domain is not at maximum per-domain concurrency
+        const taskIdx = pendingQueue.findIndex(t => {
+          const origin = new URL(t.url).origin;
+          const currentOriginActive = activePerOrigin.get(origin) || 0;
+          return currentOriginActive < PER_DOMAIN_CONCURRENCY;
+        });
+
+        if (taskIdx === -1) {
+          // All pending tasks belong to origins currently at PER_DOMAIN_CONCURRENCY limit
+          break;
+        }
+
+        const [task] = pendingQueue.splice(taskIdx, 1);
+        const origin = new URL(task.url).origin;
+
+        activeGlobal++;
+        activePerOrigin.set(origin, (activePerOrigin.get(origin) || 0) + 1);
+
+        (async () => {
+          try {
+            const itemResult = await evaluateUrlBotCombination(task.url, task.bot);
+            orderedResults[task.index] = itemResult;
+          } catch (err: any) {
+            // Guarantee that a failure in one request never crashes the batch
+            orderedResults[task.index] = {
+              url: task.url,
+              botId: task.bot.id,
+              botName: task.bot.name,
+              botProvider: task.bot.provider,
+              botCategory: task.bot.categoryLabel,
+              token: task.bot.token,
+              robotsTxt: {
+                status: 'UNKNOWN',
+                statusCode: null,
+                matchedGroup: 'none',
+                appliedRule: null,
+                robotsTxtUrl: `${new URL(task.url).origin}/robots.txt`,
+                explanation: `Failed evaluating robots.txt: ${err.message}`
+              },
+              http: {
+                status: 'NOT_TESTED',
+                statusCode: null,
+                statusText: 'Evaluation Error',
+                finalUrl: task.url,
+                isPolicyOnly: Boolean(task.bot.isPolicyOnlyToken)
+              },
+              content: {
+                status: 'NOT_TESTED',
+                wordCount: 0,
+                bodyLength: 0
+              },
+              summaryStatus: 'INDETERMINATE',
+              summaryLabel: 'Evaluation Error',
+              explanation: `Evaluation encountered an error: ${err.message}`,
+              warnings: [err.message]
+            };
+          } finally {
+            activeGlobal--;
+            const count = (activePerOrigin.get(origin) || 1) - 1;
+            if (count <= 0) {
+              activePerOrigin.delete(origin);
+            } else {
+              activePerOrigin.set(origin, count);
+            }
+            completedCount++;
+            tryDispatchNext();
+          }
+        })();
       }
     }
-  }
 
-  // Launch workers
-  const workerCount = Math.min(GLOBAL_CONCURRENCY, tasks.length);
-  const workers: Promise<void>[] = [];
-  for (let w = 0; w < workerCount; w++) {
-    workers.push(worker());
-  }
-  await Promise.all(workers);
+    tryDispatchNext();
+  });
 
   const results = orderedResults.filter(Boolean);
 
