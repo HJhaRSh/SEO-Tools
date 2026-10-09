@@ -125,6 +125,8 @@ export default function SitemapGenerator() {
     }
 
     try {
+      let parseResult: any;
+
       if (isCsv) {
         const text = await file.text();
         const res = await fetch('/api/seo/sitemap/parse', {
@@ -134,19 +136,18 @@ export default function SitemapGenerator() {
         });
 
         const contentType = res.headers.get('content-type') || '';
-        let data: any;
         if (contentType.includes('application/json')) {
-          data = await res.json();
+          parseResult = await res.json();
         } else {
           const rawText = await res.text();
           throw new Error(rawText || `Server returned unexpected status ${res.status}`);
         }
 
-        if (!data.success) {
-          throw new Error(data.errors?.join(', ') || 'Failed to parse CSV file');
+        if (!parseResult.success) {
+          throw new Error(parseResult.errors?.join(', ') || 'Failed to parse CSV file');
         }
 
-        applyParsedData(data, 'csv', text, undefined);
+        applyParsedData(parseResult, 'csv', text, undefined);
       } else {
         const arrayBuf = await file.arrayBuffer();
         const base64 = Buffer.from(arrayBuf).toString('base64');
@@ -157,22 +158,25 @@ export default function SitemapGenerator() {
         });
 
         const contentType = res.headers.get('content-type') || '';
-        let data: any;
         if (contentType.includes('application/json')) {
-          data = await res.json();
+          parseResult = await res.json();
         } else {
           const rawText = await res.text();
           throw new Error(rawText || `Server returned unexpected status ${res.status}`);
         }
 
-        if (!data.success) {
-          throw new Error(data.errors?.join(', ') || 'Failed to parse Excel file');
+        if (!parseResult.success) {
+          throw new Error(parseResult.errors?.join(', ') || 'Failed to parse Excel file');
         }
 
-        applyParsedData(data, 'xlsx', undefined, base64);
+        applyParsedData(parseResult, 'xlsx', undefined, base64);
       }
+
+      // Automatically generate XML Sitemap immediately upon upload!
+      await generateFromParsedData(parseResult);
     } catch (err: any) {
       setErrorMessage(err.message || 'Error processing spreadsheet file');
+      setStatus('error');
     } finally {
       setFileParsing(false);
     }
@@ -185,7 +189,7 @@ export default function SitemapGenerator() {
       sheetNames: data.sheetNames,
       selectedSheet: data.selectedSheet,
       totalRows: data.totalRows,
-      previewRows: data.previewRows,
+      previewRows: data.rows || data.previewRows,
       detectedMapping: data.detectedMapping,
       suggestedType: data.suggestedType,
       rawCsvText: rawCsv,
@@ -200,6 +204,71 @@ export default function SitemapGenerator() {
     setLongCodeCol(data.detectedMapping?.longHreflangCodeColumn || '');
     setLongUrlCol(data.detectedMapping?.longHreflangUrlColumn || '');
     setWideCols(data.detectedMapping?.wideHreflangColumns || {});
+  };
+
+  const generateFromParsedData = async (data: any) => {
+    setStatus('loading');
+    setErrorMessage(null);
+
+    const rows = data.rows || data.previewRows;
+    const mapping = data.detectedMapping || {};
+    const effectiveLocCol = mapping.locColumn || data.headers[0] || '';
+
+    if (!effectiveLocCol) {
+      throw new Error('Could not find a URL column in the uploaded file.');
+    }
+
+    const payload = {
+      rows,
+      mapping: {
+        locColumn: effectiveLocCol,
+        lastmodColumn: mapping.lastmodColumn || undefined,
+        changefreqColumn: mapping.changefreqColumn || undefined,
+        priorityColumn: mapping.priorityColumn || undefined,
+        wideHreflangColumns: data.suggestedType === 'hreflang-wide' ? mapping.wideHreflangColumns : undefined,
+        longHreflangCodeColumn: data.suggestedType === 'hreflang-long' ? mapping.longHreflangCodeColumn : undefined,
+        longHreflangUrlColumn: data.suggestedType === 'hreflang-long' ? mapping.longHreflangUrlColumn : undefined
+      },
+      formatType: data.suggestedType,
+      options: {
+        includeLastmod: true,
+        includeHreflang: true,
+        includeChangefreq: false,
+        includePriority: false,
+        deduplicate: true,
+        generateIndex: false,
+        autoExpandReciprocalHreflang: false
+      }
+    };
+
+    const res = await fetch('/api/seo/sitemap/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    let result: any;
+    if (contentType.includes('application/json')) {
+      result = await res.json();
+    } else {
+      const rawText = await res.text();
+      throw new Error(rawText || `Backend server returned status ${res.status}`);
+    }
+
+    if (!res.ok && !result.summary) {
+      throw new Error(result.error || 'Failed to generate XML sitemap');
+    }
+
+    setSummary(result.summary);
+    setFiles(result.files || []);
+    setXmlPreview(result.xmlPreview || '');
+    setIsPreviewTruncated(result.isPreviewTruncated || false);
+    setWarnings(result.warnings || []);
+    setErrors(result.errors || []);
+    setZipDownloadId(result.zipDownloadId || null);
+    setReportDownloadId(result.reportDownloadId || null);
+    setStatus('success');
   };
 
   const handleGenerate = async () => {
@@ -341,8 +410,8 @@ export default function SitemapGenerator() {
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             </span>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">1. Select URL Input Method</h2>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Choose how you want to provide your URLs for sitemap generation</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Upload Spreadsheet or Enter URLs</h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Upload a CSV or Excel file to instantly generate and download your XML sitemap</p>
             </div>
           </div>
         </div>
@@ -423,10 +492,14 @@ export default function SitemapGenerator() {
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               </div>
               <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">
-                {fileParsing ? 'Parsing spreadsheet...' : fileName ? `Selected: ${fileName}` : `Click to browse or drop your ${inputMethod.toUpperCase()} file`}
+                {fileParsing || status === 'loading'
+                  ? 'Processing spreadsheet & generating XML sitemap...'
+                  : fileName
+                  ? `Uploaded: ${fileName} — Sitemap Generated!`
+                  : `Upload your ${inputMethod.toUpperCase()} file to generate sitemap`}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Supports UTF-8, quoted fields, Excel date cells, and up to 100,000 rows
+                Click to browse or drag and drop. Automatically extracts URLs, detects dates & hreflang tags, and generates your XML sitemap immediately.
               </p>
             </div>
 
@@ -444,169 +517,6 @@ export default function SitemapGenerator() {
         )}
       </div>
 
-      {/* SECTION C: SPREADSHEET COLUMN MAPPING */}
-      {parsedData && inputMethod !== 'manual' && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 mb-6 shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-700 pb-4 mb-6">
-            <span className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            </span>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">2. Spreadsheet Column Mapping</h2>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Map detected columns from your spreadsheet to sitemap elements</p>
-            </div>
-          </div>
-
-          {/* Mapping Format Selector */}
-          <div className="mb-5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-              Sitemap Data Structure
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => setFormatType('simple')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  formatType === 'simple'
-                    ? 'border-green-500 bg-green-50/50 dark:bg-green-950/30 text-green-800 dark:text-green-300 font-bold'
-                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                <div className="text-sm">Standard (Simple)</div>
-                <div className="text-xs opacity-75 mt-0.5">loc, lastmod, changefreq, priority</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormatType('hreflang-wide')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  formatType === 'hreflang-wide'
-                    ? 'border-green-500 bg-green-50/50 dark:bg-green-950/30 text-green-800 dark:text-green-300 font-bold'
-                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                <div className="text-sm">Hreflang (Wide Format)</div>
-                <div className="text-xs opacity-75 mt-0.5">Each language code is its own column (en, fr, es)</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormatType('hreflang-long')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  formatType === 'hreflang-long'
-                    ? 'border-green-500 bg-green-50/50 dark:bg-green-950/30 text-green-800 dark:text-green-300 font-bold'
-                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                <div className="text-sm">Hreflang (Long Format)</div>
-                <div className="text-xs opacity-75 mt-0.5">loc, hreflang code, alternate_url rows</div>
-              </button>
-            </div>
-          </div>
-
-          {/* Core column dropdowns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Primary URL (loc) <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={locCol}
-                onChange={e => setLocCol(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-white"
-              >
-                <option value="">-- Select URL Column --</option>
-                {parsedData.headers.map(h => (
-                  <option key={h} value={h}>{h}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Last Modified (lastmod)
-              </label>
-              <select
-                value={lastmodCol}
-                onChange={e => setLastmodCol(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-white"
-              >
-                <option value="">-- Omit lastmod --</option>
-                {parsedData.headers.map(h => (
-                  <option key={h} value={h}>{h}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Change Frequency
-              </label>
-              <select
-                value={changefreqCol}
-                onChange={e => setChangefreqCol(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-white"
-              >
-                <option value="">-- Omit changefreq --</option>
-                {parsedData.headers.map(h => (
-                  <option key={h} value={h}>{h}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Priority (0.0 to 1.0)
-              </label>
-              <select
-                value={priorityCol}
-                onChange={e => setPriorityCol(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-white"
-              >
-                <option value="">-- Omit priority --</option>
-                {parsedData.headers.map(h => (
-                  <option key={h} value={h}>{h}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Hreflang Long Format Column Mapping */}
-          {formatType === 'hreflang-long' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 mb-5">
-              <div>
-                <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">
-                  Language Code Column (e.g. en, fr, x-default) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={longCodeCol}
-                  onChange={e => setLongCodeCol(e.target.value)}
-                  className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-white"
-                >
-                  <option value="">-- Select Code Column --</option>
-                  {parsedData.headers.map(h => (
-                    <option key={h} value={h}>{h}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">
-                  Alternate URL Column <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={longUrlCol}
-                  onChange={e => setLongUrlCol(e.target.value)}
-                  className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-white"
-                >
-                  <option value="">-- Select Alternate URL Column --</option>
-                  {parsedData.headers.map(h => (
-                    <option key={h} value={h}>{h}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Error Notification */}
       {errorMessage && (
         <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 text-sm flex items-center gap-3">
@@ -615,13 +525,14 @@ export default function SitemapGenerator() {
         </div>
       )}
 
-      {/* Action Button */}
-      <div className="mb-8 flex flex-wrap items-center gap-4">
-        <button
-          onClick={handleGenerate}
-          disabled={status === 'loading'}
-          className="flex-1 sm:flex-none px-8 py-3.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-sm tracking-wide transition-all shadow-md hover:shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
+      {/* Action Button for Manual Entry or re-generation */}
+      {inputMethod === 'manual' && (
+        <div className="mb-8 flex flex-wrap items-center gap-4">
+          <button
+            onClick={() => handleGenerate()}
+            disabled={status === 'loading'}
+            className="flex-1 sm:flex-none px-8 py-3.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-sm tracking-wide transition-all shadow-md hover:shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
             {status === 'loading' ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -635,6 +546,7 @@ export default function SitemapGenerator() {
             )}
           </button>
         </div>
+      )}
 
       {/* SECTION E: RESULTS SUMMARY CARDS */}
       {summary && (

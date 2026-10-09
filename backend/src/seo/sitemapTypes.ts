@@ -92,6 +92,7 @@ export interface SpreadsheetParseResult {
   selectedSheet?: string;
   headers: string[];
   totalRows: number;
+  rows?: Record<string, any>[];
   previewRows: Record<string, any>[];
   detectedMapping?: Partial<ColumnMapping>;
   suggestedType: 'simple' | 'hreflang-wide' | 'hreflang-long';

@@ -109,13 +109,14 @@ export function parseCsvContent(
   const headers = rawHeaders.map((h, i) => (h && h.trim()) ? h.trim() : `Column_${i + 1}`);
 
   const dataRows = records.slice(1);
-  const previewRows = dataRows.slice(0, maxPreviewRows).map(row => {
+  const allRows = dataRows.map(row => {
     const obj: Record<string, string> = {};
     headers.forEach((h, idx) => {
       obj[h] = row[idx] ?? '';
     });
     return obj;
   });
+  const previewRows = allRows.slice(0, maxPreviewRows);
 
   const { detectedMapping, suggestedType } = detectColumnMapping(headers);
 
@@ -124,6 +125,7 @@ export function parseCsvContent(
     format: 'csv',
     headers,
     totalRows: dataRows.length,
+    rows: allRows,
     previewRows,
     detectedMapping,
     suggestedType
@@ -221,32 +223,31 @@ export async function parseXlsxContent(
   }
 
   // Collect data rows
-  const previewRows: Record<string, any>[] = [];
+  const allRows: Record<string, any>[] = [];
   let validDataRows = 0;
 
   worksheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // skip header
     validDataRows++;
 
-    if (previewRows.length < maxPreviewRows) {
-      const obj: Record<string, string> = {};
-      headers.forEach((h, idx) => {
-        const cell = row.getCell(idx + 1);
-        let val = '';
-        if (cell.type === ExcelJS.ValueType.Date && cell.value instanceof Date) {
-          val = cell.value.toISOString().split('T')[0];
-        } else if (cell.value && typeof cell.value === 'object' && 'result' in (cell.value as any)) {
-          // Formula evaluated result if available, otherwise empty string (never execute formulas)
-          val = String((cell.value as any).result || '');
-        } else if (cell.value !== null && cell.value !== undefined) {
-          val = String(cell.text || cell.value).trim();
-        }
-        obj[h] = val;
-      });
-      previewRows.push(obj);
-    }
+    const obj: Record<string, string> = {};
+    headers.forEach((h, idx) => {
+      const cell = row.getCell(idx + 1);
+      let val = '';
+      if (cell.type === ExcelJS.ValueType.Date && cell.value instanceof Date) {
+        val = cell.value.toISOString().split('T')[0];
+      } else if (cell.value && typeof cell.value === 'object' && 'result' in (cell.value as any)) {
+        // Formula evaluated result if available, otherwise empty string (never execute formulas)
+        val = String((cell.value as any).result || '');
+      } else if (cell.value !== null && cell.value !== undefined) {
+        val = String(cell.text || cell.value).trim();
+      }
+      obj[h] = val;
+    });
+    allRows.push(obj);
   });
 
+  const previewRows = allRows.slice(0, maxPreviewRows);
   const { detectedMapping, suggestedType } = detectColumnMapping(headers);
 
   return {
@@ -256,6 +257,7 @@ export async function parseXlsxContent(
     selectedSheet: worksheet.name,
     headers,
     totalRows: validDataRows,
+    rows: allRows,
     previewRows,
     detectedMapping,
     suggestedType
