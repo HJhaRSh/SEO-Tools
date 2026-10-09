@@ -41,6 +41,9 @@ export default function SitemapGenerator() {
   const [summary, setSummary] = useState<GenerationSummary | null>(null);
   const [files, setFiles] = useState<GeneratedFile[]>([]);
   const [zipDownloadId, setZipDownloadId] = useState<string | null>(null);
+  const [xmlPreview, setXmlPreview] = useState<string>('');
+  const [isPreviewTruncated, setIsPreviewTruncated] = useState<boolean>(false);
+  const [copiedXml, setCopiedXml] = useState<boolean>(false);
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +54,9 @@ export default function SitemapGenerator() {
     setSummary(null);
     setFiles([]);
     setZipDownloadId(null);
+    setXmlPreview('');
+    setIsPreviewTruncated(false);
+    setCopiedXml(false);
   };
 
   /**
@@ -271,6 +277,8 @@ export default function SitemapGenerator() {
       setSummary(genData.summary);
       setFiles(genData.files || []);
       setZipDownloadId(genData.zipDownloadId || null);
+      setXmlPreview(genData.xmlPreview || '');
+      setIsPreviewTruncated(genData.isPreviewTruncated || false);
       setStatus('success');
     } catch (err: any) {
       setErrorMessage(err.message || 'Error occurred while processing file');
@@ -325,6 +333,8 @@ export default function SitemapGenerator() {
       setSummary(data.summary);
       setFiles(data.files || []);
       setZipDownloadId(data.zipDownloadId || null);
+      setXmlPreview(data.xmlPreview || '');
+      setIsPreviewTruncated(data.isPreviewTruncated || false);
       setStatus('success');
     } catch (err: any) {
       setErrorMessage(err.message || 'Error generating XML sitemap');
@@ -332,6 +342,13 @@ export default function SitemapGenerator() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleCopyXml = () => {
+    if (!xmlPreview) return;
+    navigator.clipboard.writeText(xmlPreview);
+    setCopiedXml(true);
+    setTimeout(() => setCopiedXml(false), 2000);
   };
 
   return (
@@ -574,7 +591,7 @@ export default function SitemapGenerator() {
               )}
             </div>
 
-            {/* Multiple files list if dataset exceeded protocol limits */}
+            {/* Multiple files chips if dataset exceeded protocol limits */}
             {files.length > 1 && (
               <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">
@@ -594,6 +611,45 @@ export default function SitemapGenerator() {
                     </a>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* XML SITEMAP PREVIEW */}
+            {xmlPreview && (
+              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Sitemap XML Preview
+                    </span>
+                    {isPreviewTruncated && (
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                        (Preview truncated for performance — download file for full output)
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleCopyXml}
+                    type="button"
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    {copiedXml ? (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        Copy XML
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto max-h-80 leading-relaxed border border-slate-800 select-all">
+                  {xmlPreview}
+                </pre>
               </div>
             )}
           </div>
