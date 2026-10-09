@@ -1,31 +1,48 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import * as crypto from 'crypto';
 import * as archiverNamespace from 'archiver';
 import { GeneratedSitemapFile, SitemapValidationIssue } from './sitemapTypes.js';
 
-interface DownloadPackage {
+export interface DownloadPackage {
   filename: string;
   mimeType: string;
-  buffer: Buffer;
+  buffer?: Buffer;
+  filePath?: string; // If stored as a streaming temp file
   byteSize: number;
   createdAt: number;
 }
 
-// Bounded in-memory download store with automatic 15-minute expiration & LRU capacity control
+// Dedicated secure temp dir for sitemap downloads
+const SITEMAP_TEMP_DIR = path.join(os.tmpdir(), 'seo_sitemaps_cache');
+if (!fs.existsSync(SITEMAP_TEMP_DIR)) {
+  try {
+    fs.mkdirSync(SITEMAP_TEMP_DIR, { recursive: true, mode: 0o700 });
+  } catch {
+    // Fallback handled gracefully
+  }
+}
+
+// Bounded download store with automatic 15-minute expiration & LRU capacity control
 const downloadStore = new Map<string, DownloadPackage>();
 export const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 mins TTL
 export const MAX_RETAINED_DOWNLOAD_JOBS = 50; // Max 50 active packages
-export const MAX_TOTAL_RETAINED_BYTES = 100 * 1024 * 1024; // 100 MB max memory across all jobs
+export const MAX_TOTAL_RETAINED_BYTES = 100 * 1024 * 1024; // 100 MB max storage across all jobs
 export const MAX_PER_JOB_BYTES = 55 * 1024 * 1024; // 55 MB max per single job
 
 let totalRetainedBytes = 0;
 
 /**
- * Removes expired tokens and trims memory
+ * Removes expired tokens, cleans up temp files and trims storage
  */
 export function pruneExpiredDownloads(): void {
   const now = Date.now();
   for (const [id, item] of downloadStore.entries()) {
     if (now - item.createdAt > TOKEN_TTL_MS) {
+      if (item.filePath && fs.existsSync(item.filePath)) {
+        try { fs.unlinkSync(item.filePath); } catch { /* ignore */ }
+      }
       totalRetainedBytes -= item.byteSize;
       downloadStore.delete(id);
     }
@@ -50,6 +67,9 @@ function evictOldestIfNeeded(incomingBytes: number): void {
     if (!oldestKey) break;
     const oldItem = downloadStore.get(oldestKey);
     if (oldItem) {
+      if (oldItem.filePath && fs.existsSync(oldItem.filePath)) {
+        try { fs.unlinkSync(oldItem.filePath); } catch { /* ignore */ }
+      }
       totalRetainedBytes -= oldItem.byteSize;
     }
     downloadStore.delete(oldestKey);
@@ -57,25 +77,36 @@ function evictOldestIfNeeded(incomingBytes: number): void {
 }
 
 /**
- * Stores a downloadable file buffer and returns a cryptographically secure token
+ * Stores a downloadable file buffer or temp file and returns a cryptographically secure token
  */
-export function storeDownload(filename: string, mimeType: string, buffer: Buffer): string {
-  if (buffer.length > MAX_PER_JOB_BYTES) {
+export function storeDownload(
+  filename: string,
+  mimeType: string,
+  bufferOrPath: Buffer | { filePath: string; byteSize: number }
+): string {
+  const isFilePath = typeof bufferOrPath === 'object' && 'filePath' in bufferOrPath;
+  const byteSize = isFilePath ? bufferOrPath.byteSize : (bufferOrPath as Buffer).length;
+
+  if (byteSize > MAX_PER_JOB_BYTES) {
+    if (isFilePath && fs.existsSync(bufferOrPath.filePath)) {
+      try { fs.unlinkSync(bufferOrPath.filePath); } catch { /* ignore */ }
+    }
     throw new Error(`Download package exceeds single-job limit of ${MAX_PER_JOB_BYTES / 1024 / 1024} MB.`);
   }
 
-  evictOldestIfNeeded(buffer.length);
+  evictOldestIfNeeded(byteSize);
 
   // Cryptographically strong random token: dl_<random-hex-32> (unpredictable, no filesystem paths)
   const downloadId = `dl_${crypto.randomBytes(16).toString('hex')}`;
   downloadStore.set(downloadId, {
     filename,
     mimeType,
-    buffer,
-    byteSize: buffer.length,
+    buffer: isFilePath ? undefined : (bufferOrPath as Buffer),
+    filePath: isFilePath ? bufferOrPath.filePath : undefined,
+    byteSize,
     createdAt: Date.now()
   });
-  totalRetainedBytes += buffer.length;
+  totalRetainedBytes += byteSize;
 
   return downloadId;
 }
@@ -94,6 +125,9 @@ export function getDownload(downloadId: string): DownloadPackage | null {
   if (!item) return null;
 
   if (Date.now() - item.createdAt > TOKEN_TTL_MS) {
+    if (item.filePath && fs.existsSync(item.filePath)) {
+      try { fs.unlinkSync(item.filePath); } catch { /* ignore */ }
+    }
     totalRetainedBytes -= item.byteSize;
     downloadStore.delete(downloadId);
     return null;
@@ -127,12 +161,17 @@ function createZipInstance(): any {
 }
 
 /**
- * Creates a ZIP archive containing all generated sitemap files and an optional validation report
+ * Creates a ZIP archive by streaming directly to a secure temporary file on disk,
+ * avoiding large in-memory Buffer.concat() arrays.
+ * Returns the path to the temporary file and its byte size.
  */
 export async function createSitemapsZip(
   files: GeneratedSitemapFile[],
   issues?: SitemapValidationIssue[]
-): Promise<Buffer> {
+): Promise<{ filePath: string; byteSize: number }> {
+  const tempFileName = `dl_temp_${crypto.randomBytes(16).toString('hex')}.zip`;
+  const tempFilePath = path.join(SITEMAP_TEMP_DIR, tempFileName);
+
   return new Promise((resolve, reject) => {
     let archive: any;
     try {
@@ -141,10 +180,24 @@ export async function createSitemapsZip(
       return reject(e);
     }
 
-    const chunks: Buffer[] = [];
-    archive.on('data', (chunk: Buffer) => chunks.push(chunk));
-    archive.on('end', () => resolve(Buffer.concat(chunks)));
-    archive.on('error', (err: any) => reject(err));
+    const output = fs.createWriteStream(tempFilePath, { mode: 0o600 });
+
+    output.on('close', () => {
+      resolve({
+        filePath: tempFilePath,
+        byteSize: archive.pointer()
+      });
+    });
+
+    archive.on('error', (err: any) => {
+      output.destroy();
+      if (fs.existsSync(tempFilePath)) {
+        try { fs.unlinkSync(tempFilePath); } catch { /* ignore */ }
+      }
+      reject(err);
+    });
+
+    archive.pipe(output);
 
     // Add each generated XML file
     for (const f of files) {

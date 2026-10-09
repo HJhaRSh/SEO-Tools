@@ -4,6 +4,8 @@
  * splitting (50k & 50MB limits), ExcelJS decompression/safety, and ZIP packaging.
  */
 
+import * as fs from 'fs';
+import unzipper from 'unzipper';
 import { XMLParser } from 'fast-xml-parser';
 import ExcelJS from 'exceljs';
 import { validateSitemapUrl, validateLastmodDate, validateChangeFreq, validatePriority, escapeXmlEntities, validatePublicSitemapOptions } from './seo/sitemapValidation.js';
@@ -144,7 +146,7 @@ async function runTests() {
   {
     // CSV with BOM and quoted fields
     const csvContent = '\uFEFF"loc","lastmod"\n"https://example.com/","2026-10-01"\n"https://example.com/about/","2026-09-28"';
-    const csvParsed = parseCsvContent(csvContent);
+    const csvParsed = await parseCsvContent(csvContent);
     assert(csvParsed.success && csvParsed.totalRows === 2 && csvParsed.headers[0] === 'loc', 'Parses CSV with UTF-8 BOM and quoted fields');
 
     // XLSX Generation & Parsing via ExcelJS
@@ -272,16 +274,22 @@ async function runTests() {
     const cellSanitized = sanitizeCsvCell('=cmd|"/C calc"!A0');
     assert(cellSanitized === '"\'=cmd|""/C calc""!A0"', 'Sanitizes dangerous spreadsheet formula prefixes (=, +, -, @)');
 
-    // ZIP packaging
-    const zipBuf = await createSitemapsZip([
+    // ZIP packaging (streamed directly to disk)
+    const zipPkg = await createSitemapsZip([
       { filename: 'sitemap-1.xml', content: '<test>1</test>', type: 'urlset', urlCount: 1, byteSize: 15, downloadId: '1' }
     ]);
-    assert(zipBuf.length > 50 && zipBuf.slice(0, 4).toString('hex') === '504b0304', 'Generates valid ZIP buffer with PK signature');
+    assert(fs.existsSync(zipPkg.filePath) && zipPkg.byteSize > 50, 'Generates valid streaming ZIP temp file');
+    const zipHeader = fs.readFileSync(zipPkg.filePath).slice(0, 4).toString('hex');
+    assert(zipHeader === '504b0304', 'ZIP file on disk starts with PK signature (504b0304)');
+
+    // Verify ZIP can be opened and parsed
+    const zipDir = await unzipper.Open.file(zipPkg.filePath);
+    assert(zipDir.files.some(f => f.path === 'sitemap-1.xml'), 'ZIP archive contains sitemap-1.xml');
 
     // Download store, LRU eviction, and secure tokens
-    const dlToken = storeDownload('test.xml', 'application/xml', Buffer.from('<xml/>'));
+    const dlToken = storeDownload('sitemaps.zip', 'application/zip', zipPkg);
     const retrieved = getDownload(dlToken);
-    assert(retrieved !== null && retrieved.filename === 'test.xml', 'Stores and retrieves downloadable package by token');
+    assert(retrieved !== null && retrieved.filePath === zipPkg.filePath, 'Stores and retrieves downloadable package referencing temp file');
     assert(dlToken.startsWith('dl_') && dlToken.length === 35, 'Generates cryptographically random 32-hex token without path traversal risk');
 
     // Reject malformed or path traversal tokens
@@ -366,13 +374,51 @@ async function runTests() {
 
     // CSV with duplicate headers
     const dupCsv = 'loc,lastmod,lastmod\nhttps://example.com/,2026-10-01,2026-10-02';
-    const parsedDup = parseCsvContent(dupCsv);
+    const parsedDup = await parseCsvContent(dupCsv);
     assert(parsedDup.success, 'Parses CSV with duplicate headers');
     assert(parsedDup.headers[1] === 'lastmod', 'First header retains original name');
     assert(parsedDup.headers[2] === 'lastmod (2)', 'Duplicate header is disambiguated with suffix');
     assert(Boolean(parsedDup.warnings && parsedDup.warnings.length > 0), 'Flags duplicate header warning');
     assert(parsedDup.rows?.[0]?.['lastmod'] === '2026-10-01', 'First duplicate column value preserved');
     assert(parsedDup.rows?.[0]?.['lastmod (2)'] === '2026-10-02', 'Second duplicate column value preserved without overwrite');
+  }
+
+  // Group 9: Resource Limits & Protections (FIX 1 & FIX 2)
+  console.log('\n9. Streaming CSV & XLSX Resource Protections:');
+  {
+    // CSV with oversized field (> 8192 chars)
+    const longField = 'a'.repeat(9000);
+    const oversizedFieldCsv = `loc,lastmod\nhttps://example.com/,${longField}`;
+    const fieldRes = await parseCsvContent(oversizedFieldCsv);
+    assert(!fieldRes.success && Boolean(fieldRes.errors?.[0]?.includes('exceeds maximum field limit')), 'Rejects CSV containing an oversized field (> 8KB)');
+
+    // CSV exceeding column limit (> 100 cols)
+    const manyColsHeaders = Array.from({ length: 105 }, (_, i) => `col_${i + 1}`).join(',');
+    const manyColsRow = Array.from({ length: 105 }, (_, i) => `val_${i + 1}`).join(',');
+    const manyColsCsv = `${manyColsHeaders}\n${manyColsRow}`;
+    const colsRes = await parseCsvContent(manyColsCsv);
+    assert(!colsRes.success && Boolean(colsRes.errors?.[0]?.includes('exceeding the maximum limit of 100')), 'Rejects CSV with > 100 columns');
+
+    // XLSX with invalid/corrupt archive
+    const corruptBuffer = Buffer.from('corrupt_binary_not_a_zip');
+    const corruptRes = await parseXlsxContent(corruptBuffer);
+    assert(!corruptRes.success && Boolean(corruptRes.errors?.[0]?.includes('archive')), 'Rejects malformed XLSX archive early before materialization');
+
+    // Peak memory measurement during large ZIP generation
+    const initialMem = process.memoryUsage().heapUsed;
+    const testFiles = Array.from({ length: 5 }, (_, idx) => ({
+      filename: `sitemap-${idx + 1}.xml`,
+      content: `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${'<url><loc>https://example.com/' + idx + '</loc></url>'.repeat(5000)}</urlset>`,
+      type: 'urlset' as const,
+      urlCount: 5000,
+      byteSize: 300000,
+      downloadId: `id_${idx}`
+    }));
+    const largeZip = await createSitemapsZip(testFiles);
+    const postMem = process.memoryUsage().heapUsed;
+    const diffMb = (postMem - initialMem) / 1024 / 1024;
+    assert(fs.existsSync(largeZip.filePath) && largeZip.byteSize > 1000, `Streams large ZIP archive to disk (file size: ${(largeZip.byteSize / 1024).toFixed(1)} KB, memory delta: ${diffMb.toFixed(2)} MB)`);
+    try { fs.unlinkSync(largeZip.filePath); } catch { /* cleanup */ }
   }
 
   console.log('\n=====================================================');

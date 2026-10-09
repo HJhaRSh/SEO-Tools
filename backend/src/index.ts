@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import fs from 'fs';
 import { AI_BOT_REGISTRY, getAiBotById } from './seo/aiBotRegistry.js';
 import { runAiBotAccessTest } from './seo/aiBotTesterService.js';
 import { testRobotsTxt } from './seo/robotsService.js';
@@ -209,7 +210,7 @@ app.post('/api/seo/sitemap/parse', async (req: Request, res: Response) => {
     }
 
     if (format === 'csv') {
-      const result = parseCsvContent(content);
+      const result = await parseCsvContent(content);
       return res.json(result);
     } else if (format === 'xlsx') {
       // Buffer from base64 string
@@ -261,8 +262,8 @@ app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
 
     // Generate ZIP package containing all XML files + validation report (if any issues exist)
     const allIssues = [...genResult.errors, ...genResult.warnings];
-    const zipBuffer = await createSitemapsZip(genResult.files, allIssues);
-    const zipToken = storeDownload('sitemaps.zip', 'application/zip', zipBuffer);
+    const zipPackage = await createSitemapsZip(genResult.files, allIssues);
+    const zipToken = storeDownload('sitemaps.zip', 'application/zip', zipPackage);
 
     // Only generate separate validation report if issues (errors or warnings) were found
     let reportToken: string | undefined = undefined;
@@ -304,7 +305,25 @@ app.get('/api/seo/sitemap/download/:downloadId', (req: Request, res: Response) =
 
   res.setHeader('Content-Type', pkg.mimeType);
   res.setHeader('Content-Disposition', `attachment; filename="${pkg.filename}"`);
-  res.send(pkg.buffer);
+
+  if (pkg.filePath) {
+    if (!fs.existsSync(pkg.filePath)) {
+      return res.status(404).send('Download file no longer available on disk.');
+    }
+    const readStream = fs.createReadStream(pkg.filePath);
+    readStream.on('error', () => {
+      if (!res.headersSent) {
+        res.status(500).send('Error streaming download file.');
+      }
+    });
+    return readStream.pipe(res);
+  }
+
+  if (pkg.buffer) {
+    return res.send(pkg.buffer);
+  }
+
+  res.status(404).send('No file payload found for this download.');
 });
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {

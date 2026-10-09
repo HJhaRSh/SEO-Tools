@@ -9,13 +9,21 @@
  * - File size boundary check
  */
 
-import { parse as parseCsv } from 'csv-parse/sync';
+import { parse as parseCsvStream } from 'csv-parse';
+import { Readable } from 'stream';
+import unzipper from 'unzipper';
 import ExcelJS from 'exceljs';
 import { ColumnMapping, SpreadsheetParseResult, SitemapUrlEntry } from './sitemapTypes.js';
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB (consistent with gateway limit)
 export const MAX_ALLOWED_ROWS = 100000;
 export const MAX_ALLOWED_COLUMNS = 100;
+export const MAX_FIELD_LENGTH = 8192; // 8 KB per individual field
+export const MAX_RECORD_LENGTH = 65536; // 64 KB per line/record
+export const MAX_ARCHIVE_DECOMPRESSED_BYTES = 50 * 1024 * 1024; // 50 MB max uncompressed ZIP entries
+export const MAX_WORKSHEETS_COUNT = 20;
+export const MAX_CELL_COUNT = 2000000; // 2 million total cells processed
+export const MAX_CELL_TEXT_LENGTH = 8192; // 8 KB text per cell
 
 /**
  * Remove UTF-8 Byte Order Mark if present
@@ -28,12 +36,25 @@ export function stripBom(content: string): string {
 }
 
 /**
- * Parse raw CSV string or Buffer
+ * Parse raw CSV incrementally using a streaming parser with strict resource limits
  */
-export function parseCsvContent(
+export async function parseCsvContent(
   rawContent: string | Buffer,
   maxPreviewRows: number = 25
-): SpreadsheetParseResult {
+): Promise<SpreadsheetParseResult> {
+  const byteLength = typeof rawContent === 'string' ? Buffer.byteLength(rawContent, 'utf-8') : rawContent.length;
+  if (byteLength > MAX_FILE_SIZE_BYTES) {
+    return {
+      success: false,
+      format: 'csv',
+      headers: [],
+      totalRows: 0,
+      previewRows: [],
+      suggestedType: 'simple',
+      errors: [`CSV file size (${(byteLength / 1024 / 1024).toFixed(1)}MB) exceeds limit of ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB.`]
+    };
+  }
+
   const text = typeof rawContent === 'string' ? rawContent : rawContent.toString('utf-8');
   const cleanText = stripBom(text);
 
@@ -49,26 +70,83 @@ export function parseCsvContent(
     };
   }
 
-  let records: string[][];
-  try {
-    records = parseCsv(cleanText, {
+  const parser = Readable.from([cleanText]).pipe(
+    parseCsvStream({
       skip_empty_lines: true,
       relax_quotes: true,
       trim: true
-    });
+    })
+  );
+
+  let rawHeaders: string[] | null = null;
+  let headers: string[] = [];
+  const duplicateHeaderWarnings: string[] = [];
+  const allRows: Record<string, string>[] = [];
+  let dataRowCount = 0;
+
+  try {
+    for await (const record of parser) {
+      if (!Array.isArray(record)) continue;
+
+      // Check record length in bytes
+      let recordByteLen = 0;
+      for (const field of record) {
+        const strField = String(field ?? '');
+        if (strField.length > MAX_FIELD_LENGTH) {
+          parser.destroy(new Error(`A field in row ${dataRowCount + 1} exceeds maximum field limit of ${MAX_FIELD_LENGTH} characters.`));
+        }
+        recordByteLen += strField.length;
+      }
+      if (recordByteLen > MAX_RECORD_LENGTH) {
+        parser.destroy(new Error(`Row ${dataRowCount + 1} exceeds maximum record length of ${MAX_RECORD_LENGTH} characters.`));
+      }
+
+      // First record: headers
+      if (!rawHeaders) {
+        rawHeaders = record.map((h: any) => String(h ?? '').trim());
+        if (rawHeaders.length > MAX_ALLOWED_COLUMNS) {
+          parser.destroy(new Error(`Spreadsheet contains ${rawHeaders.length} columns, exceeding the maximum limit of ${MAX_ALLOWED_COLUMNS}.`));
+        }
+
+        const seenHeaderCounts = new Map<string, number>();
+        headers = rawHeaders.map((rawH, i) => {
+          let clean = rawH ? rawH : `Column_${i + 1}`;
+          const count = (seenHeaderCounts.get(clean.toLowerCase()) || 0) + 1;
+          seenHeaderCounts.set(clean.toLowerCase(), count);
+          if (count > 1) {
+            duplicateHeaderWarnings.push(`Duplicate header "${clean}" detected at column ${i + 1}.`);
+            clean = `${clean} (${count})`;
+          }
+          return clean;
+        });
+        continue;
+      }
+
+      // Subsequent records: data rows
+      dataRowCount++;
+      if (dataRowCount > MAX_ALLOWED_ROWS) {
+        parser.destroy(new Error(`Spreadsheet contains more than ${MAX_ALLOWED_ROWS} rows, which exceeds the permitted limit.`));
+      }
+
+      const rowObj: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        rowObj[h] = record[idx] !== undefined && record[idx] !== null ? String(record[idx]).trim() : '';
+      });
+      allRows.push(rowObj);
+    }
   } catch (err: any) {
     return {
       success: false,
       format: 'csv',
-      headers: [],
-      totalRows: 0,
+      headers: headers.length > 0 ? headers : [],
+      totalRows: dataRowCount,
       previewRows: [],
       suggestedType: 'simple',
-      errors: [`Failed to parse CSV: ${err.message}`]
+      errors: [err.message || 'Failed to parse CSV stream.']
     };
   }
 
-  if (records.length === 0) {
+  if (!rawHeaders || headers.length === 0) {
     return {
       success: false,
       format: 'csv',
@@ -80,63 +158,14 @@ export function parseCsvContent(
     };
   }
 
-  if (records.length > MAX_ALLOWED_ROWS + 1) {
-    return {
-      success: false,
-      format: 'csv',
-      headers: [],
-      totalRows: records.length,
-      previewRows: [],
-      suggestedType: 'simple',
-      errors: [`Spreadsheet contains ${records.length} rows, which exceeds the maximum limit of ${MAX_ALLOWED_ROWS} rows.`]
-    };
-  }
-
-  const rawHeaders = records[0];
-  if (rawHeaders.length > MAX_ALLOWED_COLUMNS) {
-    return {
-      success: false,
-      format: 'csv',
-      headers: [],
-      totalRows: records.length,
-      previewRows: [],
-      suggestedType: 'simple',
-      errors: [`Spreadsheet contains ${rawHeaders.length} columns, exceeding the maximum limit of ${MAX_ALLOWED_COLUMNS}.`]
-    };
-  }
-
-  // Deduplicate headers and preserve physical positions
-  const seenHeaderCounts = new Map<string, number>();
-  const duplicateHeaderWarnings: string[] = [];
-
-  const headers = rawHeaders.map((rawH, i) => {
-    let clean = (rawH && rawH.trim()) ? rawH.trim() : `Column_${i + 1}`;
-    const count = (seenHeaderCounts.get(clean.toLowerCase()) || 0) + 1;
-    seenHeaderCounts.set(clean.toLowerCase(), count);
-    if (count > 1) {
-      duplicateHeaderWarnings.push(`Duplicate header "${clean}" detected at column ${i + 1}.`);
-      clean = `${clean} (${count})`;
-    }
-    return clean;
-  });
-
-  const dataRows = records.slice(1);
-  const allRows = dataRows.map(row => {
-    const obj: Record<string, string> = {};
-    headers.forEach((h, idx) => {
-      obj[h] = row[idx] ?? '';
-    });
-    return obj;
-  });
   const previewRows = allRows.slice(0, maxPreviewRows);
-
   const { detectedMapping, suggestedType } = detectColumnMapping(headers);
 
   return {
     success: true,
     format: 'csv',
     headers,
-    totalRows: dataRows.length,
+    totalRows: dataRowCount,
     rows: allRows,
     previewRows,
     detectedMapping,
@@ -146,7 +175,7 @@ export function parseCsvContent(
 }
 
 /**
- * Parse XLSX workbook safely using ExcelJS
+ * Parse XLSX workbook safely using archive inspection and bounded ExcelJS reading
  */
 export async function parseXlsxContent(
   buffer: Buffer,
@@ -165,6 +194,97 @@ export async function parseXlsxContent(
     };
   }
 
+  // 1. Inspect ZIP archive structure and uncompressed dimensions before workbook materialization
+  try {
+    const zipDir = await unzipper.Open.buffer(buffer);
+    if (!zipDir || !zipDir.files || zipDir.files.length === 0) {
+      return {
+        success: false,
+        format: 'xlsx',
+        headers: [],
+        totalRows: 0,
+        previewRows: [],
+        suggestedType: 'simple',
+        errors: ['Malformed or corrupt XLSX archive: no ZIP directory found.']
+      };
+    }
+
+    let totalDecompressedBytes = 0;
+    let worksheetXmlFiles = 0;
+
+    for (const file of zipDir.files) {
+      // Check for suspicious zip paths (zip slip)
+      if (file.path.includes('..') || file.path.startsWith('/') || file.path.startsWith('\\')) {
+        return {
+          success: false,
+          format: 'xlsx',
+          headers: [],
+          totalRows: 0,
+          previewRows: [],
+          suggestedType: 'simple',
+          errors: ['Suspicious XLSX archive structure detected: path traversal detected.']
+        };
+      }
+
+      const uncompressed = file.uncompressedSize ?? 0;
+      totalDecompressedBytes += uncompressed;
+
+      // Zip bomb / compression ratio check
+      if (file.compressedSize && file.compressedSize > 0) {
+        const ratio = uncompressed / file.compressedSize;
+        if (ratio > 100 && uncompressed > 10 * 1024 * 1024) {
+          return {
+            success: false,
+            format: 'xlsx',
+            headers: [],
+            totalRows: 0,
+            previewRows: [],
+            suggestedType: 'simple',
+            errors: ['High compression ratio XLSX archive rejected for security (possible zip bomb).']
+          };
+        }
+      }
+
+      if (totalDecompressedBytes > MAX_ARCHIVE_DECOMPRESSED_BYTES) {
+        return {
+          success: false,
+          format: 'xlsx',
+          headers: [],
+          totalRows: 0,
+          previewRows: [],
+          suggestedType: 'simple',
+          errors: [`Decompressed XLSX archive exceeds safe limit of ${MAX_ARCHIVE_DECOMPRESSED_BYTES / 1024 / 1024}MB.`]
+        };
+      }
+
+      if (/xl\/worksheets\/sheet\d+\.xml/i.test(file.path)) {
+        worksheetXmlFiles++;
+        if (worksheetXmlFiles > MAX_WORKSHEETS_COUNT) {
+          return {
+            success: false,
+            format: 'xlsx',
+            headers: [],
+            totalRows: 0,
+            previewRows: [],
+            suggestedType: 'simple',
+            errors: [`Workbook contains more than ${MAX_WORKSHEETS_COUNT} worksheets, exceeding maximum allowed.`]
+          };
+        }
+      }
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      format: 'xlsx',
+      headers: [],
+      totalRows: 0,
+      previewRows: [],
+      suggestedType: 'simple',
+      errors: [`Invalid or malformed XLSX archive: ${err.message || 'Corrupt zip container'}`]
+    };
+  }
+
+  // 2. Safe loading into ExcelJS
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(buffer as any);
@@ -193,6 +313,19 @@ export async function parseXlsxContent(
     };
   }
 
+  if (sheetNames.length > MAX_WORKSHEETS_COUNT) {
+    return {
+      success: false,
+      format: 'xlsx',
+      sheetNames,
+      headers: [],
+      totalRows: 0,
+      previewRows: [],
+      suggestedType: 'simple',
+      errors: [`Workbook contains ${sheetNames.length} worksheets, exceeding limit of ${MAX_WORKSHEETS_COUNT}.`]
+    };
+  }
+
   const worksheet = selectedSheetName
     ? workbook.getWorksheet(selectedSheetName) || workbook.worksheets[0]
     : workbook.worksheets[0];
@@ -215,7 +348,21 @@ export async function parseXlsxContent(
   // Extract Header row (row 1) preserving physical column indexes
   const headerRow = worksheet.getRow(1);
   const rawHeaders: { colNumber: number; text: string }[] = [];
-  const maxCol = Math.min(headerRow.cellCount || worksheet.columnCount || 0, MAX_ALLOWED_COLUMNS);
+  const maxCol = Math.min(headerRow.cellCount || worksheet.columnCount || 0, MAX_ALLOWED_COLUMNS + 1);
+
+  if (headerRow.cellCount > MAX_ALLOWED_COLUMNS || (worksheet.columnCount && worksheet.columnCount > MAX_ALLOWED_COLUMNS)) {
+    return {
+      success: false,
+      format: 'xlsx',
+      sheetNames,
+      selectedSheet: worksheet.name,
+      headers: [],
+      totalRows: totalRowCount,
+      previewRows: [],
+      suggestedType: 'simple',
+      errors: [`Worksheet contains more columns than the allowed limit of ${MAX_ALLOWED_COLUMNS}.`]
+    };
+  }
 
   const seenHeaderCounts = new Map<string, number>();
   const duplicateHeaderWarnings: string[] = [];
@@ -223,6 +370,19 @@ export async function parseXlsxContent(
   for (let c = 1; c <= maxCol; c++) {
     const cell = headerRow.getCell(c);
     let cellText = String(cell.text || cell.value || '').trim();
+    if (cellText.length > MAX_CELL_TEXT_LENGTH) {
+      return {
+        success: false,
+        format: 'xlsx',
+        sheetNames,
+        selectedSheet: worksheet.name,
+        headers: [],
+        totalRows: 0,
+        previewRows: [],
+        suggestedType: 'simple',
+        errors: [`Header cell at column ${c} exceeds maximum text length of ${MAX_CELL_TEXT_LENGTH} characters.`]
+      };
+    }
     if (!cellText) {
       cellText = `Column_${c}`; // Preserve physical position c
     }
@@ -256,13 +416,44 @@ export async function parseXlsxContent(
   // Collect data rows using physical column indexes
   const allRows: Record<string, any>[] = [];
   let validDataRows = 0;
+  let totalProcessedCells = 0;
 
-  worksheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return; // skip header
+  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    if (!row || !row.hasValues) continue;
     validDataRows++;
 
+    if (validDataRows > MAX_ALLOWED_ROWS) {
+      return {
+        success: false,
+        format: 'xlsx',
+        sheetNames,
+        selectedSheet: worksheet.name,
+        headers,
+        totalRows: validDataRows,
+        previewRows: [],
+        suggestedType: 'simple',
+        errors: [`Worksheet "${worksheet.name}" exceeds limit of ${MAX_ALLOWED_ROWS} data rows.`]
+      };
+    }
+
     const obj: Record<string, string> = {};
-    rawHeaders.forEach(({ colNumber, text }) => {
+    for (const { colNumber, text } of rawHeaders) {
+      totalProcessedCells++;
+      if (totalProcessedCells > MAX_CELL_COUNT) {
+        return {
+          success: false,
+          format: 'xlsx',
+          sheetNames,
+          selectedSheet: worksheet.name,
+          headers,
+          totalRows: validDataRows,
+          previewRows: [],
+          suggestedType: 'simple',
+          errors: [`Spreadsheet exceeded total cell processing limit of ${MAX_CELL_COUNT} cells.`]
+        };
+      }
+
       const cell = row.getCell(colNumber);
       let val = '';
       if (cell.type === ExcelJS.ValueType.Date && cell.value instanceof Date) {
@@ -273,10 +464,25 @@ export async function parseXlsxContent(
       } else if (cell.value !== null && cell.value !== undefined) {
         val = String(cell.text || cell.value).trim();
       }
+
+      if (val.length > MAX_CELL_TEXT_LENGTH) {
+        return {
+          success: false,
+          format: 'xlsx',
+          sheetNames,
+          selectedSheet: worksheet.name,
+          headers,
+          totalRows: validDataRows,
+          previewRows: [],
+          suggestedType: 'simple',
+          errors: [`Cell at row ${rowNumber}, column ${colNumber} exceeds text length limit of ${MAX_CELL_TEXT_LENGTH} characters.`]
+        };
+      }
+
       obj[text] = val;
-    });
+    }
     allRows.push(obj);
-  });
+  }
 
   const previewRows = allRows.slice(0, maxPreviewRows);
   const { detectedMapping, suggestedType } = detectColumnMapping(headers);

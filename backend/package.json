@@ -23,6 +23,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.1",
+    "@types/unzipper": "^0.10.11",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
