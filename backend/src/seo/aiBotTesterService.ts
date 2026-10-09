@@ -416,6 +416,7 @@ export async function runAiBotAccessTest(
       let challengeType: string | undefined;
       let bodyLength = 0;
       let wordCount = 0;
+      let fetchRes: any = null;
 
       if (bot.isPolicyOnlyToken) {
         // Special case: Google-Extended & Applebot-Extended do NOT have independent HTTP crawlers
@@ -436,32 +437,53 @@ export async function runAiBotAccessTest(
         const userAgentHeader = bot.fullUserAgent || 'Mozilla/5.0 (compatible; IndianMarketersBot/1.0)';
 
         try {
-          let redirectRobotsBlocked = false;
-          let redirectRobotsRule: string | undefined;
-
-          const fetchRes = await safeFetch(url, {
+          fetchRes = await safeFetch(url, {
             userAgent: userAgentHeader,
             timeoutMs: 10000,
             maxBytes: 1024 * 1024, // 1 MB
             beforeRedirect: async (nextUrl: string) => {
-              // Redirect-Aware robots.txt check (Issue 2)
+              // Redirect-Aware robots.txt check (Issue 1 & 2)
               try {
                 const targetObj = new URL(nextUrl);
                 const nextOrigin = targetObj.origin;
                 const nextPath = targetObj.pathname + targetObj.search;
                 const nextRobots = await getRobotsTest(nextOrigin, nextPath, bot.token);
-                if (nextRobots && nextRobots.result.status === 'BLOCKED') {
-                  redirectRobotsBlocked = true;
-                  redirectRobotsRule = nextRobots.result.appliedRule?.originalText;
+
+                if (!nextRobots) {
                   return {
                     allow: false,
-                    reason: `Robots.txt disallows redirected destination "${nextUrl}" (${redirectRobotsRule || 'Disallow'})`
+                    blockType: 'UNKNOWN',
+                    reason: `Robots.txt evaluation disabled; cannot verify crawl permission for redirected destination "${nextUrl}".`
                   };
                 }
-              } catch {
-                // If checking fails, proceed safely
+
+                if (nextRobots.result.status === 'BLOCKED') {
+                  const ruleText = nextRobots.result.appliedRule?.originalText;
+                  return {
+                    allow: false,
+                    blockType: 'BLOCKED',
+                    reason: `Robots.txt disallows redirected destination "${nextUrl}" (${ruleText || 'Disallow rule'}).`
+                  };
+                }
+
+                if (nextRobots.result.status === 'UNKNOWN') {
+                  return {
+                    allow: false,
+                    blockType: 'UNKNOWN',
+                    reason: `Robots.txt crawl permission for redirected destination "${nextUrl}" could not be determined (${nextRobots.result.explanation}).`
+                  };
+                }
+
+                // If ALLOWED, permit following redirect
+                return { allow: true };
+              } catch (evalErr: any) {
+                // Evaluation error: Do NOT follow redirect; report indeterminate failure
+                return {
+                  allow: false,
+                  blockType: 'ERROR',
+                  reason: `Permission-check failure evaluating robots.txt for redirected destination "${nextUrl}": ${evalErr.message}`
+                };
               }
-              return { allow: true };
             }
           });
 
@@ -475,11 +497,17 @@ export async function runAiBotAccessTest(
 
           if (fetchRes.blockedByRedirectHook) {
             httpStatus = 'NOT_TESTED';
-            httpStatusText = 'Skipped (Redirect destination blocked by robots.txt)';
+            if (fetchRes.redirectBlockType === 'BLOCKED') {
+              httpStatusText = 'Skipped (Redirect destination blocked by robots.txt)';
+            } else if (fetchRes.redirectBlockType === 'UNKNOWN') {
+              httpStatusText = 'Skipped (Redirect destination robots.txt unknown)';
+            } else {
+              httpStatusText = 'Skipped (Redirect robots.txt check error)';
+            }
             contentStatus = 'NOT_TESTED';
             warnings.push(fetchRes.redirectBlockedReason || 'Redirect destination disallowed by robots.txt');
           } else {
-            if (httpStatusCode >= 200 && httpStatusCode < 300) {
+            if (httpStatusCode !== null && httpStatusCode >= 200 && httpStatusCode < 300) {
               httpStatus = 'HTTP_SUCCESS';
             } else if (httpStatusCode === 401 || httpStatusCode === 403) {
               httpStatus = 'HTTP_DENIED';
@@ -487,7 +515,7 @@ export async function runAiBotAccessTest(
               httpStatus = 'HTTP_NOT_FOUND';
             } else if (httpStatusCode === 429) {
               httpStatus = 'HTTP_RATE_LIMITED';
-            } else if (httpStatusCode >= 500) {
+            } else if (httpStatusCode !== null && httpStatusCode >= 500) {
               httpStatus = 'HTTP_SERVER_ERROR';
             } else {
               httpStatus = 'HTTP_SUCCESS';
@@ -495,7 +523,7 @@ export async function runAiBotAccessTest(
 
             // Content Check
             wordCount = 0;
-            if (checkContent && httpStatusCode) {
+            if (checkContent && httpStatusCode !== null) {
               const contentAnalysis = analyzePageContent(httpStatusCode, contentType, fetchRes.body, fetchRes.headers);
               contentStatus = contentAnalysis.status;
               pageTitle = contentAnalysis.title;
@@ -544,6 +572,16 @@ export async function runAiBotAccessTest(
         summaryStatus = 'INDETERMINATE';
         summaryLabel = 'Robots.txt Unknown';
         overallExplanation = `Robots.txt status could not be verified. HTTP testing was skipped for safety. (${robotsExplanation})`;
+      } else if (fetchRes?.blockedByRedirectHook) {
+        if (fetchRes.redirectBlockType === 'BLOCKED') {
+          summaryStatus = 'BLOCKED_BY_ROBOTS';
+          summaryLabel = 'Redirect Blocked by robots.txt';
+          overallExplanation = `robots.txt allows the initial URL, but the redirected destination is disallowed: ${warnings[warnings.length - 1] || 'Disallowed by robots.txt'}`;
+        } else {
+          summaryStatus = 'INDETERMINATE';
+          summaryLabel = 'Redirect Permission Unknown';
+          overallExplanation = `robots.txt allows the initial URL, but the crawl permission for the redirected destination could not be determined: ${warnings[warnings.length - 1] || 'Unknown robots.txt status'}`;
+        }
       } else if (challengeDetected) {
         summaryStatus = 'CONTENT_CHALLENGE';
         summaryLabel = 'Security Challenge';

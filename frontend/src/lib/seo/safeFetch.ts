@@ -12,7 +12,7 @@ export interface SafeFetchOptions {
   maxBytes?: number; // 500 KiB limit default
   headers?: Record<string, string>;
   userAgent?: string;
-  beforeRedirect?: (nextUrl: string, currentUrl: string) => Promise<{ allow: boolean; reason?: string }>;
+  beforeRedirect?: (nextUrl: string, currentUrl: string) => Promise<{ allow: boolean; reason?: string; blockType?: 'BLOCKED' | 'UNKNOWN' | 'ERROR' }>;
 }
 
 export interface SafeFetchResult {
@@ -29,12 +29,72 @@ export interface SafeFetchResult {
   isTruncated: boolean;
   blockedByRedirectHook?: boolean;
   redirectBlockedReason?: string;
+  redirectBlockType?: 'BLOCKED' | 'UNKNOWN' | 'ERROR';
 }
 
 const DEFAULT_MAX_REDIRECTS = 5;
 const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_MAX_BYTES = 512 * 1024; // 512 KiB (500 KiB spec)
 const ALLOWED_PORTS = new Set(['80', '443', '']);
+
+// ==========================================
+// OUTBOUND REQUEST CONCURRENCY LIMITER
+// (GLOBAL_LIMIT = 5, PER_DOMAIN_LIMIT = 2)
+// Applied at network connection level to cover:
+// - Direct URL fetches
+// - robots.txt fetches
+// - Cross-domain & same-domain redirect hops
+// ==========================================
+const HTTP_GLOBAL_CONCURRENCY = 5;
+const HTTP_PER_DOMAIN_CONCURRENCY = 2;
+
+let activeGlobalRequests = 0;
+const activeDomainRequests = new Map<string, number>();
+const requestQueue: { origin: string; resolve: () => void }[] = [];
+
+function acquireOutboundSlot(origin: string): Promise<() => void> {
+  return new Promise<() => void>((resolveSlot) => {
+    function tryAcquire() {
+      const domainActive = activeDomainRequests.get(origin) || 0;
+      if (activeGlobalRequests < HTTP_GLOBAL_CONCURRENCY && domainActive < HTTP_PER_DOMAIN_CONCURRENCY) {
+        activeGlobalRequests++;
+        activeDomainRequests.set(origin, domainActive + 1);
+
+        let released = false;
+        const releaseSlot = () => {
+          if (released) return;
+          released = true;
+          activeGlobalRequests--;
+          const count = (activeDomainRequests.get(origin) || 1) - 1;
+          if (count <= 0) {
+            activeDomainRequests.delete(origin);
+          } else {
+            activeDomainRequests.set(origin, count);
+          }
+          dispatchNextQueued();
+        };
+
+        return resolveSlot(releaseSlot);
+      } else {
+        requestQueue.push({ origin, resolve: tryAcquire });
+      }
+    }
+
+    tryAcquire();
+  });
+}
+
+function dispatchNextQueued() {
+  for (let i = 0; i < requestQueue.length; i++) {
+    const item = requestQueue[i];
+    const domainActive = activeDomainRequests.get(item.origin) || 0;
+    if (activeGlobalRequests < HTTP_GLOBAL_CONCURRENCY && domainActive < HTTP_PER_DOMAIN_CONCURRENCY) {
+      requestQueue.splice(i, 1);
+      item.resolve();
+      break;
+    }
+  }
+}
 
 /**
  * Resolves a hostname safely and ensures resolved IP is not private/reserved.
@@ -139,100 +199,114 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
       timeout: timeoutMs
     };
 
-    const res = await new Promise<{
+    const releaseSlot = await acquireOutboundSlot(parsedUrl.origin);
+    let res: {
       statusCode: number;
       statusText: string;
       headers: Record<string, string>;
       body: string;
       redirectLocation?: string;
       isTruncated: boolean;
-    }>((resolve, reject) => {
-      let isTimedOut = false;
-      const req = client.request(requestOptions, (response) => {
-        const statusCode = response.statusCode || 0;
-        const statusText = response.statusMessage || '';
-        const headers: Record<string, string> = {};
-        for (const [key, val] of Object.entries(response.headers)) {
-          if (val) {
-            headers[key.toLowerCase()] = Array.isArray(val) ? val.join(', ') : val;
-          }
-        }
+    };
 
-        // Check for redirects (301, 302, 303, 307, 308)
-        if ([301, 302, 303, 307, 308].includes(statusCode) && headers['location']) {
-          response.resume(); // discard body
-          return resolve({
-            statusCode,
-            statusText,
-            headers,
-            body: '',
-            redirectLocation: headers['location'],
-            isTruncated: false
-          });
-        }
-
-        const chunks: Buffer[] = [];
-        let totalBytes = 0;
-        let truncated = false;
-
-        response.on('data', (chunk: Buffer) => {
-          if (totalBytes + chunk.length > maxBytes) {
-            const allowedLength = Math.max(0, maxBytes - totalBytes);
-            if (allowedLength > 0) {
-              chunks.push(chunk.subarray(0, allowedLength));
-              totalBytes += allowedLength;
+    try {
+      res = await new Promise<{
+        statusCode: number;
+        statusText: string;
+        headers: Record<string, string>;
+        body: string;
+        redirectLocation?: string;
+        isTruncated: boolean;
+      }>((resolve, reject) => {
+        let isTimedOut = false;
+        const req = client.request(requestOptions, (response) => {
+          const statusCode = response.statusCode || 0;
+          const statusText = response.statusMessage || '';
+          const headers: Record<string, string> = {};
+          for (const [key, val] of Object.entries(response.headers)) {
+            if (val) {
+              headers[key.toLowerCase()] = Array.isArray(val) ? val.join(', ') : val;
             }
-            truncated = true;
-            response.destroy(); // Stop receiving
-          } else {
-            chunks.push(chunk);
-            totalBytes += chunk.length;
           }
-        });
 
-        response.on('end', () => {
-          const body = Buffer.concat(chunks).toString('utf-8');
-          resolve({
-            statusCode,
-            statusText,
-            headers,
-            body,
-            isTruncated: truncated
+          // Check for redirects (301, 302, 303, 307, 308)
+          if ([301, 302, 303, 307, 308].includes(statusCode) && headers['location']) {
+            response.resume(); // discard body
+            return resolve({
+              statusCode,
+              statusText,
+              headers,
+              body: '',
+              redirectLocation: headers['location'],
+              isTruncated: false
+            });
+          }
+
+          const chunks: Buffer[] = [];
+          let totalBytes = 0;
+          let truncated = false;
+
+          response.on('data', (chunk: Buffer) => {
+            if (totalBytes + chunk.length > maxBytes) {
+              const allowedLength = Math.max(0, maxBytes - totalBytes);
+              if (allowedLength > 0) {
+                chunks.push(chunk.subarray(0, allowedLength));
+                totalBytes += allowedLength;
+              }
+              truncated = true;
+              response.destroy(); // Stop receiving
+            } else {
+              chunks.push(chunk);
+              totalBytes += chunk.length;
+            }
           });
-        });
 
-        response.on('close', () => {
-          if (truncated) {
+          response.on('end', () => {
             const body = Buffer.concat(chunks).toString('utf-8');
             resolve({
               statusCode,
               statusText,
               headers,
               body,
-              isTruncated: true
+              isTruncated: truncated
             });
+          });
+
+          response.on('close', () => {
+            if (truncated) {
+              const body = Buffer.concat(chunks).toString('utf-8');
+              resolve({
+                statusCode,
+                statusText,
+                headers,
+                body,
+                isTruncated: true
+              });
+            }
+          });
+
+          response.on('error', (err) => {
+            reject(err);
+          });
+        });
+
+        req.on('timeout', () => {
+          isTimedOut = true;
+          req.destroy();
+          reject(new Error(`Request timed out after ${timeoutMs}ms for ${currentUrl}`));
+        });
+
+        req.on('error', (err) => {
+          if (!isTimedOut) {
+            reject(err);
           }
         });
 
-        response.on('error', (err) => {
-          reject(err);
-        });
+        req.end();
       });
-
-      req.on('timeout', () => {
-        isTimedOut = true;
-        req.destroy();
-        reject(new Error(`Request timed out after ${timeoutMs}ms for ${currentUrl}`));
-      });
-
-      req.on('error', (err) => {
-        if (!isTimedOut) {
-          reject(err);
-        }
-      });
-
-      req.end();
-    });
+    } finally {
+      releaseSlot();
+    }
 
     if (res.redirectLocation) {
       if (hop === maxRedirects) {
@@ -265,7 +339,8 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
             timestamp: new Date().toISOString(),
             isTruncated: false,
             blockedByRedirectHook: true,
-            redirectBlockedReason: check.reason || 'Blocked by redirect policy'
+            redirectBlockedReason: check.reason || 'Blocked by redirect policy',
+            redirectBlockType: check.blockType || 'BLOCKED'
           };
         }
       }
