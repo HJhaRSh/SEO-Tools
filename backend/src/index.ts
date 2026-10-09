@@ -166,6 +166,10 @@ app.post('/api/seo/htaccess/test', async (req: Request, res: Response) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`[Indian Marketers SEO Tools] Backend Server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[Indian Marketers SEO Tools] Backend Server running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
