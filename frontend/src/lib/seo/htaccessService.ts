@@ -97,414 +97,659 @@ async function callPrimaryApi(
  * (RewriteEngine, RewriteCond, RewriteRule, Redirect, RedirectMatch).
  * For unsupported/ambiguous directives, returns UNSUPPORTED/UNKNOWN without guessing.
  */
+// Flag classifications:
+// Fully supported: R, R=xxx, L, END, NC, QSA, QSD, NE, F, G
+// Unsupported in fallback: PT, N, S, C, E, B, CO, H, T
+const UNSUPPORTED_FLAGS = new Set(['PT', 'N', 'S', 'C', 'E', 'B', 'CO', 'H', 'T']);
+
+interface PendingCondition {
+  variable: string;
+  pattern: string;
+  flags: string[];
+  isOr: boolean;
+  lineNumber: number;
+  originalText: string;
+}
+
+/**
+ * Evaluates pending RewriteCond directives using proper Apache boolean grouping.
+ * Consecutive conditions marked with [OR] form an OR-clause.
+ * An AND operation connects these clauses.
+ * Returns { met: boolean, condCaptureMap: Record<number, string>, traceItems: HtaccessTraceLine[], warnings: string[], hasIndeterminate: boolean }
+ */
+function evaluateConditionGroups(
+  conditions: PendingCondition[],
+  serverVars: HtaccessServerVariables
+): {
+  met: boolean;
+  condCaptureMap: Record<number, string>;
+  traceItems: HtaccessTraceLine[];
+  warnings: string[];
+  hasIndeterminate: boolean;
+} {
+  const traceItems: HtaccessTraceLine[] = [];
+  const warnings: string[] = [];
+  const condCaptureMap: Record<number, string> = {};
+  let hasIndeterminate = false;
+
+  if (conditions.length === 0) {
+    return { met: true, condCaptureMap, traceItems, warnings, hasIndeterminate };
+  }
+
+  // Partition conditions into OR-groups.
+  // A group continues while cond.isOr is true. The first condition with !isOr closes the group.
+  const groups: PendingCondition[][] = [];
+  let currentGroup: PendingCondition[] = [];
+
+  for (const cond of conditions) {
+    currentGroup.push(cond);
+    if (!cond.isOr) {
+      groups.push(currentGroup);
+      currentGroup = [];
+    }
+  }
+  if (currentGroup.length > 0) {
+    groups.push(currentGroup);
+  }
+
+  let allGroupsPassed = true;
+
+  for (let gIdx = 0; gIdx < groups.length; gIdx++) {
+    const group = groups[gIdx];
+    let groupMatched = false;
+    let groupFirstCaptures: Record<number, string> | null = null;
+
+    for (let cIdx = 0; cIdx < group.length; cIdx++) {
+      const cond = group[cIdx];
+      const testVal = (serverVars[cond.variable] ?? '') as string;
+      let condMatched = false;
+
+      let cleanPattern = cond.pattern;
+      let isNegated = false;
+      if (cleanPattern.startsWith('!')) {
+        isNegated = true;
+        cleanPattern = cleanPattern.substring(1);
+      }
+
+      // Filesystem checks (-f, -d, -s, -l) cannot be determined locally without live server fs
+      if (cleanPattern === '-f' || cleanPattern === '-d' || cleanPattern === '-s' || cleanPattern === '-l') {
+        warnings.push(`Line ${cond.lineNumber}: Condition uses filesystem check ${cond.pattern}, which cannot be verified without local server files.`);
+        hasIndeterminate = true;
+      }
+
+      const isCaseInsensitive = cond.flags.some(f => f === 'NC' || f.startsWith('NC'));
+
+      try {
+        const rx = new RegExp(cleanPattern, isCaseInsensitive ? 'i' : undefined);
+        const m = testVal.match(rx);
+        if (m) {
+          condMatched = !isNegated;
+          if (condMatched && !groupFirstCaptures) {
+            groupFirstCaptures = {};
+            m.forEach((val, i) => {
+              if (groupFirstCaptures) groupFirstCaptures[i] = val;
+            });
+          }
+        } else {
+          condMatched = isNegated;
+        }
+      } catch {
+        condMatched = false;
+      }
+
+      if (condMatched) {
+        groupMatched = true;
+      }
+
+      traceItems.push({
+        lineNumber: cond.lineNumber,
+        originalText: cond.originalText,
+        directive: 'RewriteCond',
+        isValid: true,
+        wasReached: true,
+        isMet: condMatched,
+        isSupported: true,
+        message: condMatched
+          ? `Condition %{${cond.variable}} ("${testVal}") matched pattern "${cond.pattern}".`
+          : `Condition %{${cond.variable}} ("${testVal}") did not match pattern "${cond.pattern}".`
+      });
+    }
+
+    if (groupFirstCaptures) {
+      Object.assign(condCaptureMap, groupFirstCaptures);
+    }
+
+    if (!groupMatched) {
+      allGroupsPassed = false;
+    }
+  }
+
+  return {
+    met: allGroupsPassed,
+    condCaptureMap,
+    traceItems,
+    warnings,
+    hasIndeterminate
+  };
+}
+
+/**
+ * Local Fallback Simulator.
+ * Evaluates common SEO rewrite & redirect directives with multi-pass internal rewrite support,
+ * RewriteBase handling, strict flag auditing, and loop detection.
+ */
 function evaluateLocalFallback(
   inputUrl: string,
   htaccess: string,
-  serverVars: HtaccessServerVariables
+  serverVars: HtaccessServerVariables,
+  settings?: { directoryContext?: string; maxRewritePasses?: number }
 ): HtaccessTestResult {
-  const urlObj = new URL(inputUrl);
-  const lines = htaccess.split(/\r\n|\r|\n/);
   const trace: HtaccessTraceLine[] = [];
-  const warnings: string[] = ['Evaluated via Indian Marketers deterministic local fallback engine.'];
+  const warnings: string[] = ['Result evaluated using the local fallback simulator. Some advanced Apache behavior may not be supported.'];
   const errors: string[] = [];
 
-  let currentUrl = inputUrl;
-  let currentPath = urlObj.pathname;
-  let currentQuery = urlObj.search;
+  const maxPasses = settings?.maxRewritePasses || 5;
+  const directoryContext = settings?.directoryContext || '';
 
-  let rewriteEngineOn = false;
+  let currentUrl = inputUrl;
   let statusCode: number | null = null;
   let statusText: string | null = null;
   let transformationType: TransformationType = 'NO_CHANGE';
   let appliedRule: HtaccessTestResult['appliedRule'] = null;
-  let stopped = false;
   let fullyEvaluated = true;
+  let stoppedExecution = false;
 
-  interface PendingCondition {
-    variable: string;
-    pattern: string;
-    flags: string[];
-    isOr: boolean;
-    lineNumber: number;
-    originalText: string;
-  }
-  let pendingConditions: PendingCondition[] = [];
+  const visitedUrls = new Set<string>([currentUrl]);
+  const lines = htaccess.split(/\r\n|\r|\n/);
 
-  for (let idx = 0; idx < lines.length; idx++) {
-    const lineNumber = idx + 1;
-    const rawLine = lines[idx];
-    const trimmed = rawLine.trim();
+  for (let pass = 1; pass <= maxPasses; pass++) {
+    if (stoppedExecution) break;
 
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
-    }
+    const urlObj = new URL(currentUrl);
+    let currentPath = urlObj.pathname;
+    let currentQuery = urlObj.search; // includes '?' or ''
+    const currentVars = deriveServerVariables(urlObj, serverVars);
 
-    if (stopped) {
-      trace.push({
-        lineNumber,
-        originalText: rawLine,
-        directive: trimmed.split(/\s+/)[0] || '',
-        isValid: true,
-        wasReached: false,
-        isMet: false,
-        isSupported: true,
-        message: 'Rule was not reached because evaluation was stopped by a previous rule.'
-      });
-      continue;
-    }
+    let rewriteEngineOn = false;
+    let rewriteBase = directoryContext || '/';
+    let pendingConditions: PendingCondition[] = [];
+    let passRewritten = false;
+    let hitLFlag = false;
 
-    const parts = trimmed.split(/\s+/);
-    const directive = parts[0].toLowerCase();
+    for (let idx = 0; idx < lines.length; idx++) {
+      const lineNumber = idx + 1;
+      const rawLine = lines[idx];
+      const trimmed = rawLine.trim();
 
-    if (directive === 'rewriteengine') {
-      const state = (parts[1] || '').toLowerCase();
-      rewriteEngineOn = state === 'on';
-      trace.push({
-        lineNumber,
-        originalText: rawLine,
-        directive: 'RewriteEngine',
-        isValid: state === 'on' || state === 'off',
-        wasReached: true,
-        isMet: true,
-        isSupported: true,
-        message: `RewriteEngine turned ${rewriteEngineOn ? 'ON' : 'OFF'}.`
-      });
-      continue;
-    }
-
-    if (directive === 'rewritebase') {
-      trace.push({
-        lineNumber,
-        originalText: rawLine,
-        directive: 'RewriteBase',
-        isValid: true,
-        wasReached: true,
-        isMet: true,
-        isSupported: true,
-        message: `RewriteBase set to "${parts[1] || '/'}".`
-      });
-      continue;
-    }
-
-    if (directive === 'redirect' || directive === 'redirectmatch') {
-      const isMatch = directive === 'redirectmatch';
-      let code = 302;
-      let fromIdx = 1;
-
-      if (/^\d{3}$/.test(parts[1])) {
-        code = parseInt(parts[1], 10);
-        fromIdx = 2;
-      } else if (parts[1]?.toLowerCase() === 'permanent') {
-        code = 301;
-        fromIdx = 2;
-      } else if (parts[1]?.toLowerCase() === 'temp') {
-        code = 302;
-        fromIdx = 2;
-      }
-
-      const fromPattern = parts[fromIdx];
-      const targetDestination = parts[fromIdx + 1];
-
-      if (!fromPattern || !targetDestination) {
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: parts[0],
-          isValid: false,
-          wasReached: true,
-          isMet: false,
-          isSupported: true,
-          message: 'Malformed Redirect directive: missing source or destination pattern.'
-        });
-        errors.push(`Line ${lineNumber}: Malformed ${parts[0]} directive.`);
+      if (!trimmed || trimmed.startsWith('#')) {
         continue;
       }
 
-      let matches = false;
-      let newDest = targetDestination;
+      if (stoppedExecution || (hitLFlag && passRewritten)) {
+        trace.push({
+          lineNumber,
+          originalText: rawLine,
+          directive: trimmed.split(/\s+/)[0] || '',
+          isValid: true,
+          wasReached: false,
+          isMet: false,
+          isSupported: true,
+          message: 'Rule was not reached because evaluation was stopped by a previous rule.'
+        });
+        continue;
+      }
 
-      if (isMatch) {
-        try {
-          const reg = new RegExp(fromPattern);
-          const m = currentPath.match(reg);
-          if (m) {
+      const parts = trimmed.split(/\s+/);
+      const directive = parts[0].toLowerCase();
+
+      // RewriteEngine
+      if (directive === 'rewriteengine') {
+        const state = (parts[1] || '').toLowerCase();
+        rewriteEngineOn = state === 'on';
+        trace.push({
+          lineNumber,
+          originalText: rawLine,
+          directive: 'RewriteEngine',
+          isValid: state === 'on' || state === 'off',
+          wasReached: true,
+          isMet: true,
+          isSupported: true,
+          message: `RewriteEngine turned ${rewriteEngineOn ? 'ON' : 'OFF'}.`
+        });
+        continue;
+      }
+
+      // RewriteBase
+      if (directive === 'rewritebase') {
+        rewriteBase = parts[1] || '/';
+        if (!rewriteBase.startsWith('/')) {
+          rewriteBase = '/' + rewriteBase;
+        }
+        if (!rewriteBase.endsWith('/')) {
+          rewriteBase = rewriteBase + '/';
+        }
+        trace.push({
+          lineNumber,
+          originalText: rawLine,
+          directive: 'RewriteBase',
+          isValid: true,
+          wasReached: true,
+          isMet: true,
+          isSupported: true,
+          message: `RewriteBase set to "${rewriteBase}".`
+        });
+        continue;
+      }
+
+      // mod_alias: Redirect / RedirectMatch
+      if (directive === 'redirect' || directive === 'redirectmatch') {
+        const isMatch = directive === 'redirectmatch';
+        let code = 302;
+        let fromIdx = 1;
+
+        if (/^\d{3}$/.test(parts[1])) {
+          code = parseInt(parts[1], 10);
+          fromIdx = 2;
+        } else if (parts[1]?.toLowerCase() === 'permanent') {
+          code = 301;
+          fromIdx = 2;
+        } else if (parts[1]?.toLowerCase() === 'temp') {
+          code = 302;
+          fromIdx = 2;
+        }
+
+        const fromPattern = parts[fromIdx];
+        const targetDestination = parts[fromIdx + 1];
+
+        if (!fromPattern || !targetDestination) {
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: parts[0],
+            isValid: false,
+            wasReached: true,
+            isMet: false,
+            isSupported: true,
+            message: 'Malformed Redirect directive: missing source or destination pattern.'
+          });
+          errors.push(`Line ${lineNumber}: Malformed ${parts[0]} directive.`);
+          continue;
+        }
+
+        let matches = false;
+        let newDest = targetDestination;
+
+        if (isMatch) {
+          try {
+            const reg = new RegExp(fromPattern);
+            const m = currentPath.match(reg);
+            if (m) {
+              matches = true;
+              newDest = targetDestination.replace(/\$([0-9])/g, (_, n) => m[parseInt(n, 10)] || '');
+            }
+          } catch (e: any) {
+            trace.push({
+              lineNumber,
+              originalText: rawLine,
+              directive: 'RedirectMatch',
+              isValid: false,
+              wasReached: true,
+              isMet: false,
+              isSupported: true,
+              message: `Invalid regex pattern in RedirectMatch: ${e.message}`
+            });
+            continue;
+          }
+        } else {
+          if (currentPath.startsWith(fromPattern)) {
             matches = true;
-            newDest = targetDestination.replace(/\$([0-9])/g, (_, n) => m[parseInt(n, 10)] || '');
+            const remainder = currentPath.substring(fromPattern.length);
+            newDest = targetDestination.endsWith('/') && remainder.startsWith('/')
+              ? targetDestination + remainder.substring(1)
+              : targetDestination + remainder;
+          }
+        }
+
+        if (matches) {
+          let finalOutput = newDest;
+          if (newDest.startsWith('/')) {
+            finalOutput = `${urlObj.protocol}//${currentVars.HTTP_HOST || urlObj.host}${newDest}`;
+          }
+          currentUrl = finalOutput;
+          statusCode = code;
+          statusText = code === 301 ? 'Moved Permanently' : 'Found';
+          transformationType = 'EXTERNAL_REDIRECT';
+          appliedRule = { lineNumber, directive: parts[0], originalText: rawLine };
+          stoppedExecution = true;
+
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: parts[0],
+            isValid: true,
+            wasReached: true,
+            isMet: true,
+            isSupported: true,
+            message: `Redirect matched. Destination transformed to ${finalOutput} with HTTP ${code}.`
+          });
+        } else {
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: parts[0],
+            isValid: true,
+            wasReached: true,
+            isMet: false,
+            isSupported: true,
+            message: `Path "${currentPath}" does not match redirect pattern "${fromPattern}".`
+          });
+        }
+        continue;
+      }
+
+      // RewriteCond
+      if (directive === 'rewritecond') {
+        if (!rewriteEngineOn) {
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: 'RewriteCond',
+            isValid: true,
+            wasReached: false,
+            isMet: false,
+            isSupported: true,
+            message: 'Ignored because RewriteEngine is OFF.'
+          });
+          continue;
+        }
+
+        const varMatch = parts[1]?.match(/%\{([^}]+)\}/);
+        const varName = varMatch ? varMatch[1] : '';
+        const pattern = parts[2] || '';
+        const flagsStr = parts[3] || '';
+        const flags = flagsStr.replace(/^\[|\]$/g, '').split(',').map(f => f.trim().toUpperCase());
+
+        pendingConditions.push({
+          variable: varName,
+          pattern,
+          flags,
+          isOr: flags.includes('OR'),
+          lineNumber,
+          originalText: rawLine
+        });
+        continue;
+      }
+
+      // RewriteRule
+      if (directive === 'rewriterule') {
+        if (!rewriteEngineOn) {
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: 'RewriteRule',
+            isValid: true,
+            wasReached: false,
+            isMet: false,
+            isSupported: true,
+            message: 'Ignored because RewriteEngine is OFF.'
+          });
+          pendingConditions = [];
+          continue;
+        }
+
+        const pattern = parts[1];
+        const substitution = parts[2];
+        const flagsStr = parts[3] || '';
+        const rawFlags = flagsStr.replace(/^\[|\]$/g, '').split(',').map(f => f.trim()).filter(Boolean);
+        const flagsUpper = rawFlags.map(f => f.toUpperCase());
+
+        if (!pattern || substitution === undefined) {
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: 'RewriteRule',
+            isValid: false,
+            wasReached: true,
+            isMet: false,
+            isSupported: true,
+            message: 'Malformed RewriteRule: missing pattern or substitution.'
+          });
+          pendingConditions = [];
+          continue;
+        }
+
+        // 1. Check for unsupported flags
+        const foundUnsupported = rawFlags.filter(f => {
+          const upper = f.toUpperCase().split('=')[0];
+          return UNSUPPORTED_FLAGS.has(upper);
+        });
+
+        // 2. Evaluate conditions with OR grouping
+        const condEval = evaluateConditionGroups(pendingConditions, currentVars);
+        pendingConditions = [];
+        trace.push(...condEval.traceItems);
+        warnings.push(...condEval.warnings);
+
+        if (condEval.hasIndeterminate) {
+          fullyEvaluated = false;
+        }
+
+        if (!condEval.met) {
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: 'RewriteRule',
+            isValid: true,
+            wasReached: true,
+            isMet: false,
+            isSupported: true,
+            message: 'RewriteRule skipped because preceding RewriteCond was not met.'
+          });
+          continue;
+        }
+
+        // 3. Evaluate RewriteRule pattern
+        // In directory context, leading slash is stripped from currentPath
+        let testPath = currentPath;
+        if (testPath.startsWith('/')) {
+          testPath = testPath.substring(1);
+        }
+
+        const isCaseInsensitive = flagsUpper.some(f => f === 'NC' || f.startsWith('NC'));
+        let ruleMatched = false;
+        let ruleMatch: RegExpMatchArray | null = null;
+
+        try {
+          const rx = new RegExp(pattern, isCaseInsensitive ? 'i' : undefined);
+          ruleMatch = testPath.match(rx);
+          if (ruleMatch) {
+            ruleMatched = true;
           }
         } catch (e: any) {
           trace.push({
             lineNumber,
             originalText: rawLine,
-            directive: 'RedirectMatch',
+            directive: 'RewriteRule',
             isValid: false,
             wasReached: true,
             isMet: false,
             isSupported: true,
-            message: `Invalid regex pattern in RedirectMatch: ${e.message}`
+            message: `Invalid regex pattern in RewriteRule: ${e.message}`
           });
           continue;
         }
-      } else {
-        if (currentPath.startsWith(fromPattern)) {
-          matches = true;
-          const remainder = currentPath.substring(fromPattern.length);
-          newDest = targetDestination.endsWith('/') && remainder.startsWith('/')
-            ? targetDestination + remainder.substring(1)
-            : targetDestination + remainder;
-        }
-      }
 
-      if (matches) {
-        let finalOutput = newDest;
-        if (newDest.startsWith('/')) {
-          finalOutput = `${urlObj.protocol}//${serverVars.HTTP_HOST || urlObj.host}${newDest}`;
-        }
-        currentUrl = finalOutput;
-        statusCode = code;
-        statusText = code === 301 ? 'Moved Permanently' : 'Found';
-        transformationType = 'EXTERNAL_REDIRECT';
-        appliedRule = { lineNumber, directive: parts[0], originalText: rawLine };
-        stopped = true;
-
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: parts[0],
-          isValid: true,
-          wasReached: true,
-          isMet: true,
-          isSupported: true,
-          message: `Redirect matched. Destination transformed to ${finalOutput} with HTTP ${code}.`
-        });
-      } else {
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: parts[0],
-          isValid: true,
-          wasReached: true,
-          isMet: false,
-          isSupported: true,
-          message: `Path "${currentPath}" does not match redirect pattern "${fromPattern}".`
-        });
-      }
-      continue;
-    }
-
-    if (directive === 'rewritecond') {
-      if (!rewriteEngineOn) {
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: 'RewriteCond',
-          isValid: true,
-          wasReached: false,
-          isMet: false,
-          isSupported: true,
-          message: 'Ignored because RewriteEngine is OFF.'
-        });
-        continue;
-      }
-
-      const varMatch = parts[1]?.match(/%\{([^}]+)\}/);
-      const varName = varMatch ? varMatch[1] : '';
-      const pattern = parts[2] || '';
-      const flagsStr = parts[3] || '';
-      const flags = flagsStr.replace(/^\[|\]$/g, '').split(',').map(f => f.trim().toUpperCase());
-
-      pendingConditions.push({
-        variable: varName,
-        pattern,
-        flags,
-        isOr: flags.includes('OR'),
-        lineNumber,
-        originalText: rawLine
-      });
-      continue;
-    }
-
-    if (directive === 'rewriterule') {
-      if (!rewriteEngineOn) {
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: 'RewriteRule',
-          isValid: true,
-          wasReached: false,
-          isMet: false,
-          isSupported: true,
-          message: 'Ignored because RewriteEngine is OFF.'
-        });
-        pendingConditions = [];
-        continue;
-      }
-
-      const pattern = parts[1];
-      const substitution = parts[2];
-      const flagsStr = parts[3] || '';
-      const flags = flagsStr.replace(/^\[|\]$/g, '').split(',').map(f => f.trim().toUpperCase());
-
-      if (!pattern || substitution === undefined) {
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: 'RewriteRule',
-          isValid: false,
-          wasReached: true,
-          isMet: false,
-          isSupported: true,
-          message: 'Malformed RewriteRule: missing pattern or substitution.'
-        });
-        pendingConditions = [];
-        continue;
-      }
-
-      // 1. Evaluate pending conditions
-      let conditionsMet = true;
-      let condCaptureMap: Record<number, string> = {};
-
-      if (pendingConditions.length > 0) {
-        let currentGroupResult = true;
-        for (let cIdx = 0; cIdx < pendingConditions.length; cIdx++) {
-          const cond = pendingConditions[cIdx];
-          const testVal = (serverVars[cond.variable] ?? '') as string;
-          let condMatched = false;
-
-          let cleanPattern = cond.pattern;
-          let isNegated = false;
-          if (cleanPattern.startsWith('!')) {
-            isNegated = true;
-            cleanPattern = cleanPattern.substring(1);
-          }
-
-          // Special filesystem checks: -f, -d
-          if (cleanPattern === '-f' || cleanPattern === '-d') {
-            warnings.push(`Line ${cond.lineNumber}: Condition uses filesystem check ${cond.pattern}, which cannot be verified without local server files.`);
-            fullyEvaluated = false;
-          }
-
-          try {
-            const isCaseInsensitive = cond.flags.includes('NC');
-            const rx = new RegExp(cleanPattern, isCaseInsensitive ? 'i' : undefined);
-            const m = testVal.match(rx);
-            if (m) {
-              condMatched = !isNegated;
-              m.forEach((val, i) => { condCaptureMap[i] = val; });
-            } else {
-              condMatched = isNegated;
-            }
-          } catch {
-            condMatched = false;
-          }
-
+        if (!ruleMatched || !ruleMatch) {
           trace.push({
-            lineNumber: cond.lineNumber,
-            originalText: cond.originalText,
-            directive: 'RewriteCond',
+            lineNumber,
+            originalText: rawLine,
+            directive: 'RewriteRule',
             isValid: true,
             wasReached: true,
-            isMet: condMatched,
+            isMet: false,
             isSupported: true,
-            message: condMatched
-              ? `Condition %{${cond.variable}} ("${testVal}") matched pattern "${cond.pattern}".`
-              : `Condition %{${cond.variable}} ("${testVal}") did not match pattern "${cond.pattern}".`
+            message: `Path "${testPath}" did not match pattern "${pattern}".`
           });
+          continue;
+        }
 
-          if (!cond.isOr) {
-            if (!condMatched) {
-              conditionsMet = false;
-            }
+        // Rule matched! Check if any unsupported flag influences this rule
+        if (foundUnsupported.length > 0) {
+          const unMsg = `Cannot reliably simulate this rule because the [${foundUnsupported.join(', ')}] flag is not supported by the local fallback engine.`;
+          warnings.push(`Line ${lineNumber}: ${unMsg}`);
+          fullyEvaluated = false;
+          transformationType = 'UNSUPPORTED';
+          statusText = 'Unsupported Flag';
+
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: 'RewriteRule',
+            isValid: true,
+            wasReached: true,
+            isMet: true,
+            isSupported: false,
+            message: unMsg
+          });
+          stoppedExecution = true;
+          continue;
+        }
+
+        // Evaluate supported flags
+        let isRedirect = false;
+        let rCode = 302;
+        let isForbidden = false;
+        let isGone = false;
+        let isEnd = false;
+        let isLast = false;
+        let qsa = false;
+        let qsd = false;
+
+        for (const flag of flagsUpper) {
+          if (flag === 'R' || flag === 'R=302') {
+            isRedirect = true;
+            rCode = 302;
+          } else if (flag === 'R=301') {
+            isRedirect = true;
+            rCode = 301;
+          } else if (flag === 'R=307') {
+            isRedirect = true;
+            rCode = 307;
+          } else if (flag === 'R=308') {
+            isRedirect = true;
+            rCode = 308;
+          } else if (flag === 'F') {
+            isForbidden = true;
+          } else if (flag === 'G') {
+            isGone = true;
+          } else if (flag === 'END') {
+            isEnd = true;
+          } else if (flag === 'L') {
+            isLast = true;
+          } else if (flag === 'QSA') {
+            qsa = true;
+          } else if (flag === 'QSD') {
+            qsd = true;
           }
         }
-        pendingConditions = [];
-      }
 
-      if (!conditionsMet) {
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: 'RewriteRule',
-          isValid: true,
-          wasReached: true,
-          isMet: false,
-          isSupported: true,
-          message: 'RewriteRule skipped because preceding RewriteCond was not met.'
-        });
-        continue;
-      }
+        if (isForbidden || isGone) {
+          transformationType = isForbidden ? 'FORBIDDEN' : 'GONE';
+          statusCode = isForbidden ? 403 : 410;
+          statusText = isForbidden ? 'Forbidden' : 'Gone';
+          stoppedExecution = true;
+          appliedRule = { lineNumber, directive: 'RewriteRule', originalText: rawLine };
 
-      // 2. Evaluate RewriteRule pattern
-      // In .htaccess context, paths are matched without leading slash
-      const testPathWithoutLeadingSlash = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-      const isCaseInsensitive = flags.some(f => f === 'NC' || f.startsWith('NC'));
-      let ruleMatched = false;
-      let ruleMatch: RegExpMatchArray | null = null;
-
-      try {
-        const rx = new RegExp(pattern, isCaseInsensitive ? 'i' : undefined);
-        ruleMatch = testPathWithoutLeadingSlash.match(rx);
-        if (ruleMatch) {
-          ruleMatched = true;
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: 'RewriteRule',
+            isValid: true,
+            wasReached: true,
+            isMet: true,
+            isSupported: true,
+            message: `Rule matched. Access halted with HTTP ${statusCode} (${statusText}).`
+          });
+          continue;
         }
-      } catch (e: any) {
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: 'RewriteRule',
-          isValid: false,
-          wasReached: true,
-          isMet: false,
-          isSupported: true,
-          message: `Invalid regex pattern in RewriteRule: ${e.message}`
-        });
-        continue;
-      }
 
-      if (!ruleMatched || !ruleMatch) {
-        trace.push({
-          lineNumber,
-          originalText: rawLine,
-          directive: 'RewriteRule',
-          isValid: true,
-          wasReached: true,
-          isMet: false,
-          isSupported: true,
-          message: `Path "${testPathWithoutLeadingSlash}" did not match pattern "${pattern}".`
-        });
-        continue;
-      }
-
-      // Rule Matched! Apply substitution
-      let isRedirect = false;
-      let rCode = 302;
-      for (const flag of flags) {
-        if (flag === 'R' || flag === 'R=302') {
-          isRedirect = true;
-          rCode = 302;
-        } else if (flag === 'R=301') {
-          isRedirect = true;
-          rCode = 301;
-        } else if (flag === 'R=307') {
-          isRedirect = true;
-          rCode = 307;
-        } else if (flag === 'R=308') {
-          isRedirect = true;
-          rCode = 308;
-        } else if (flag === 'F') {
-          transformationType = 'FORBIDDEN';
-          statusCode = 403;
-          statusText = 'Forbidden';
-          stopped = true;
-        } else if (flag === 'G') {
-          transformationType = 'GONE';
-          statusCode = 410;
-          statusText = 'Gone';
-          stopped = true;
+        // Dash '-' substitution: do not change path
+        if (substitution === '-') {
+          appliedRule = { lineNumber, directive: 'RewriteRule', originalText: rawLine };
+          trace.push({
+            lineNumber,
+            originalText: rawLine,
+            directive: 'RewriteRule',
+            isValid: true,
+            wasReached: true,
+            isMet: true,
+            isSupported: true,
+            message: `Rule matched with '-' (no substitution performed).`
+          });
+          if (isEnd || isLast) {
+            stoppedExecution = true;
+          }
+          continue;
         }
-      }
 
-      if (transformationType === 'FORBIDDEN' || transformationType === 'GONE') {
+        // Apply capture backreferences: $1-$9 (rule captures) and %1-%9 (cond captures)
+        let substituted = substitution
+          .replace(/\$([0-9])/g, (_, n) => ruleMatch![parseInt(n, 10)] || '')
+          .replace(/%([0-9])/g, (_, n) => condEval.condCaptureMap[parseInt(n, 10)] || '');
+
+        // Query string handling
+        let finalQuery = currentQuery; // e.g. "?id=123" or ""
+
+        if (substituted.includes('?')) {
+          const qIdx = substituted.indexOf('?');
+          const newQueryPart = substituted.substring(qIdx + 1);
+          substituted = substituted.substring(0, qIdx);
+
+          if (qsa && currentQuery) {
+            const rawCur = currentQuery.startsWith('?') ? currentQuery.substring(1) : currentQuery;
+            finalQuery = newQueryPart ? `?${newQueryPart}&${rawCur}` : (rawCur ? `?${rawCur}` : '');
+          } else {
+            finalQuery = newQueryPart ? `?${newQueryPart}` : '';
+          }
+        } else if (qsd) {
+          finalQuery = '';
+        }
+
+        let transformedUrl = substituted;
+        const isAbsoluteTarget = substituted.startsWith('http://') || substituted.startsWith('https://');
+
+        if (isAbsoluteTarget) {
+          transformedUrl = substituted + finalQuery;
+          isRedirect = true; // Absolute URLs imply external redirect
+        } else {
+          // Relative or root-relative substitution:
+          // If relative (does NOT start with '/'), prepend rewriteBase
+          let pathWithBase = substituted;
+          if (!pathWithBase.startsWith('/')) {
+            const basePrefix = rewriteBase.endsWith('/') ? rewriteBase : rewriteBase + '/';
+            pathWithBase = basePrefix + pathWithBase;
+          }
+          // Normalize double slashes
+          pathWithBase = pathWithBase.replace(/\/+/g, '/');
+
+          transformedUrl = `${urlObj.protocol}//${currentVars.HTTP_HOST || urlObj.host}${pathWithBase}${finalQuery}`;
+        }
+
+        currentUrl = transformedUrl;
         appliedRule = { lineNumber, directive: 'RewriteRule', originalText: rawLine };
+        passRewritten = true;
+
+        if (isRedirect) {
+          transformationType = 'EXTERNAL_REDIRECT';
+          statusCode = rCode;
+          statusText = rCode === 301 ? 'Moved Permanently' : 'Found';
+          stoppedExecution = true;
+        } else {
+          transformationType = 'INTERNAL_REWRITE';
+          statusCode = null;
+          statusText = 'Internal Rewrite';
+        }
+
         trace.push({
           lineNumber,
           originalText: rawLine,
@@ -513,92 +758,74 @@ function evaluateLocalFallback(
           wasReached: true,
           isMet: true,
           isSupported: true,
-          message: `Rule matched. Access halted with HTTP ${statusCode} (${statusText}).`
+          message: isRedirect
+            ? `Rule matched. Redirected to ${transformedUrl} with HTTP ${statusCode}.`
+            : `Rule matched. Internally rewritten to ${transformedUrl}.`
         });
+
+        if (isEnd) {
+          // [END] halts all further passes completely
+          stoppedExecution = true;
+          break;
+        }
+
+        if (isLast) {
+          // [L] stops this pass.
+          hitLFlag = true;
+          break;
+        }
+
         continue;
       }
 
-      // Substitution replacements: $1-$9 (rule captures) and %1-%9 (cond captures)
-      let substituted = substitution
-        .replace(/\$([0-9])/g, (_, n) => ruleMatch![parseInt(n, 10)] || '')
-        .replace(/%([0-9])/g, (_, n) => condCaptureMap[parseInt(n, 10)] || '');
-
-      // Query String handling: QSA vs QSD vs trailing ?
-      const qsa = flags.includes('QSA');
-      const qsd = flags.includes('QSD');
-      let finalQuery = currentQuery;
-
-      if (substituted.includes('?')) {
-        const qIdx = substituted.indexOf('?');
-        const newQueryPart = substituted.substring(qIdx + 1);
-        substituted = substituted.substring(0, qIdx);
-        if (qsa && currentQuery) {
-          finalQuery = (newQueryPart ? newQueryPart + '&' : '') + (currentQuery.startsWith('?') ? currentQuery.substring(1) : currentQuery);
-        } else {
-          finalQuery = newQueryPart ? `?${newQueryPart}` : '';
-        }
-      } else if (qsd) {
-        finalQuery = '';
-      }
-
-      let transformedUrl = substituted;
-      if (substituted.startsWith('http://') || substituted.startsWith('https://')) {
-        transformedUrl = substituted + (finalQuery ? (finalQuery.startsWith('?') ? finalQuery : '?' + finalQuery) : '');
-        isRedirect = true; // Absolute URLs imply external redirect
-      } else {
-        if (!substituted.startsWith('/')) {
-          substituted = '/' + substituted;
-        }
-        transformedUrl = `${urlObj.protocol}//${serverVars.HTTP_HOST || urlObj.host}${substituted}${finalQuery ? (finalQuery.startsWith('?') ? finalQuery : '?' + finalQuery) : ''}`;
-      }
-
-      currentUrl = transformedUrl;
-      appliedRule = { lineNumber, directive: 'RewriteRule', originalText: rawLine };
-
-      if (isRedirect) {
-        transformationType = 'EXTERNAL_REDIRECT';
-        statusCode = rCode;
-        statusText = rCode === 301 ? 'Moved Permanently' : 'Found';
-      } else {
-        transformationType = 'INTERNAL_REWRITE';
-        statusCode = null;
-        statusText = 'Internal Rewrite';
-      }
-
-      const isLast = flags.includes('L') || flags.includes('END');
-      if (isLast) {
-        stopped = true;
-      }
-
+      // Other directives not simulated
       trace.push({
         lineNumber,
         originalText: rawLine,
-        directive: 'RewriteRule',
+        directive: parts[0],
         isValid: true,
         wasReached: true,
-        isMet: true,
-        isSupported: true,
-        message: isRedirect
-          ? `Rule matched. Redirected to ${transformedUrl} with HTTP ${statusCode}.`
-          : `Rule matched. Internally rewritten to ${transformedUrl}.`
+        isMet: false,
+        isSupported: false,
+        message: `Directive "${parts[0]}" is not supported by the local fallback simulator.`
       });
-
-      continue;
+      warnings.push(`Line ${lineNumber}: Directive "${parts[0]}" is unsupported locally.`);
+      fullyEvaluated = false;
     }
 
-    // Directive not explicitly handled locally
-    trace.push({
-      lineNumber,
-      originalText: rawLine,
-      directive: parts[0],
-      isValid: true,
-      wasReached: true,
-      isMet: false,
-      isSupported: false,
-      message: `Directive "${parts[0]}" is not supported by the local fallback simulator.`
-    });
-    warnings.push(`Line ${lineNumber}: Directive "${parts[0]}" is unsupported locally.`);
-    fullyEvaluated = false;
+    // End of ruleset pass
+    if (stoppedExecution) {
+      break;
+    }
+
+    if (passRewritten) {
+      // Internal rewrite occurred. Check for rewrite loop
+      if (visitedUrls.has(currentUrl)) {
+        transformationType = 'UNKNOWN';
+        fullyEvaluated = false;
+        warnings.push(`Rewrite loop detected on pass ${pass}. URL "${currentUrl}" was revisited.`);
+        trace.push({
+          lineNumber: 0,
+          originalText: 'Multi-pass Loop Detection',
+          directive: 'LoopGuard',
+          isValid: true,
+          wasReached: true,
+          isMet: true,
+          isSupported: true,
+          message: `Evaluation halted: circular rewrite loop detected on pass ${pass}.`
+        });
+        stoppedExecution = true;
+        break;
+      }
+      visitedUrls.add(currentUrl);
+
+      if (pass === maxPasses) {
+        warnings.push(`Maximum rewrite passes (${maxPasses}) reached. Simulation halted.`);
+      }
+    } else {
+      // No rules modified the URL during this pass, processing complete
+      break;
+    }
   }
 
   const changed = currentUrl !== inputUrl;
@@ -624,27 +851,87 @@ function evaluateLocalFallback(
 
 /**
  * Main function: Evaluates .htaccess rules against target URL.
- * Automatically tries Primary API first; falls back to deterministic Local Engine on failure.
+ * Automatically validates API responses and falls back to local engine.
  */
 export async function testHtaccessRules(request: HtaccessTestRequest): Promise<HtaccessTestResult> {
   const { validUrl, rawUrl, cleanedHtaccess } = validateHtaccessInput(request.url, request.htaccess);
   const serverVars = deriveServerVariables(validUrl, request.serverVariables);
 
   if (request.settings?.useLocalOnly) {
-    return evaluateLocalFallback(rawUrl, cleanedHtaccess, serverVars);
+    return evaluateLocalFallback(rawUrl, cleanedHtaccess, serverVars, request.settings);
   }
 
   try {
     const apiRes = await callPrimaryApi(rawUrl, cleanedHtaccess, serverVars);
 
-    const outputUrl = apiRes.output_url || rawUrl;
-    const outputStatusCode = apiRes.output_status_code !== undefined ? apiRes.output_status_code : null;
+    // Validate structure of API response
+    if (!apiRes || typeof apiRes !== 'object') {
+      throw new Error('Primary testing API returned an empty or non-object response.');
+    }
+
+    const outputUrl = typeof apiRes.output_url === 'string' ? apiRes.output_url : rawUrl;
+    const outputStatusCode = apiRes.output_status_code !== undefined && apiRes.output_status_code !== null
+      ? Number(apiRes.output_status_code)
+      : null;
     const changed = outputUrl !== rawUrl;
 
     let transformationType: TransformationType = 'NO_CHANGE';
     let statusText: string | null = null;
+    let fullyEvaluated = true;
+    const warnings: string[] = [];
+    const errors: string[] = [];
 
-    if (outputStatusCode) {
+    // Check for syntax or directive validity issues reported by API lines
+    let hasInvalidLine = false;
+    let appliedRule: HtaccessTestResult['appliedRule'] = null;
+    const trace: HtaccessTraceLine[] = [];
+
+    if (Array.isArray(apiRes.lines)) {
+      apiRes.lines.forEach((line: any, idx: number) => {
+        const lineNum = idx + 1;
+        const directive = (line.value || '').trim().split(/\s+/)[0] || '';
+        const isMet = Boolean(line.isMet);
+        const wasReached = Boolean(line.wasReached);
+        const isValid = line.isValid !== false;
+        const isSupported = line.isSupported !== false;
+
+        if (!isValid) {
+          hasInvalidLine = true;
+          errors.push(`Line ${lineNum}: Invalid Apache directive or syntax: "${line.value || ''}".`);
+        }
+        if (!isSupported) {
+          warnings.push(`Line ${lineNum}: Directive "${directive}" is unsupported by the primary simulation engine.`);
+          fullyEvaluated = false;
+        }
+
+        if (isMet && (directive.toLowerCase() === 'rewriterule' || directive.toLowerCase().startsWith('redirect'))) {
+          if (!appliedRule) {
+            appliedRule = {
+              lineNumber: lineNum,
+              directive,
+              originalText: line.value || ''
+            };
+          }
+        }
+
+        trace.push({
+          lineNumber: lineNum,
+          originalText: line.value || '',
+          directive,
+          isValid,
+          wasReached,
+          isMet,
+          isSupported,
+          message: line.message || (isMet ? 'Condition / Rule met' : 'Did not match')
+        });
+      });
+    }
+
+    if (hasInvalidLine) {
+      transformationType = 'INVALID_RULES';
+      statusText = 'Syntax or Directive Error';
+      fullyEvaluated = false;
+    } else if (outputStatusCode) {
       if (outputStatusCode === 301) {
         transformationType = 'EXTERNAL_REDIRECT';
         statusText = 'Moved Permanently';
@@ -669,60 +956,28 @@ export async function testHtaccessRules(request: HtaccessTestRequest): Promise<H
       statusText = 'Internal Rewrite';
     }
 
-    let appliedRule: HtaccessTestResult['appliedRule'] = null;
-    const trace: HtaccessTraceLine[] = [];
-
-    if (Array.isArray(apiRes.lines)) {
-      apiRes.lines.forEach((line: any, idx: number) => {
-        const lineNum = idx + 1;
-        const directive = (line.value || '').trim().split(/\s+/)[0] || '';
-        const isMet = Boolean(line.isMet);
-        const wasReached = Boolean(line.wasReached);
-
-        if (isMet && (directive.toLowerCase() === 'rewriterule' || directive.toLowerCase().startsWith('redirect'))) {
-          if (!appliedRule) {
-            appliedRule = {
-              lineNumber: lineNum,
-              directive,
-              originalText: line.value || ''
-            };
-          }
-        }
-
-        trace.push({
-          lineNumber: lineNum,
-          originalText: line.value || '',
-          directive,
-          isValid: Boolean(line.isValid),
-          wasReached,
-          isMet,
-          isSupported: line.isSupported !== false,
-          message: line.message || (isMet ? 'Condition / Rule met' : 'Did not match')
-        });
-      });
-    }
-
     return {
-      success: true,
+      success: errors.length === 0,
       inputUrl: rawUrl,
       outputUrl,
       transformationType,
       statusCode: outputStatusCode,
       statusText,
       changed,
-      fullyEvaluated: true,
+      fullyEvaluated,
       engineUsed: 'PRIMARY_API',
       appliedRule,
       trace,
       serverVariablesUsed: serverVars,
-      warnings: [],
-      errors: [],
+      warnings,
+      errors,
       privacyNotice: PRIVACY_NOTICE_API
     };
   } catch (apiErr: any) {
     // Graceful fallback to deterministic local engine
-    const fallback = evaluateLocalFallback(rawUrl, cleanedHtaccess, serverVars);
+    const fallback = evaluateLocalFallback(rawUrl, cleanedHtaccess, serverVars, request.settings);
     fallback.warnings.push(`Primary engine unavailable (${apiErr.message}). Evaluated via local fallback engine.`);
     return fallback;
   }
 }
+

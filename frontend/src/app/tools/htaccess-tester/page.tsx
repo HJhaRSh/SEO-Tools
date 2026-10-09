@@ -32,6 +32,35 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
       setHtaccessInput(ex.rules);
       setUrlInput(ex.sampleUrl);
       setErrorMessage(null);
+      setResultData(null);
+      setStatus('idle');
+    }
+  };
+
+  const handleUrlChange = (val: string) => {
+    setUrlInput(val);
+    if (resultData || status !== 'idle') {
+      setResultData(null);
+      setStatus('idle');
+      setErrorMessage(null);
+    }
+  };
+
+  const handleHtaccessChange = (val: string) => {
+    setHtaccessInput(val);
+    if (resultData || status !== 'idle') {
+      setResultData(null);
+      setStatus('idle');
+      setErrorMessage(null);
+    }
+  };
+
+  const handleServerVarChange = (key: keyof HtaccessServerVariables, val: string) => {
+    setServerVars(prev => ({ ...prev, [key]: val }));
+    if (resultData || status !== 'idle') {
+      setResultData(null);
+      setStatus('idle');
+      setErrorMessage(null);
     }
   };
 
@@ -188,7 +217,7 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
               placeholder="https://example.com/old-page"
               value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
+              onChange={(e) => handleUrlChange(e.target.value)}
             />
           </div>
 
@@ -207,7 +236,7 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
               className="w-full p-4 rounded-xl border border-slate-200 bg-slate-900 text-slate-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-700 transition-all leading-relaxed"
               placeholder={`RewriteEngine On\nRewriteRule ^old-page$ /new-page [R=301,L]`}
               value={htaccessInput}
-              onChange={(e) => setHtaccessInput(e.target.value)}
+              onChange={(e) => handleHtaccessChange(e.target.value)}
               spellCheck={false}
             />
           </div>
@@ -232,7 +261,7 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
                     className="w-full px-3 py-2 border rounded-lg font-mono text-slate-800"
                     placeholder="example.com (Auto-derived from URL)"
                     value={serverVars.HTTP_HOST}
-                    onChange={(e) => setServerVars({ ...serverVars, HTTP_HOST: e.target.value })}
+                    onChange={(e) => handleServerVarChange('HTTP_HOST', e.target.value)}
                   />
                 </div>
                 <div>
@@ -240,7 +269,7 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
                   <select
                     className="w-full px-3 py-2 border rounded-lg font-mono text-slate-800"
                     value={serverVars.HTTPS}
-                    onChange={(e) => setServerVars({ ...serverVars, HTTPS: e.target.value })}
+                    onChange={(e) => handleServerVarChange('HTTPS', e.target.value)}
                   >
                     <option value="">Auto-derived (on/off)</option>
                     <option value="on">on</option>
@@ -254,7 +283,7 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
                     className="w-full px-3 py-2 border rounded-lg font-mono text-slate-800"
                     placeholder="Googlebot / Mozilla / Custom"
                     value={serverVars.HTTP_USER_AGENT}
-                    onChange={(e) => setServerVars({ ...serverVars, HTTP_USER_AGENT: e.target.value })}
+                    onChange={(e) => handleServerVarChange('HTTP_USER_AGENT', e.target.value)}
                   />
                 </div>
                 <div>
@@ -264,7 +293,7 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
                     className="w-full px-3 py-2 border rounded-lg font-mono text-slate-800"
                     placeholder="https://google.com/"
                     value={serverVars.HTTP_REFERER}
-                    onChange={(e) => setServerVars({ ...serverVars, HTTP_REFERER: e.target.value })}
+                    onChange={(e) => handleServerVarChange('HTTP_REFERER', e.target.value)}
                   />
                 </div>
               </div>
@@ -362,10 +391,32 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
                 </div>
               </div>
 
-              {/* PRIVACY & TRANSPARENCY NOTICE */}
-              <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                <span className="text-slate-400">ℹ️</span>
-                <span>{resultData.privacyNotice}</span>
+              {/* PRIVACY, ENGINE & TRANSPARENCY NOTICE */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    <span className="text-slate-400">ℹ️</span>
+                    <span>{resultData.privacyNotice}</span>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded text-[11px] font-mono font-bold uppercase tracking-wider ${
+                    resultData.engineUsed === 'PRIMARY_API'
+                      ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                      : 'bg-amber-100 text-amber-900 border border-amber-200'
+                  }`}>
+                    Engine: {resultData.engineUsed}
+                  </span>
+                </div>
+
+                {resultData.warnings && resultData.warnings.length > 0 && (
+                  <div className="p-3 bg-amber-50/80 rounded-lg border border-amber-200 text-amber-900 text-xs space-y-1">
+                    {resultData.warnings.map((w, wIdx) => (
+                      <div key={wIdx} className="flex items-start gap-1.5">
+                        <span className="text-amber-600 font-bold">⚠️</span>
+                        <span>{w}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
