@@ -2,7 +2,7 @@
   "name": "seo-tools-backend",
   "version": "1.0.0",
   "description": "Indian Marketers SEO Tools - Dedicated Backend API Service",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -18,8 +18,7 @@
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "fast-xml-parser": "^5.11.2",
-    "playwright": "^1.64.0",
-    "typescript": "^5.7.3"
+    "playwright": "^1.64.0"
   },
   "devDependencies": {
     "@types/archiver": "^8.0.0",
