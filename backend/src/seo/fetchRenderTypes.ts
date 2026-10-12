@@ -126,20 +126,45 @@ export interface DiagnosticItem {
   confidence: 'CONFIRMED' | 'POTENTIAL_RISK';
 }
 
+export type RobotsClassification =
+  | 'ALLOWED'
+  | 'DISALLOWED'
+  | 'UNAVAILABLE'
+  | 'UNREACHABLE'
+  | 'RATE_LIMITED'
+  | 'REDIRECT_ERROR'
+  | 'NETWORK_ERROR'
+  | 'UNKNOWN';
+
+export type RobotsFailureType =
+  | 'DNS_FAILURE'
+  | 'CONNECTION_REFUSED'
+  | 'TIMEOUT'
+  | 'TLS_ERROR'
+  | 'NETWORK_ERROR'
+  | 'REDIRECT_ERROR'
+  | 'NONE';
+
 export interface FetchRenderRobotsInfo {
   url: string;
-  fetchStatus: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN' | 'ERROR' | 'TEMPORARY_UNAVAILABLE' | 'PERMANENT_UNAVAILABLE';
-  crawlabilityStatus?: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN';
+  classification: RobotsClassification;
+  explicitlyDisallowed: boolean;
   applicableRule?: {
     type: 'allow' | 'disallow';
     pattern: string;
     lineNumber: number;
     originalText: string;
   } | null;
+  crawlerBehavior?: string;
+  fetchPermittedByToolPolicy: boolean;
+  policyReason: string;
+  fetchStatus: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN' | 'ERROR' | 'TEMPORARY_UNAVAILABLE' | 'PERMANENT_UNAVAILABLE' | 'UNAVAILABLE' | 'UNREACHABLE';
+  crawlabilityStatus?: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN';
   explanation: string;
   statusCode: number | null;
   respectRobotsEnabled: boolean;
   blockedMainUrl: boolean;
+  failureType?: RobotsFailureType;
 }
 
 export interface FetchRenderCompleteResult {

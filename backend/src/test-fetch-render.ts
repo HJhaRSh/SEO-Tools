@@ -409,6 +409,8 @@ async function main() {
       assert.strictEqual(result.summary.httpStatus, 0);
       assert.strictEqual(result.summary.renderingStatus, 'FETCH_ONLY');
       assert.strictEqual(result.robotsInfo.blockedMainUrl, true);
+      assert.strictEqual(result.robotsInfo.explicitlyDisallowed, true);
+      assert.strictEqual(result.robotsInfo.classification, 'DISALLOWED');
       assert.strictEqual(result.initialFetch.rawHtml, '');
       assert.strictEqual(result.renderResult?.renderStatus, 'SKIPPED');
 
@@ -616,9 +618,9 @@ async function main() {
   }
 
   // =========================================================
-  // GROUP 5: RFC 9309 STATUS HANDLING
+  // GROUP 5: RFC 9309 STATUS HANDLING & DECISION SEPARATION
   // =========================================================
-  console.log('\n5. RFC 9309 Robots.txt Failure & Status Code Tests:');
+  console.log('\n5. RFC 9309 Robots.txt Classification & Decision Separation QA:');
 
   await runTest('RFC 9309: Subresource direct evaluation returns ALLOWED when allowed', () => {
     const policy = checkSubresourceRobotsPolicy('https://example.com/assets/app.js', 'User-agent: *\nAllow: /assets/\n', 'googlebot');
@@ -631,6 +633,255 @@ async function main() {
     assert.strictEqual(policy.status, 'DISALLOWED');
     assert.strictEqual(policy.isAllowed, false);
   });
+
+  // Dedicated test server for status codes: 401, 403, 404, 429
+  let statusServer!: http.Server;
+  let statusPort!: number;
+  let currentRobotsStatus = 401;
+  let targetRequestedPaths: string[] = [];
+
+  await new Promise<void>((resolve) => {
+    statusServer = http.createServer((req, res) => {
+      const url = req.url || '/';
+      if (url === '/robots.txt') {
+        res.writeHead(currentRobotsStatus, { 'Content-Type': 'text/plain' });
+        res.end(`${currentRobotsStatus} Response`);
+      } else if (url.includes('/target') || url.includes('/widget.js') || url.includes('/style.css')) {
+        targetRequestedPaths.push(url);
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<!DOCTYPE html><html><head><title>Target Content</title></head><body><h1>Target Content Served</h1></body></html>');
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+
+    statusServer.listen(0, '127.0.0.1', () => {
+      statusPort = (statusServer.address() as any).port;
+      resolve();
+    });
+  });
+
+  try {
+    // TEST 5.1: HTTP 401 Classification & Tool Conservative Policy Separation
+    await runTest('FIX 1 & FIX 2: robots.txt HTTP 401 classifies as UNAVAILABLE (not Disallow rule) and halts under conservative policy', async () => {
+      currentRobotsStatus = 401;
+      targetRequestedPaths = [];
+      const info = await checkRobotsTxtCrawlability(
+        `http://127.0.0.1:${statusPort}/target`,
+        'googlebot',
+        true,
+        true
+      );
+
+      assert.strictEqual(info.classification, 'UNAVAILABLE');
+      assert.strictEqual(info.explicitlyDisallowed, false, 'HTTP 401 must not be reported as explicit Disallow rule');
+      assert.strictEqual(info.applicableRule, null);
+      assert.strictEqual(info.statusCode, 401);
+      assert.strictEqual(info.fetchPermittedByToolPolicy, false);
+      assert.ok(info.explanation.includes('conservative fetch policy'));
+
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${statusPort}/target`,
+          mode: 'fetch-only',
+          respectRobots: true
+        },
+        { allowLocalhostForTesting: true }
+      );
+
+      assert.strictEqual(targetRequestedPaths.length, 0, 'Target URL must NOT be fetched when robots.txt returns 401 under conservative policy');
+      assert.strictEqual(result.summary.crawlability, 'UNKNOWN');
+      assert.strictEqual(result.summary.httpStatus, 0);
+      assert.strictEqual(result.robotsInfo.explicitlyDisallowed, false);
+
+      const policyDiag = result.diagnostics.find(d => d.id === 'diag_robots_unauthorized_policy');
+      assert.ok(policyDiag !== undefined);
+      assert.strictEqual(policyDiag?.severity, 'WARNING');
+      assert.ok(policyDiag?.description.includes('No explicit Disallow directive was evaluated'));
+    });
+
+    // TEST 5.2: HTTP 401 User Override when respectRobots=false
+    await runTest('FIX 1 & FIX 2: robots.txt HTTP 401 permits crawling when respectRobots=false with explicit override notice', async () => {
+      currentRobotsStatus = 401;
+      targetRequestedPaths = [];
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${statusPort}/target`,
+          mode: 'fetch-only',
+          respectRobots: false
+        },
+        { allowLocalhostForTesting: true }
+      );
+
+      assert.strictEqual(targetRequestedPaths.length, 1);
+      assert.strictEqual(result.summary.httpStatus, 200);
+      assert.ok(result.initialFetch.rawHtml.includes('Target Content Served'));
+
+      const overrideDiag = result.diagnostics.find(d => d.id === 'diag_robots_auth_override');
+      assert.ok(overrideDiag !== undefined);
+      assert.strictEqual(overrideDiag?.severity, 'WARNING');
+    });
+
+    // TEST 5.3: HTTP 403 Classification & Tool Conservative Policy Separation
+    await runTest('FIX 1 & FIX 2: robots.txt HTTP 403 classifies as UNAVAILABLE (not Disallow rule) and halts under conservative policy', async () => {
+      currentRobotsStatus = 403;
+      targetRequestedPaths = [];
+      const info = await checkRobotsTxtCrawlability(
+        `http://127.0.0.1:${statusPort}/target`,
+        'googlebot',
+        true,
+        true
+      );
+
+      assert.strictEqual(info.classification, 'UNAVAILABLE');
+      assert.strictEqual(info.explicitlyDisallowed, false, 'HTTP 403 must not be reported as explicit Disallow rule');
+      assert.strictEqual(info.applicableRule, null);
+      assert.strictEqual(info.statusCode, 403);
+      assert.strictEqual(info.fetchPermittedByToolPolicy, false);
+      assert.ok(info.explanation.includes('conservative fetch policy'));
+
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${statusPort}/target`,
+          mode: 'fetch-only',
+          respectRobots: true
+        },
+        { allowLocalhostForTesting: true }
+      );
+
+      assert.strictEqual(targetRequestedPaths.length, 0);
+      assert.strictEqual(result.summary.crawlability, 'UNKNOWN');
+      assert.strictEqual(result.robotsInfo.explicitlyDisallowed, false);
+
+      const policyDiag = result.diagnostics.find(d => d.id === 'diag_robots_unauthorized_policy');
+      assert.ok(policyDiag !== undefined);
+      assert.strictEqual(policyDiag?.severity, 'WARNING');
+    });
+
+    // TEST 5.4: HTTP 404 Classification under RFC 9309 Section 2.3.1.2 -> ALLOWED
+    await runTest('FIX 1: robots.txt HTTP 404 classifies as UNAVAILABLE and allows crawl under RFC 9309 Section 2.3.1.2', async () => {
+      currentRobotsStatus = 404;
+      targetRequestedPaths = [];
+      const info = await checkRobotsTxtCrawlability(
+        `http://127.0.0.1:${statusPort}/target`,
+        'googlebot',
+        true,
+        true
+      );
+
+      assert.strictEqual(info.classification, 'UNAVAILABLE');
+      assert.strictEqual(info.explicitlyDisallowed, false);
+      assert.strictEqual(info.fetchPermittedByToolPolicy, true);
+      assert.strictEqual(info.crawlabilityStatus, 'ALLOWED');
+      assert.strictEqual(info.statusCode, 404);
+
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${statusPort}/target`,
+          mode: 'fetch-only',
+          respectRobots: true
+        },
+        { allowLocalhostForTesting: true }
+      );
+
+      assert.strictEqual(targetRequestedPaths.length, 1);
+      assert.strictEqual(result.summary.crawlability, 'ALLOWED');
+      assert.strictEqual(result.summary.httpStatus, 200);
+      assert.ok(result.initialFetch.rawHtml.includes('Target Content Served'));
+    });
+
+    // TEST 5.5: HTTP 429 Classification -> RATE_LIMITED
+    await runTest('FIX 1: robots.txt HTTP 429 classifies as RATE_LIMITED and defers crawl under conservative policy', async () => {
+      currentRobotsStatus = 429;
+      targetRequestedPaths = [];
+      const info = await checkRobotsTxtCrawlability(
+        `http://127.0.0.1:${statusPort}/target`,
+        'googlebot',
+        true,
+        true
+      );
+
+      assert.strictEqual(info.classification, 'RATE_LIMITED');
+      assert.strictEqual(info.explicitlyDisallowed, false);
+      assert.strictEqual(info.fetchPermittedByToolPolicy, false);
+      assert.strictEqual(info.statusCode, 429);
+
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${statusPort}/target`,
+          mode: 'fetch-only',
+          respectRobots: true
+        },
+        { allowLocalhostForTesting: true }
+      );
+
+      assert.strictEqual(targetRequestedPaths.length, 0);
+      assert.strictEqual(result.summary.crawlability, 'UNKNOWN');
+      assert.strictEqual(result.summary.httpStatus, 0);
+
+      const rateDiag = result.diagnostics.find(d => d.id === 'diag_robots_rate_limited');
+      assert.ok(rateDiag !== undefined);
+      assert.strictEqual(rateDiag?.severity, 'WARNING');
+    });
+
+    // TEST 5.6: Network Failure (Connection Refused) Classification
+    await runTest('FIX 1: Network failure (closed port) classifies as NETWORK_ERROR / CONNECTION_REFUSED and halts crawl', async () => {
+      // Use closed port
+      const closedPort = 59999;
+      const info = await checkRobotsTxtCrawlability(
+        `http://127.0.0.1:${closedPort}/target`,
+        'googlebot',
+        true,
+        true
+      );
+
+      assert.strictEqual(info.classification, 'NETWORK_ERROR');
+      assert.strictEqual(info.failureType, 'CONNECTION_REFUSED');
+      assert.strictEqual(info.explicitlyDisallowed, false);
+      assert.strictEqual(info.fetchPermittedByToolPolicy, false);
+      assert.strictEqual(info.statusCode, null);
+
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${closedPort}/target`,
+          mode: 'fetch-only',
+          respectRobots: true
+        },
+        { allowLocalhostForTesting: true }
+      );
+
+      assert.strictEqual(result.summary.crawlability, 'UNKNOWN');
+      assert.strictEqual(result.summary.httpStatus, 0);
+
+      const netDiag = result.diagnostics.find(d => d.id === 'diag_robots_network_failure');
+      assert.ok(netDiag !== undefined);
+      assert.strictEqual(netDiag?.severity, 'WARNING');
+    });
+
+    // TEST 5.7: SubresourceRobotsManager classifies 401/403 as UNKNOWN (not synthetic disallow rule)
+    await runTest('FIX 2: Subresource manager treats 401/403 origin as UNKNOWN policy, not synthetic Disallow directive', async () => {
+      currentRobotsStatus = 403;
+      const manager = new SubresourceRobotsManager('http://main-site.test', '', 'googlebot', true);
+
+      // Subresource from 403 origin
+      const sub403 = await manager.checkSubresource(`http://127.0.0.1:${statusPort}/widget.js`);
+      assert.strictEqual(sub403.status, 'UNKNOWN');
+      assert.strictEqual(sub403.isAllowed, false);
+      assert.ok(sub403.ruleSummary?.includes('403'));
+      assert.ok(!sub403.ruleSummary?.includes('Disallowed by rule'));
+
+      // Subresource from 404 origin on another port
+      currentRobotsStatus = 404;
+      const manager404 = new SubresourceRobotsManager('http://main-site.test', '', 'googlebot', true);
+      const sub404 = await manager404.checkSubresource(`http://127.0.0.1:${statusPort}/style.css`);
+      assert.strictEqual(sub404.status, 'ALLOWED');
+      assert.strictEqual(sub404.isAllowed, true);
+    });
+
+  } finally {
+    statusServer.close();
+  }
 
   console.log('\n=====================================================');
   console.log(`TOTAL TOOL 5 TESTS: ${totalTests} | PASSED: ${passedTests} | FAILED: ${totalTests - passedTests}`);

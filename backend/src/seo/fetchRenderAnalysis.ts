@@ -472,7 +472,7 @@ export function generateDiagnostics(
   }
 
   // 2. Robots.txt crawlability
-  if (robots.fetchStatus === 'DISALLOWED') {
+  if (robots.explicitlyDisallowed) {
     diagnostics.push({
       id: 'robots-disallowed',
       category: 'CRAWLABILITY',
@@ -483,14 +483,36 @@ export function generateDiagnostics(
       source: 'ROBOTS_TXT',
       confidence: 'CONFIRMED'
     });
-  } else if (robots.fetchStatus === 'UNKNOWN') {
+  } else if (robots.classification === 'UNAVAILABLE' && (robots.statusCode === 401 || robots.statusCode === 403)) {
+    diagnostics.push({
+      id: 'robots-auth-unavailable',
+      category: 'CRAWLABILITY',
+      severity: 'WARNING',
+      title: `robots.txt Unavailable (HTTP ${robots.statusCode})`,
+      description: `robots.txt returned HTTP ${robots.statusCode}. Under RFC 9309, 4xx responses mean robots.txt is unavailable. No explicit Disallow directive was evaluated.`,
+      seoImpact: 'Search engine crawlers treat robots.txt as unavailable, but crawlability depends on whether target pages also require authentication.',
+      source: 'ROBOTS_TXT',
+      confidence: 'CONFIRMED'
+    });
+  } else if (robots.classification === 'RATE_LIMITED') {
+    diagnostics.push({
+      id: 'robots-rate-limited',
+      category: 'CRAWLABILITY',
+      severity: 'WARNING',
+      title: 'robots.txt Rate Limited (HTTP 429)',
+      description: 'The target origin returned HTTP 429 Too Many Requests on robots.txt.',
+      seoImpact: 'Major search engines treat HTTP 429 as a crawl delay or temporary halt.',
+      source: 'ROBOTS_TXT',
+      confidence: 'CONFIRMED'
+    });
+  } else if (robots.classification === 'UNKNOWN' || robots.classification === 'UNREACHABLE' || robots.classification === 'NETWORK_ERROR') {
     diagnostics.push({
       id: 'robots-unknown',
       category: 'CRAWLABILITY',
       severity: 'WARNING',
       title: 'robots.txt Retrieval Unverified',
-      description: 'The robots.txt file could not be retrieved successfully (e.g. server error or timeout).',
-      seoImpact: 'When robots.txt returns a 5xx error, search engines temporarily halt crawling.',
+      description: 'The robots.txt file could not be retrieved successfully (e.g. server error, network timeout, or unreachable origin).',
+      seoImpact: 'When robots.txt returns a 5xx error or times out, search engines temporarily halt crawling.',
       source: 'ROBOTS_TXT',
       confidence: 'POTENTIAL_RISK'
     });

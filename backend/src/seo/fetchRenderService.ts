@@ -302,6 +302,7 @@ export async function runFetchAndRenderTest(
   const startTime = Date.now();
 
   // 2. robots.txt Crawlability Check
+  // 2. robots.txt Crawlability Check
   const robotsInfo = await checkRobotsTxtCrawlability(
     validation.url,
     userAgent.token,
@@ -309,15 +310,23 @@ export async function runFetchAndRenderTest(
     allowLocalhost
   );
 
-  // FIX 1 — CASE A: Explicitly Disallowed
-  // When respectRobots = true: If explicitly Disallowed, do NOT fetch or render the disallowed target page!
-  if (validation.respectRobots && robotsInfo.blockedMainUrl) {
+  // FIX 1 & FIX 2: Separate robots.txt classification and Tool fetch enforcement decision.
+  // When respectRobots = true, if tool policy prevents fetching, halt before requesting target page.
+  if (validation.respectRobots && !robotsInfo.fetchPermittedByToolPolicy) {
     const totalDurationMs = Date.now() - startTime;
     const initialFetch: InitialFetchResult = {
       requestedUrl: validation.url,
       finalUrl: validation.url,
       statusCode: 0,
-      statusText: 'Crawl Disallowed by robots.txt',
+      statusText: robotsInfo.explicitlyDisallowed
+        ? 'Crawl Disallowed by robots.txt'
+        : robotsInfo.classification === 'UNAVAILABLE'
+        ? `Robots.txt Unavailable (HTTP ${robotsInfo.statusCode || 'Client Error'})`
+        : robotsInfo.classification === 'RATE_LIMITED'
+        ? 'Robots.txt Rate Limited (HTTP 429)'
+        : robotsInfo.classification === 'UNREACHABLE'
+        ? `Robots.txt Server Error (HTTP ${robotsInfo.statusCode || '5xx'})`
+        : 'Robots.txt Unresolved (Fetch Halted)',
       headers: {},
       rawHtml: '',
       byteSize: 0,
@@ -343,139 +352,80 @@ export async function runFetchAndRenderTest(
       hreflangTags: []
     };
 
-    const diagnostics: DiagnosticItem[] = [
-      {
+    const diagnostics: DiagnosticItem[] = [];
+
+    if (robotsInfo.explicitlyDisallowed) {
+      // CASE A: Explicit Disallow Directive evaluated and matched
+      diagnostics.push({
         id: 'diag_robots_disallowed',
         category: 'CRAWLABILITY',
         severity: 'ERROR',
         title: 'Crawl Disallowed by robots.txt',
-        description: `Target URL is blocked by robots.txt rule for user-agent "${userAgent.token}". ${robotsInfo.applicableRule ? `Rule: ${robotsInfo.applicableRule.originalText}` : ''} Crawling and rendering halted because "Respect robots.txt" is enabled.`,
+        description: `Target URL is blocked by an explicit robots.txt Disallow rule for user-agent "${userAgent.token}". ${robotsInfo.applicableRule ? `Rule: ${robotsInfo.applicableRule.originalText}` : ''} Crawling and rendering halted because "Respect robots.txt" is enabled.`,
         seoImpact: 'Search engine crawlers respecting robots.txt will not fetch or index this URL.',
         source: 'ROBOTS_TXT',
         confidence: 'CONFIRMED'
-      }
-    ];
-
-    const blockedResult: FetchRenderCompleteResult = {
-      id: testId,
-      timestamp: new Date().toISOString(),
-      requestedUrl: validation.url,
-      finalUrl: validation.url,
-      mode: validation.mode,
-      userAgent,
-      summary: {
-        httpStatus: 0,
-        httpStatusText: 'Crawl Disallowed (robots.txt)',
-        crawlability: 'DISALLOWED',
-        renderingStatus: 'FETCH_ONLY',
-        indexabilitySignal: 'BLOCKING_SIGNAL_DETECTED',
-        totalDurationMs,
-        totalIssuesCount: {
-          errors: 1,
-          warnings: 0,
-          notices: 0
-        }
-      },
-      initialFetch,
-      renderResult: {
-        renderedHtml: '',
-        byteSize: 0,
-        renderDurationMs: 0,
-        resources: [],
-        consoleMessages: [],
-        totalResourcesLoaded: 0,
-        totalResourcesFailed: 0,
-        totalResourcesBlocked: 0,
-        isTruncated: false,
-        renderStatus: 'SKIPPED',
-        errorMessage: 'Rendering skipped: Target URL is disallowed by robots.txt.'
-      },
-      robotsInfo,
-      seoSignals: {
-        initial: emptySignals,
-        rendered: undefined,
-        comparison: []
-      },
-      diagnostics,
-      downloads: {
-        originalHtmlId: storeDownloadPayload('original.html', 'text/html; charset=utf-8', Buffer.from('', 'utf-8')),
-        renderedHtmlId: undefined,
-        screenshotId: undefined,
-        reportJsonId: '',
-        seoDiffCsvId: ''
-      }
-    };
-
-    const reportJsonId = storeDownloadPayload(
-      `fetch-render-report-${testId}.json`,
-      'application/json; charset=utf-8',
-      Buffer.from(JSON.stringify(blockedResult, null, 2), 'utf-8')
-    );
-    const seoDiffCsv = generateSeoDiffCsv(blockedResult);
-    const seoDiffCsvId = storeDownloadPayload(
-      `seo-comparison-${testId}.csv`,
-      'text/csv; charset=utf-8',
-      Buffer.from(seoDiffCsv, 'utf-8')
-    );
-
-    blockedResult.downloads.reportJsonId = reportJsonId;
-    blockedResult.downloads.seoDiffCsvId = seoDiffCsvId;
-
-    storeResult(blockedResult);
-    return blockedResult;
-  }
-
-  // FIX 1 — CASE B: Temporary Robots.txt Failure / Unresolved Policy (5xx, DNS, timeout, network error)
-  // When respectRobots = true: Under conservative RFC 9309 policy, do NOT fetch or render while permission is unresolved!
-  if (
-    validation.respectRobots &&
-    (robotsInfo.fetchStatus === 'TEMPORARY_UNAVAILABLE' || robotsInfo.fetchStatus === 'UNKNOWN')
-  ) {
-    const totalDurationMs = Date.now() - startTime;
-    const initialFetch: InitialFetchResult = {
-      requestedUrl: validation.url,
-      finalUrl: validation.url,
-      statusCode: 0,
-      statusText: 'Robots.txt Temporarily Unavailable (Fetch Halted)',
-      headers: {},
-      rawHtml: '',
-      byteSize: 0,
-      durationMs: 0,
-      redirectHistory: [],
-      contentType: 'text/html',
-      isTruncated: false
-    };
-
-    const emptySignals: ExtractedSeoSignals = {
-      title: null,
-      metaDescription: null,
-      metaRobots: null,
-      canonicalUrl: null,
-      h1Headings: [],
-      internalLinksCount: 0,
-      externalLinksCount: 0,
-      imagesCount: 0,
-      imagesWithAltCount: 0,
-      wordCount: 0,
-      structuredDataTypes: [],
-      structuredDataCount: 0,
-      hreflangTags: []
-    };
-
-    const diagnostics: DiagnosticItem[] = [
-      {
+      });
+    } else if (robotsInfo.classification === 'UNAVAILABLE' && (robotsInfo.statusCode === 401 || robotsInfo.statusCode === 403)) {
+      // CASE B: HTTP 401 / 403 Unavailable under RFC 9309 — Halted by Conservative Tool Policy
+      diagnostics.push({
+        id: 'diag_robots_unauthorized_policy',
+        category: 'CRAWLABILITY',
+        severity: 'WARNING',
+        title: `Robots.txt Unavailable (HTTP ${robotsInfo.statusCode}) — Conservative Policy Halt`,
+        description: `robots.txt returned HTTP ${robotsInfo.statusCode}. Under RFC 9309 Section 2.3.1.2, 4xx responses mean robots.txt is unavailable. No explicit Disallow directive was evaluated. This tool halted fetching because of its conservative crawl policy, not because of an RFC 9309 disallow directive.`,
+        seoImpact: 'Search engine crawlers encountering 401/403 on robots.txt treat the file as unavailable, but if the origin requires authentication, crawlers will not be able to index protected resources.',
+        source: 'ROBOTS_TXT',
+        confidence: 'CONFIRMED'
+      });
+    } else if (robotsInfo.classification === 'RATE_LIMITED') {
+      // CASE C: HTTP 429 Rate Limited
+      diagnostics.push({
+        id: 'diag_robots_rate_limited',
+        category: 'CRAWLABILITY',
+        severity: 'WARNING',
+        title: 'Robots.txt Rate Limited (HTTP 429) — Crawl Deferred',
+        description: `robots.txt returned HTTP 429 (Too Many Requests). Crawlers treat rate limiting as temporary back-off and halt crawling to protect origin availability. Fetching halted under conservative crawl policy.`,
+        seoImpact: 'Search engine crawlers encountering HTTP 429 throttle or defer crawl requests to prevent server exhaustion.',
+        source: 'ROBOTS_TXT',
+        confidence: 'CONFIRMED'
+      });
+    } else if (robotsInfo.classification === 'UNREACHABLE') {
+      // CASE D: HTTP 5xx Server Error (RFC 9309 Section 2.3.1.3: Temporarily Unreachable)
+      diagnostics.push({
         id: 'diag_robots_temp_unavailable',
         category: 'CRAWLABILITY',
         severity: 'WARNING',
-        title: 'Robots.txt Temporarily Unavailable — Crawl Deferred',
-        description: `Could not retrieve or evaluate robots.txt for "${userAgent.token}" (${robotsInfo.explanation}). Under the conservative crawling policy (RFC 9309 Section 2.3.1.3), fetching and rendering were halted because crawl permission could not be established.`,
-        seoImpact: 'Search engine crawlers encountering 5xx errors or network timeouts on robots.txt temporarily halt crawling to avoid indexing restricted content.',
+        title: `Robots.txt Temporarily Unavailable (HTTP ${robotsInfo.statusCode}) — Crawl Deferred`,
+        description: `robots.txt returned server error (HTTP ${robotsInfo.statusCode}). Under RFC 9309 Section 2.3.1.3, crawlers must treat 5xx responses as temporarily unreachable and halt crawling until resolved.`,
+        seoImpact: 'Search engine crawlers encountering 5xx errors on robots.txt temporarily halt crawling to avoid indexing restricted content.',
         source: 'ROBOTS_TXT',
         confidence: 'CONFIRMED'
-      }
-    ];
+      });
+    } else {
+      // CASE E: Network, DNS, or Redirect failure
+      diagnostics.push({
+        id: 'diag_robots_network_failure',
+        category: 'CRAWLABILITY',
+        severity: 'WARNING',
+        title: `Robots.txt Retrieval Failed (${robotsInfo.failureType || 'Network Error'}) — Crawl Deferred`,
+        description: `robots.txt could not be retrieved due to ${robotsInfo.failureType || 'network error'} (${robotsInfo.explanation}). Under the tool's conservative crawling policy, fetching and rendering were halted because crawl permission could not be established.`,
+        seoImpact: 'Search engine crawlers encountering network timeouts or unreachable origins on robots.txt temporarily halt crawling.',
+        source: 'ROBOTS_TXT',
+        confidence: 'CONFIRMED'
+      });
+    }
 
-    const tempResult: FetchRenderCompleteResult = {
+    const crawlabilitySummary = robotsInfo.explicitlyDisallowed ? 'DISALLOWED' : 'UNKNOWN';
+    const httpStatusText = robotsInfo.explicitlyDisallowed
+      ? 'Crawl Disallowed (robots.txt)'
+      : robotsInfo.classification === 'UNAVAILABLE'
+      ? `Robots.txt Unavailable (HTTP ${robotsInfo.statusCode})`
+      : robotsInfo.classification === 'RATE_LIMITED'
+      ? 'Robots.txt Rate Limited (HTTP 429)'
+      : 'Robots.txt Temporarily Unavailable';
+
+    const haltedResult: FetchRenderCompleteResult = {
       id: testId,
       timestamp: new Date().toISOString(),
       requestedUrl: validation.url,
@@ -484,15 +434,15 @@ export async function runFetchAndRenderTest(
       userAgent,
       summary: {
         httpStatus: 0,
-        httpStatusText: 'Robots.txt Temporarily Unavailable',
-        crawlability: 'UNKNOWN',
+        httpStatusText,
+        crawlability: crawlabilitySummary,
         renderingStatus: 'FETCH_ONLY',
-        indexabilitySignal: 'UNKNOWN',
+        indexabilitySignal: robotsInfo.explicitlyDisallowed ? 'BLOCKING_SIGNAL_DETECTED' : 'UNKNOWN',
         totalDurationMs,
         totalIssuesCount: {
-          errors: 0,
-          warnings: 1,
-          notices: 0
+          errors: diagnostics.filter(d => d.severity === 'ERROR').length,
+          warnings: diagnostics.filter(d => d.severity === 'WARNING').length,
+          notices: diagnostics.filter(d => d.severity === 'INFO').length
         }
       },
       initialFetch,
@@ -507,7 +457,7 @@ export async function runFetchAndRenderTest(
         totalResourcesBlocked: 0,
         isTruncated: false,
         renderStatus: 'SKIPPED',
-        errorMessage: 'Rendering skipped: robots.txt was temporarily unavailable.'
+        errorMessage: `Rendering skipped: ${robotsInfo.policyReason}`
       },
       robotsInfo,
       seoSignals: {
@@ -528,20 +478,20 @@ export async function runFetchAndRenderTest(
     const reportJsonId = storeDownloadPayload(
       `fetch-render-report-${testId}.json`,
       'application/json; charset=utf-8',
-      Buffer.from(JSON.stringify(tempResult, null, 2), 'utf-8')
+      Buffer.from(JSON.stringify(haltedResult, null, 2), 'utf-8')
     );
-    const seoDiffCsv = generateSeoDiffCsv(tempResult);
+    const seoDiffCsv = generateSeoDiffCsv(haltedResult);
     const seoDiffCsvId = storeDownloadPayload(
       `seo-comparison-${testId}.csv`,
       'text/csv; charset=utf-8',
       Buffer.from(seoDiffCsv, 'utf-8')
     );
 
-    tempResult.downloads.reportJsonId = reportJsonId;
-    tempResult.downloads.seoDiffCsvId = seoDiffCsvId;
+    haltedResult.downloads.reportJsonId = reportJsonId;
+    haltedResult.downloads.seoDiffCsvId = seoDiffCsvId;
 
-    storeResult(tempResult);
-    return tempResult;
+    storeResult(haltedResult);
+    return haltedResult;
   }
 
   // 3. Initial HTTP Fetch (Only executed when permitted or respectRobots = false)
@@ -588,7 +538,7 @@ export async function runFetchAndRenderTest(
   const diagnostics = generateDiagnostics(initialFetch, robotsInfo, renderResult, comparison);
 
   // Add override diagnostic if robots.txt had issues but was bypassed by user
-  if (!validation.respectRobots && robotsInfo.fetchStatus === 'DISALLOWED') {
+  if (!validation.respectRobots && robotsInfo.explicitlyDisallowed) {
     diagnostics.push({
       id: 'diag_robots_override',
       category: 'CRAWLABILITY',
@@ -599,13 +549,31 @@ export async function runFetchAndRenderTest(
       source: 'ROBOTS_TXT',
       confidence: 'CONFIRMED'
     });
-  } else if (!validation.respectRobots && (robotsInfo.fetchStatus === 'TEMPORARY_UNAVAILABLE' || robotsInfo.fetchStatus === 'UNKNOWN')) {
+  } else if (!validation.respectRobots && robotsInfo.classification === 'UNAVAILABLE' && (robotsInfo.statusCode === 401 || robotsInfo.statusCode === 403)) {
+    diagnostics.push({
+      id: 'diag_robots_auth_override',
+      category: 'CRAWLABILITY',
+      severity: 'WARNING',
+      title: 'robots.txt Access Denied Ignored (Override Enabled)',
+      description: `robots.txt returned HTTP ${robotsInfo.statusCode} for "${userAgent.token}", but the user explicitly disabled "Respect robots.txt". Testing proceeded under user override.`,
+      seoImpact: 'Production search crawlers would treat robots.txt as unavailable and cannot access origin if credentials/permissions are required.',
+      source: 'ROBOTS_TXT',
+      confidence: 'CONFIRMED'
+    });
+  } else if (
+    !validation.respectRobots &&
+    (robotsInfo.classification === 'UNREACHABLE' ||
+      robotsInfo.classification === 'RATE_LIMITED' ||
+      robotsInfo.classification === 'NETWORK_ERROR' ||
+      robotsInfo.classification === 'REDIRECT_ERROR' ||
+      robotsInfo.classification === 'UNKNOWN')
+  ) {
     diagnostics.push({
       id: 'diag_robots_temp_override',
       category: 'CRAWLABILITY',
       severity: 'WARNING',
       title: 'robots.txt Temporary Failure Ignored (Override Enabled)',
-      description: `robots.txt was temporarily unavailable for "${userAgent.token}", but the user explicitly disabled "Respect robots.txt". Testing proceeded without establishing robots.txt permissions.`,
+      description: `robots.txt was temporarily unavailable or unreachable for "${userAgent.token}", but the user explicitly disabled "Respect robots.txt". Testing proceeded without establishing robots.txt permissions.`,
       seoImpact: 'Production search crawlers would defer crawling until robots.txt becomes available.',
       source: 'ROBOTS_TXT',
       confidence: 'CONFIRMED'
@@ -648,7 +616,7 @@ export async function runFetchAndRenderTest(
 
   if (hasNoindex) {
     indexabilitySignal = 'BLOCKING_SIGNAL_DETECTED';
-  } else if (robotsInfo.fetchStatus === 'UNKNOWN' || robotsInfo.fetchStatus === 'TEMPORARY_UNAVAILABLE') {
+  } else if (robotsInfo.fetchStatus === 'UNKNOWN' || robotsInfo.fetchStatus === 'TEMPORARY_UNAVAILABLE' || robotsInfo.classification === 'UNREACHABLE') {
     indexabilitySignal = 'UNKNOWN';
   }
 
@@ -673,7 +641,11 @@ export async function runFetchAndRenderTest(
     summary: {
       httpStatus: initialFetch.statusCode,
       httpStatusText: initialFetch.statusText,
-      crawlability: robotsInfo.fetchStatus === 'DISALLOWED' ? 'DISALLOWED' : robotsInfo.fetchStatus === 'ALLOWED' ? 'ALLOWED' : 'UNKNOWN',
+      crawlability: robotsInfo.explicitlyDisallowed
+        ? 'DISALLOWED'
+        : robotsInfo.crawlabilityStatus === 'ALLOWED' || robotsInfo.classification === 'ALLOWED'
+        ? 'ALLOWED'
+        : 'UNKNOWN',
       renderingStatus,
       indexabilitySignal,
       totalDurationMs,
