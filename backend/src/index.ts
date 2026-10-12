@@ -414,7 +414,8 @@ app.use((err: any, _req: Request, res: Response, _next: any) => {
   });
 });
 
-if (process.env.NODE_ENV !== 'test' && (process.env.NODE_ENV !== 'production' || !process.env.VERCEL)) {
+const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.NOW_REGION);
+if (!isVercel && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`[Indian Marketers SEO Tools] Backend Server running on http://localhost:${PORT}`);
   });
