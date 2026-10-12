@@ -1,4 +1,5 @@
 import { FetchRenderUserAgentOption } from './fetchRenderTypes.js';
+import { USER_AGENTS } from './userAgents.js';
 
 export const FETCH_RENDER_USER_AGENTS: FetchRenderUserAgentOption[] = [
   {
@@ -78,18 +79,50 @@ export const FETCH_RENDER_USER_AGENTS: FetchRenderUserAgentOption[] = [
   }
 ];
 
+export function findFetchRenderUserAgent(idOrName: string): FetchRenderUserAgentOption | undefined {
+  if (!idOrName) return undefined;
+  const query = idOrName.toLowerCase().trim();
+  const direct = FETCH_RENDER_USER_AGENTS.find(
+    ua => ua.id.toLowerCase() === query || ua.name.toLowerCase() === query
+  );
+  if (direct) return direct;
+
+  // Check if it matches an AI bot or search crawler from USER_AGENTS registry
+  const matchedDefinition = USER_AGENTS.find(
+    ua => ua.token.toLowerCase() === query || ua.name.toLowerCase() === query
+  );
+  if (matchedDefinition) {
+    const isMobile = matchedDefinition.token.toLowerCase().includes('mobile') || matchedDefinition.name.toLowerCase().includes('smartphone');
+    return {
+      id: matchedDefinition.token.toLowerCase(),
+      name: matchedDefinition.name,
+      token: matchedDefinition.token,
+      fullUserAgent: matchedDefinition.fullUserAgent,
+      viewport: isMobile
+        ? { width: 412, height: 869, isMobile: true, deviceScaleFactor: 2.625 }
+        : { width: 1920, height: 1080, isMobile: false, deviceScaleFactor: 1 },
+      isGooglebot: matchedDefinition.token.toLowerCase().includes('googlebot'),
+      category: matchedDefinition.category === 'search' ? 'search' : 'ai',
+      disclaimer: `Simulated ${matchedDefinition.name} user-agent. Does not originate from verified crawler IP blocks.`
+    };
+  }
+
+  return undefined;
+}
+
+export function isSupportedUserAgentId(id: string): boolean {
+  return findFetchRenderUserAgent(id) !== undefined;
+}
+
 export function getFetchRenderUserAgent(idOrName?: string): FetchRenderUserAgentOption {
   if (!idOrName) {
     return FETCH_RENDER_USER_AGENTS[0]; // Default: Googlebot Smartphone
   }
 
-  const query = idOrName.toLowerCase().trim();
-  const found = FETCH_RENDER_USER_AGENTS.find(
-    ua => ua.id.toLowerCase() === query || ua.name.toLowerCase() === query
-  );
-
+  const found = findFetchRenderUserAgent(idOrName);
   if (found) return found;
 
-  // Fallback to default
-  return FETCH_RENDER_USER_AGENTS[0];
+  throw new Error(
+    `Unknown User-Agent ID: "${idOrName}". Supported user-agents include: ${FETCH_RENDER_USER_AGENTS.map(u => u.id).join(', ')}.`
+  );
 }

@@ -48,6 +48,7 @@ export interface InitialFetchResult {
 }
 
 export interface CapturedResource {
+  requestId?: string;
   url: string;
   type: 'Document' | 'Script' | 'Stylesheet' | 'Image' | 'Font' | 'Media' | 'Other';
   httpStatus: number | null;
@@ -56,6 +57,8 @@ export interface CapturedResource {
   loadStatus: 'LOADED' | 'FAILED' | 'BLOCKED_ROBOTS' | 'BLOCKED_SSRF' | 'ABORTED';
   robotsStatus?: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN';
   failureReason?: string;
+  redirectUrl?: string;
+  timingMs?: number;
 }
 
 export interface CapturedConsoleMessage {
@@ -125,7 +128,8 @@ export interface DiagnosticItem {
 
 export interface FetchRenderRobotsInfo {
   url: string;
-  fetchStatus: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN' | 'ERROR';
+  fetchStatus: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN' | 'ERROR' | 'TEMPORARY_UNAVAILABLE' | 'PERMANENT_UNAVAILABLE';
+  crawlabilityStatus?: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN';
   applicableRule?: {
     type: 'allow' | 'disallow';
     pattern: string;

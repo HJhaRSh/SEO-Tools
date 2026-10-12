@@ -1,5 +1,6 @@
 import { FetchRenderRequestOptions, FetchRenderMode } from './fetchRenderTypes.js';
 import { validateUrl } from './safeFetch.js';
+import { findFetchRenderUserAgent } from './fetchRenderUserAgents.js';
 
 export interface ValidatedFetchRenderInput {
   isValid: boolean;
@@ -91,10 +92,27 @@ export function validateFetchRenderRequest(body: any, options?: { allowLocalhost
     mode = body.mode;
   }
 
-  // User-Agent ID
-  const userAgentId = typeof body.userAgent === 'string' && body.userAgent.trim()
-    ? body.userAgent.trim()
-    : 'googlebot-smartphone';
+  // User-Agent ID validation
+  let userAgentId = 'googlebot-smartphone';
+  if (typeof body.userAgent === 'string' && body.userAgent.trim()) {
+    const requestedUa = body.userAgent.trim();
+    const resolvedUa = findFetchRenderUserAgent(requestedUa);
+    if (!resolvedUa) {
+      return {
+        isValid: false,
+        error: `Unknown User-Agent ID: "${requestedUa}". Please select a valid User-Agent.`,
+        url: '',
+        mode: 'fetch-and-render',
+        userAgentId: 'googlebot-smartphone',
+        respectRobots: true,
+        postLoadWaitMs: DEFAULT_POST_LOAD_WAIT_MS,
+        timeoutMs: DEFAULT_TIMEOUT_MS,
+        acceptLanguage: 'en-US,en;q=0.9',
+        captureScreenshot: true
+      };
+    }
+    userAgentId = resolvedUa.id;
+  }
 
   // respectRobots (default true)
   const respectRobots = body.respectRobots !== false;

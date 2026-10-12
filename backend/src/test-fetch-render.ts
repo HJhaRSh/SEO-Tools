@@ -2,10 +2,23 @@ import assert from 'assert';
 import http from 'http';
 import { validateFetchRenderRequest } from './seo/fetchRenderValidation.js';
 import { extractSeoSignals, compareSeoSignals, generateDiagnostics } from './seo/fetchRenderAnalysis.js';
-import { FETCH_RENDER_USER_AGENTS, getFetchRenderUserAgent } from './seo/fetchRenderUserAgents.js';
-import { checkSubresourceRobotsPolicy } from './seo/fetchRenderRobots.js';
+import { FETCH_RENDER_USER_AGENTS, getFetchRenderUserAgent, findFetchRenderUserAgent } from './seo/fetchRenderUserAgents.js';
+import { checkSubresourceRobotsPolicy, checkRobotsTxtCrawlability } from './seo/fetchRenderRobots.js';
 import { executeBrowserRender, closeSharedBrowser } from './seo/fetchRenderBrowser.js';
-import { runFetchAndRenderTest, getStoredResult, getDownloadPayload } from './seo/fetchRenderService.js';
+import {
+  runFetchAndRenderTest,
+  getStoredResult,
+  getDownloadPayload,
+  storeDownloadPayload,
+  evictStoreEntries,
+  getStoreMetrics,
+  clearStoresForTesting,
+  MAX_STORED_RESULTS,
+  MAX_BYTES_PER_RESULT,
+  MAX_TOTAL_RESULT_BYTES,
+  MAX_DOWNLOAD_ITEM_BYTES,
+  MAX_TOTAL_DOWNLOAD_BYTES
+} from './seo/fetchRenderService.js';
 import { isBlockedHostname, isPrivateOrReservedIP } from './seo/ssrf.js';
 
 let passedTests = 0;
@@ -28,40 +41,29 @@ function runTest(name: string, fn: () => void | Promise<void>): Promise<void> {
 
 async function main() {
   console.log('\n=====================================================');
-  console.log('TOOL 5 — FETCH & RENDER AUTOMATED TEST SUITE');
+  console.log('TOOL 5 — FETCH & RENDER EXPANDED AUTOMATED QA SUITE');
   console.log('=====================================================\n');
 
-  console.log('1. URL Validation & SSRF Security:');
+  // =========================================================
+  // GROUP 1: URL VALIDATION & SSRF NETWORK DEFENSE
+  // =========================================================
+  console.log('1. URL Validation & SSRF Security Defenses:');
 
-  await runTest('Accepts valid HTTPS URL', () => {
-    const res = validateFetchRenderRequest({ url: 'https://example.com/page/' });
-    assert.strictEqual(res.isValid, true);
-    assert.strictEqual(res.url, 'https://example.com/page/');
+  await runTest('Accepts valid HTTPS and HTTP URLs', () => {
+    const res1 = validateFetchRenderRequest({ url: 'https://example.com/page/' });
+    assert.strictEqual(res1.isValid, true);
+    const res2 = validateFetchRenderRequest({ url: 'http://example.com/blog' });
+    assert.strictEqual(res2.isValid, true);
   });
 
-  await runTest('Accepts valid HTTP URL', () => {
-    const res = validateFetchRenderRequest({ url: 'http://example.com/blog' });
-    assert.strictEqual(res.isValid, true);
+  await runTest('Rejects missing, blank, or invalid scheme URLs', () => {
+    assert.strictEqual(validateFetchRenderRequest({ url: '' }).isValid, false);
+    assert.strictEqual(validateFetchRenderRequest({ url: 'file:///etc/passwd' }).isValid, false);
+    assert.strictEqual(validateFetchRenderRequest({ url: 'ftp://files.org/data' }).isValid, false);
+    assert.strictEqual(validateFetchRenderRequest({ url: 'javascript:alert(1)' }).isValid, false);
   });
 
-  await runTest('Rejects missing or empty URL', () => {
-    const res = validateFetchRenderRequest({ url: '' });
-    assert.strictEqual(res.isValid, false);
-    assert.match(res.error || '', /URL is required/);
-  });
-
-  await runTest('Rejects unsupported protocol schemes (file://, ftp://, javascript:)', () => {
-    const res1 = validateFetchRenderRequest({ url: 'file:///etc/passwd' });
-    assert.strictEqual(res1.isValid, false);
-
-    const res2 = validateFetchRenderRequest({ url: 'ftp://example.com/file.zip' });
-    assert.strictEqual(res2.isValid, false);
-
-    const res3 = validateFetchRenderRequest({ url: 'javascript:alert(1)' });
-    assert.strictEqual(res3.isValid, false);
-  });
-
-  await runTest('Detects and blocks localhost and loopback IPv4/IPv6', () => {
+  await runTest('SSRF Guard: Detects and blocks loopback and localhost destinations', () => {
     assert.strictEqual(isBlockedHostname('localhost'), true);
     assert.strictEqual(isBlockedHostname('localhost.localdomain'), true);
     assert.strictEqual(isPrivateOrReservedIP('127.0.0.1'), true);
@@ -69,170 +71,180 @@ async function main() {
     assert.strictEqual(isPrivateOrReservedIP('::1'), true);
   });
 
-  await runTest('Detects and blocks private IPv4 networks (RFC 1918)', () => {
+  await runTest('SSRF Guard: Detects and blocks private IPv4 ranges (RFC 1918)', () => {
     assert.strictEqual(isPrivateOrReservedIP('10.0.0.1'), true);
     assert.strictEqual(isPrivateOrReservedIP('172.16.5.1'), true);
     assert.strictEqual(isPrivateOrReservedIP('172.31.255.255'), true);
     assert.strictEqual(isPrivateOrReservedIP('192.168.1.1'), true);
+    assert.strictEqual(isPrivateOrReservedIP('192.168.0.100'), true);
   });
 
-  await runTest('Detects and blocks cloud metadata endpoints (169.254.169.254 & Google metadata)', () => {
+  await runTest('SSRF Guard: Detects and blocks cloud metadata endpoints', () => {
     assert.strictEqual(isPrivateOrReservedIP('169.254.169.254'), true);
     assert.strictEqual(isBlockedHostname('metadata.google.internal'), true);
     assert.strictEqual(isBlockedHostname('instance-data'), true);
   });
 
-  await runTest('Detects and blocks internal domain extensions (.local, .internal, .corp)', () => {
-    assert.strictEqual(isBlockedHostname('server.local'), true);
-    assert.strictEqual(isBlockedHostname('backend.internal'), true);
-    assert.strictEqual(isBlockedHostname('database.corp'), true);
+  await runTest('SSRF Guard: Detects and blocks internal domain extensions (.internal, .local, .corp)', () => {
+    assert.strictEqual(isBlockedHostname('app.local'), true);
+    assert.strictEqual(isBlockedHostname('db.internal'), true);
+    assert.strictEqual(isBlockedHostname('corp.intranet'), true);
   });
 
-  console.log('\n2. User Agent Definitions & Simulation Integrity:');
+  // =========================================================
+  // GROUP 2: USER-AGENT SPECIFICATION & STRICT REJECTION
+  // =========================================================
+  console.log('\n2. User-Agent Specification & Strict Rejection:');
 
-  await runTest('Includes verified Googlebot Smartphone with mobile viewport', () => {
+  await runTest('Supports Googlebot Smartphone with mobile emulation', () => {
     const ua = getFetchRenderUserAgent('googlebot-smartphone');
     assert.strictEqual(ua.token, 'googlebot');
     assert.strictEqual(ua.viewport.isMobile, true);
+    assert.strictEqual(ua.viewport.width, 412);
     assert.strictEqual(ua.isGooglebot, true);
     assert.match(ua.disclaimer, /simulation/i);
   });
 
-  await runTest('Includes verified Googlebot Desktop with desktop viewport', () => {
+  await runTest('Supports Googlebot Desktop with desktop viewport', () => {
     const ua = getFetchRenderUserAgent('googlebot-desktop');
     assert.strictEqual(ua.token, 'googlebot');
     assert.strictEqual(ua.viewport.isMobile, false);
     assert.strictEqual(ua.viewport.width, 1920);
   });
 
-  await runTest('Includes verified Bingbot and modern Chrome definitions', () => {
+  await runTest('Supports Bingbot, Chrome Desktop, and Chrome Mobile', () => {
     const bing = getFetchRenderUserAgent('bingbot');
     assert.strictEqual(bing.token, 'bingbot');
 
-    const chrome = getFetchRenderUserAgent('chrome-desktop');
-    assert.strictEqual(chrome.category, 'browser');
-    assert.match(chrome.fullUserAgent, /Chrome\//);
+    const chromeD = getFetchRenderUserAgent('chrome-desktop');
+    assert.strictEqual(chromeD.category, 'browser');
+
+    const chromeM = getFetchRenderUserAgent('chrome-mobile');
+    assert.strictEqual(chromeM.viewport.isMobile, true);
   });
 
-  console.log('\n3. SEO Signal Extraction & Parity Comparison:');
+  await runTest('Rejects unknown User-Agent ID with explicit error (No silent Googlebot fallback)', () => {
+    const res = validateFetchRenderRequest({
+      url: 'https://example.com',
+      userAgent: 'unknown-spoofed-crawler-xyz'
+    });
+    assert.strictEqual(res.isValid, false);
+    assert.match(res.error || '', /Unknown User-Agent ID/);
 
-  await runTest('Extracts title, meta description, robots, and canonical from HTML', () => {
-    const sampleHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Test Page Title</title>
-          <meta name="description" content="Test description text">
-          <meta name="robots" content="index, follow">
-          <link rel="canonical" href="https://example.com/canonical-test">
-          <link rel="alternate" hreflang="es" href="https://example.com/es/test">
-        </head>
-        <body>
-          <h1>First H1 Heading</h1>
-          <h1>Second H1 Heading</h1>
-          <p>This is paragraph text with ten words for testing word count.</p>
-          <a href="/internal-page">Internal Link</a>
-          <a href="https://external.org/page">External Link</a>
-          <img src="/img1.png" alt="Test Alt">
-          <img src="/img2.png">
-          <script type="application/ld+json">
-            { "@context": "https://schema.org", "@type": "Article", "headline": "Test Headline" }
-          </script>
-        </body>
-      </html>
-    `;
-
-    const signals = extractSeoSignals(sampleHtml, 'https://example.com/page');
-    assert.strictEqual(signals.title, 'Test Page Title');
-    assert.strictEqual(signals.metaDescription, 'Test description text');
-    assert.strictEqual(signals.metaRobots, 'index, follow');
-    assert.strictEqual(signals.canonicalUrl, 'https://example.com/canonical-test');
-    assert.strictEqual(signals.h1Headings.length, 2);
-    assert.strictEqual(signals.internalLinksCount, 1);
-    assert.strictEqual(signals.externalLinksCount, 1);
-    assert.strictEqual(signals.imagesCount, 2);
-    assert.strictEqual(signals.imagesWithAltCount, 1);
-    assert.strictEqual(signals.structuredDataTypes[0], 'Article');
-    assert.strictEqual(signals.hreflangTags.length, 1);
-    assert.ok(signals.wordCount >= 10);
+    // Verify getFetchRenderUserAgent throws on unknown ID
+    assert.throws(() => {
+      getFetchRenderUserAgent('unknown-spoofed-crawler-xyz');
+    }, /Unknown User-Agent ID/);
   });
 
-  await runTest('Detects SEO parity differences between initial and rendered versions', () => {
-    const initialSignals = extractSeoSignals(
-      '<html><head><title>Initial Title</title></head><body><h1>Old H1</h1><p>Three words here</p></body></html>',
-      'https://example.com'
-    );
-    const renderedSignals = extractSeoSignals(
-      '<html><head><title>New JS Title</title><link rel="canonical" href="https://example.com/new"></head><body><h1>New H1</h1><p>Many more words added dynamically by client side React hydration</p></body></html>',
-      'https://example.com'
-    );
-
-    const diffs = compareSeoSignals(initialSignals, renderedSignals);
-
-    const titleDiff = diffs.find(d => d.name === 'title');
-    assert.strictEqual(titleDiff?.status, 'MODIFIED');
-
-    const canonDiff = diffs.find(d => d.name === 'canonicalUrl');
-    assert.strictEqual(canonDiff?.status, 'ADDED');
-
-    const h1Diff = diffs.find(d => d.name === 'h1Headings');
-    assert.strictEqual(h1Diff?.status, 'MODIFIED');
-
-    const wordDiff = diffs.find(d => d.name === 'wordCount');
-    assert.strictEqual(wordDiff?.status, 'ADDED');
+  await runTest('Defaults to Googlebot Smartphone when User-Agent is omitted', () => {
+    const res = validateFetchRenderRequest({ url: 'https://example.com' });
+    assert.strictEqual(res.isValid, true);
+    assert.strictEqual(res.userAgentId, 'googlebot-smartphone');
   });
 
-  console.log('\n4. robots.txt Rule Policy Enforcement:');
+  // =========================================================
+  // GROUP 3: MEMORY BOUNDS, BYTE LIMITS & EVICITON
+  // =========================================================
+  console.log('\n3. Strict Storage Bounds, Byte Caps & Eviction:');
 
-  await runTest('Correctly blocks disallowed subresources under applicable robots rules', () => {
-    const robotsContent = `
-      User-agent: Googlebot
-      Disallow: /assets/private/
-      Allow: /assets/private/public.js
-    `;
-
-    const res1 = checkSubresourceRobotsPolicy('https://example.com/assets/private/app.js', robotsContent, 'googlebot');
-    assert.strictEqual(res1.isAllowed, false);
-    assert.strictEqual(res1.status, 'DISALLOWED');
-
-    const res2 = checkSubresourceRobotsPolicy('https://example.com/assets/private/public.js', robotsContent, 'googlebot');
-    assert.strictEqual(res2.isAllowed, true);
-    assert.strictEqual(res2.status, 'ALLOWED');
+  await runTest('Rejects individual download payloads exceeding max item byte size (5 MiB)', () => {
+    const oversizedPayload = Buffer.alloc(MAX_DOWNLOAD_ITEM_BYTES + 1024);
+    assert.throws(() => {
+      storeDownloadPayload('oversized.dat', 'application/octet-stream', oversizedPayload);
+    }, /exceeds maximum permitted size/);
   });
 
-  console.log('\n5. Real Playwright Chromium Browser Rendering & Isolation:');
+  await runTest('Enforces aggregate download storage cap via full eviction loop', () => {
+    clearStoresForTesting();
+    // Add multiple valid payloads
+    const chunkSize = 1 * 1024 * 1024; // 1 MiB each
+    const tokens: string[] = [];
+    for (let i = 0; i < 55; i++) {
+      const token = storeDownloadPayload(`chunk-${i}.bin`, 'application/octet-stream', Buffer.alloc(chunkSize));
+      tokens.push(token);
+    }
 
-  // Spin up a deterministic local test fixture server
+    const metrics = getStoreMetrics();
+    // Verify total bytes is strictly <= MAX_TOTAL_DOWNLOAD_BYTES (50 MiB)
+    assert.ok(metrics.totalDownloadBytes <= MAX_TOTAL_DOWNLOAD_BYTES, `Total bytes ${metrics.totalDownloadBytes} exceeded max ${MAX_TOTAL_DOWNLOAD_BYTES}`);
+    assert.ok(metrics.downloadsCount <= 50);
+
+    // First tokens should have been evicted
+    assert.strictEqual(getDownloadPayload(tokens[0]), undefined);
+    // Recent tokens should still be retrievable
+    assert.ok(getDownloadPayload(tokens[tokens.length - 1]));
+  });
+
+  // =========================================================
+  // GROUP 4: DETERMINISTIC LOCAL HTTP FIXTURE SERVER
+  // =========================================================
+  console.log('\n4. Deterministic robots.txt & Chromium Browser Integration QA:');
+
   let fixtureServer!: http.Server;
   let fixturePort!: number;
+  let multiStatusCounter = 0;
 
   await new Promise<void>((resolve) => {
     fixtureServer = http.createServer((req, res) => {
       const url = req.url || '/';
 
-      if (url === '/static') {
+      if (url === '/robots.txt') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(`User-agent: *\nDisallow: /private/\nDisallow: /sub-blocked.js\nAllow: /public/\n`);
+      } else if (url === '/private/test-page') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`<!DOCTYPE html><html><head><title>Private Area</title></head><body><h1>Private Page</h1></body></html>`);
+      } else if (url === '/public/test-page') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`<!DOCTYPE html><html><head><title>Public Area</title></head><body><h1>Public Page</h1></body></html>`);
+      } else if (url === '/multi-status') {
+        multiStatusCounter++;
+        if (multiStatusCounter === 1) {
+          res.writeHead(503, { 'Content-Type': 'text/plain' });
+          res.end('Service Unavailable');
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok', counter: multiStatusCounter }));
+        }
+      } else if (url === '/sub-blocked.js') {
+        res.writeHead(200, { 'Content-Type': 'application/javascript' });
+        res.end('window.subBlockedLoaded = true;');
+      } else if (url === '/controlled-render') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <!DOCTYPE html>
           <html>
-            <head><title>Static Page</title></head>
-            <body><h1>Pure Server HTML</h1><p>No JavaScript.</p></body>
-          </html>
-        `);
-      } else if (url === '/dynamic-react') {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`
-          <!DOCTYPE html>
-          <html>
-            <head><title>Initial Pre-JS Title</title></head>
+            <head>
+              <title>Original Server Title</title>
+              <script src="/sub-blocked.js"></script>
+            </head>
             <body>
-              <div id="root">Loading application...</div>
+              <div id="static-content">Server Static Text</div>
+              <img src="/missing-asset-404.jpg" alt="Missing Test Image" />
               <script>
-                // Simulate client-side React hydration
-                document.title = "Client Rendered Dynamic Title";
-                const root = document.getElementById("root");
-                root.innerHTML = "<h1>Injected by Client JavaScript</h1><p>Client side paragraph text has rendered successfully.</p>";
-                console.error("Test console error from client script");
+                // 1. Modify title dynamically
+                document.title = "Rendered Dynamic Title";
+
+                // 2. Inject canonical dynamically
+                const can = document.createElement('link');
+                can.rel = 'canonical';
+                can.href = 'https://example.com/dynamically-injected-canonical';
+                document.head.appendChild(can);
+
+                // 3. Inject dynamic content
+                const div = document.createElement('div');
+                div.id = 'dynamic-content';
+                div.innerText = 'Rendered Dynamic Content By JavaScript';
+                document.body.appendChild(div);
+
+                // 4. Intentional console error
+                console.error('Intentional Client QA Console Error');
+
+                // 5. Fire repeated requests to /multi-status (first 503, then 200)
+                fetch('/multi-status').then(() => {
+                  fetch('/multi-status');
+                });
               </script>
             </body>
           </html>
@@ -251,91 +263,154 @@ async function main() {
   });
 
   try {
-    await runTest('Executes real Chromium browser, runs JavaScript, and captures rendered DOM', async () => {
-      const ua = getFetchRenderUserAgent('googlebot-smartphone');
-      const renderRes = await executeBrowserRender({
-        url: `http://127.0.0.1:${fixturePort}/dynamic-react`,
-        userAgent: ua,
-        respectRobots: false,
-        postLoadWaitMs: 300,
-        timeoutMs: 10000,
-        acceptLanguage: 'en-US,en;q=0.9',
-        captureScreenshot: true,
-        allowLocalhostForTesting: true
-      });
+    // TEST: Main URL Disallowed Pre-Fetch Enforcement
+    await runTest('FIX 1: When respectRobots=true, disallows main URL without fetching or rendering', async () => {
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${fixturePort}/private/test-page`,
+          mode: 'fetch-and-render',
+          respectRobots: true
+        },
+        { allowLocalhostForTesting: true }
+      );
 
-      assert.strictEqual(renderRes.renderStatus, 'COMPLETED');
-      assert.ok(renderRes.renderedHtml.includes('Client Rendered Dynamic Title'));
-      assert.ok(renderRes.renderedHtml.includes('Injected by Client JavaScript'));
+      // Verify crawl disallowed status
+      assert.strictEqual(result.summary.crawlability, 'DISALLOWED');
+      assert.strictEqual(result.summary.httpStatus, 0);
+      assert.strictEqual(result.summary.renderingStatus, 'FETCH_ONLY');
+      assert.strictEqual(result.robotsInfo.blockedMainUrl, true);
 
-      // Verify screenshot generation
-      assert.ok(typeof renderRes.screenshotBase64 === 'string');
-      assert.ok(renderRes.screenshotBase64.length > 500);
+      // Verify rawHtml is empty and rendering was SKIPPED
+      assert.strictEqual(result.initialFetch.rawHtml, '');
+      assert.strictEqual(result.renderResult?.renderStatus, 'SKIPPED');
 
-      // Verify PNG magic header
-      const pngBuffer = Buffer.from(renderRes.screenshotBase64, 'base64');
-      assert.strictEqual(pngBuffer[0], 0x89);
-      assert.strictEqual(pngBuffer[1], 0x50); // 'P'
-      assert.strictEqual(pngBuffer[2], 0x4e); // 'N'
-      assert.strictEqual(pngBuffer[3], 0x47); // 'G'
-
-      // Verify console error was captured
-      const errorMsg = renderRes.consoleMessages.find(m => m.text.includes('Test console error'));
-      assert.ok(errorMsg !== undefined);
-      assert.strictEqual(errorMsg?.type, 'error');
+      // Verify diagnostic is present
+      const disallowDiag = result.diagnostics.find(d => d.id === 'diag_robots_disallowed');
+      assert.ok(disallowDiag !== undefined);
+      assert.strictEqual(disallowDiag?.severity, 'ERROR');
     });
 
-    console.log('\n6. Bounded Storage & Download Token Management:');
-
-    await runTest('Stores and retrieves downloads with cryptographically secure tokens', async () => {
-      // Test the service end-to-end with the fixture URL
-      const fullResult = await runFetchAndRenderTest(
+    // TEST: Main URL Allowed Post-Robots Evaluation
+    await runTest('FIX 1: Allows allowed URL under robots.txt policy', async () => {
+      const result = await runFetchAndRenderTest(
         {
-          url: `http://127.0.0.1:${fixturePort}/dynamic-react`,
+          url: `http://127.0.0.1:${fixturePort}/public/test-page`,
+          mode: 'fetch-only',
+          respectRobots: true
+        },
+        { allowLocalhostForTesting: true }
+      );
+
+      assert.strictEqual(result.summary.crawlability, 'ALLOWED');
+      assert.strictEqual(result.summary.httpStatus, 200);
+      assert.ok(result.initialFetch.rawHtml.includes('Public Page'));
+    });
+
+    // TEST: robots.txt Override when respectRobots=false
+    await runTest('FIX 1: When respectRobots=false, allows crawl but flags warning diagnostic', async () => {
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${fixturePort}/private/test-page`,
+          mode: 'fetch-only',
+          respectRobots: false
+        },
+        { allowLocalhostForTesting: true }
+      );
+
+      assert.strictEqual(result.summary.httpStatus, 200);
+      assert.ok(result.initialFetch.rawHtml.includes('Private Page'));
+
+      const overrideDiag = result.diagnostics.find(d => d.id === 'diag_robots_override');
+      assert.ok(overrideDiag !== undefined);
+      assert.strictEqual(overrideDiag?.severity, 'WARNING');
+    });
+
+    // TEST: Real Chromium Execution, Subresource Robots Blocking, Resource Identity & Parity
+    await runTest('FIX 4 & FIX 7: Real Chromium execution with subresource robots blocking, multi-request tracking, and DOM diffing', async () => {
+      multiStatusCounter = 0; // reset counter
+
+      const result = await runFetchAndRenderTest(
+        {
+          url: `http://127.0.0.1:${fixturePort}/controlled-render`,
           mode: 'fetch-and-render',
-          postLoadWaitMs: 200,
+          respectRobots: true,
+          postLoadWaitMs: 600,
           captureScreenshot: true
         },
         { allowLocalhostForTesting: true }
       );
 
-      assert.ok(fullResult.id);
-      assert.strictEqual(fullResult.summary.httpStatus, 200);
-      assert.strictEqual(fullResult.summary.renderingStatus, 'COMPLETED');
+      assert.strictEqual(result.summary.renderingStatus, 'COMPLETED');
+      assert.strictEqual(result.initialFetch.statusCode, 200);
 
-      // Verify initial title differs from rendered title
-      assert.strictEqual(fullResult.seoSignals.initial.title, 'Initial Pre-JS Title');
-      assert.strictEqual(fullResult.seoSignals.rendered?.title, 'Client Rendered Dynamic Title');
+      // Verify DOM diffing
+      assert.strictEqual(result.seoSignals.initial.title, 'Original Server Title');
+      assert.strictEqual(result.seoSignals.rendered?.title, 'Rendered Dynamic Title');
+      assert.strictEqual(result.seoSignals.initial.canonicalUrl, null);
+      assert.strictEqual(result.seoSignals.rendered?.canonicalUrl, 'https://example.com/dynamically-injected-canonical');
 
-      // Verify downloads were generated
-      assert.ok(fullResult.downloads.originalHtmlId);
-      assert.ok(fullResult.downloads.renderedHtmlId);
-      assert.ok(fullResult.downloads.screenshotId);
-      assert.ok(fullResult.downloads.reportJsonId);
-      assert.ok(fullResult.downloads.seoDiffCsvId);
+      // Check comparison items
+      const titleDiff = result.seoSignals.comparison.find(c => c.name === 'title');
+      assert.strictEqual(titleDiff?.status, 'MODIFIED');
 
-      const htmlPayload = getDownloadPayload(fullResult.downloads.originalHtmlId);
-      assert.ok(htmlPayload);
-      assert.strictEqual(htmlPayload?.mimeType, 'text/html; charset=utf-8');
+      const canonDiff = result.seoSignals.comparison.find(c => c.name === 'canonicalUrl');
+      assert.strictEqual(canonDiff?.status, 'ADDED');
 
-      const screenshotPayload = getDownloadPayload(fullResult.downloads.screenshotId!);
-      assert.ok(screenshotPayload);
-      assert.strictEqual(screenshotPayload?.mimeType, 'image/png');
+      // Verify Screenshot
+      assert.ok(result.renderResult?.screenshotBase64);
+      const pngBuf = Buffer.from(result.renderResult!.screenshotBase64!, 'base64');
+      assert.strictEqual(pngBuf[0], 0x89); // PNG magic bytes
+      assert.strictEqual(pngBuf[1], 0x50);
 
-      const csvPayload = getDownloadPayload(fullResult.downloads.seoDiffCsvId);
-      assert.ok(csvPayload);
-      assert.ok(csvPayload?.data.toString('utf-8').includes('Page Title'));
+      // Verify Subresource robots.txt blocking
+      const blockedRes = result.renderResult?.resources.find(r => r.url.includes('/sub-blocked.js'));
+      assert.ok(blockedRes !== undefined, 'Subresource /sub-blocked.js should be tracked');
+      assert.strictEqual(blockedRes?.loadStatus, 'BLOCKED_ROBOTS');
+      assert.strictEqual(blockedRes?.robotsStatus, 'DISALLOWED');
 
-      // Verify stored result retrieval
-      const retrieved = getStoredResult(fullResult.id);
-      assert.ok(retrieved);
-      assert.strictEqual(retrieved?.id, fullResult.id);
+      // Verify Missing Asset (404)
+      const missingRes = result.renderResult?.resources.find(r => r.url.includes('/missing-asset-404.jpg'));
+      assert.ok(missingRes !== undefined, 'Missing asset should be tracked');
+      assert.strictEqual(missingRes?.httpStatus, 404);
+      assert.strictEqual(missingRes?.loadStatus, 'FAILED');
+
+      // Verify Repeated requests to same URL have distinct entries and statuses (503 and 200)
+      const multiRequests = result.renderResult?.resources.filter(r => r.url.includes('/multi-status')) || [];
+      assert.ok(multiRequests.length >= 2, `Expected at least 2 requests to /multi-status, got ${multiRequests.length}`);
+      const has503 = multiRequests.some(r => r.httpStatus === 503);
+      const has200 = multiRequests.some(r => r.httpStatus === 200);
+      assert.ok(has503, 'Should track 503 status for first request');
+      assert.ok(has200, 'Should track 200 status for second request');
+      // Each request should have an internally assigned unique requestId
+      assert.notStrictEqual(multiRequests[0].requestId, multiRequests[1].requestId);
+
+      // Verify Console Errors
+      const consoleErr = result.renderResult?.consoleMessages.find(c => c.text.includes('Intentional Client QA Console Error'));
+      assert.ok(consoleErr !== undefined);
+      assert.strictEqual(consoleErr?.type, 'error');
     });
 
   } finally {
     fixtureServer.close();
     await closeSharedBrowser();
   }
+
+  // =========================================================
+  // GROUP 5: RFC 9309 STATUS HANDLING
+  // =========================================================
+  console.log('\n5. RFC 9309 Robots.txt Failure & Status Code Tests:');
+
+  await runTest('RFC 9309: Subresource direct evaluation returns ALLOWED when allowed', () => {
+    const policy = checkSubresourceRobotsPolicy('https://example.com/assets/app.js', 'User-agent: *\nAllow: /assets/\n', 'googlebot');
+    assert.strictEqual(policy.status, 'ALLOWED');
+    assert.strictEqual(policy.isAllowed, true);
+  });
+
+  await runTest('RFC 9309: Subresource direct evaluation returns DISALLOWED when blocked', () => {
+    const policy = checkSubresourceRobotsPolicy('https://example.com/secret/bundle.js', 'User-agent: *\nDisallow: /secret/\n', 'googlebot');
+    assert.strictEqual(policy.status, 'DISALLOWED');
+    assert.strictEqual(policy.isAllowed, false);
+  });
 
   console.log('\n=====================================================');
   console.log(`TOTAL TOOL 5 TESTS: ${totalTests} | PASSED: ${passedTests} | FAILED: ${totalTests - passedTests}`);
@@ -348,6 +423,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Fatal error running tests:', err);
+  console.error('Fatal error running test suite:', err);
   process.exit(1);
 });

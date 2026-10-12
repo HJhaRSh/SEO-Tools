@@ -68,6 +68,9 @@ export default function FetchRenderPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<any | null>(null);
 
+  // Submission race prevention ref
+  const submissionRef = React.useRef<number>(0);
+
   // Active view tab
   const [activeTab, setActiveTab] = useState<'overview' | 'original-html' | 'rendered-html' | 'screenshot' | 'seo-diff' | 'resources'>('overview');
   const [copiedOriginal, setCopiedOriginal] = useState(false);
@@ -77,6 +80,8 @@ export default function FetchRenderPage() {
 
   const handleRunTest = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (status === 'loading') return;
+
     const cleanUrl = url.trim();
 
     if (!cleanUrl) {
@@ -91,25 +96,16 @@ export default function FetchRenderPage() {
       return;
     }
 
+    const currentSubmissionId = ++submissionRef.current;
     setStatus('loading');
     setErrorMessage(null);
-    setLoadingStep('Fetching initial server HTML...');
+    setLoadingStep(
+      mode === 'fetch-and-render'
+        ? 'Fetching and rendering your webpage. This may take a few moments...'
+        : 'Fetching your webpage. This may take a moment...'
+    );
 
     try {
-      const stepTimer1 = setTimeout(() => {
-        setLoadingStep('Evaluating crawlability in robots.txt...');
-      }, 700);
-
-      const stepTimer2 = setTimeout(() => {
-        if (mode === 'fetch-and-render') {
-          setLoadingStep('Rendering page in headless Chromium...');
-        }
-      }, 1500);
-
-      const stepTimer3 = setTimeout(() => {
-        setLoadingStep('Analyzing SEO signals and comparing DOM...');
-      }, 3500);
-
       const response = await fetch('/api/seo/fetch-render/test', {
         method: 'POST',
         headers: {
@@ -126,10 +122,6 @@ export default function FetchRenderPage() {
         })
       });
 
-      clearTimeout(stepTimer1);
-      clearTimeout(stepTimer2);
-      clearTimeout(stepTimer3);
-
       const contentType = response.headers.get('content-type') || '';
       let data: any;
 
@@ -145,6 +137,8 @@ export default function FetchRenderPage() {
         throw new Error(rawText || `Server returned HTTP status ${response.status}`);
       }
 
+      if (currentSubmissionId !== submissionRef.current) return;
+
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Fetch & Render test failed.');
       }
@@ -153,6 +147,7 @@ export default function FetchRenderPage() {
       setStatus('success');
       setActiveTab('overview');
     } catch (err: any) {
+      if (currentSubmissionId !== submissionRef.current) return;
       setStatus('error');
       setErrorMessage(err.message || 'Network error executing Fetch & Render test.');
     }
@@ -216,7 +211,11 @@ export default function FetchRenderPage() {
                 className="input"
                 placeholder="https://example.com/page/"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  if (result) setResult(null);
+                  if (errorMessage) setErrorMessage(null);
+                }}
                 disabled={status === 'loading'}
                 required
               />
@@ -231,7 +230,11 @@ export default function FetchRenderPage() {
                 id="ua-select"
                 className="select"
                 value={userAgentId}
-                onChange={(e) => setUserAgentId(e.target.value)}
+                onChange={(e) => {
+                  setUserAgentId(e.target.value);
+                  if (result) setResult(null);
+                  if (errorMessage) setErrorMessage(null);
+                }}
                 disabled={status === 'loading'}
               >
                 {DEFAULT_USER_AGENTS.map((ua) => (
@@ -251,7 +254,11 @@ export default function FetchRenderPage() {
                 id="mode-select"
                 className="select"
                 value={mode}
-                onChange={(e) => setMode(e.target.value as any)}
+                onChange={(e) => {
+                  setMode(e.target.value as any);
+                  if (result) setResult(null);
+                  if (errorMessage) setErrorMessage(null);
+                }}
                 disabled={status === 'loading'}
               >
                 <option value="fetch-and-render">Fetch & Render</option>

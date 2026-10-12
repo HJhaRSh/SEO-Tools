@@ -1,4 +1,4 @@
-import { chromium, Browser, BrowserContext, Page } from 'playwright';
+import { chromium, Browser, BrowserContext, Page, Request } from 'playwright';
 import {
   FetchRenderUserAgentOption,
   RenderBrowserResult,
@@ -6,7 +6,7 @@ import {
   CapturedConsoleMessage
 } from './fetchRenderTypes.js';
 import { startSsrfGuardProxy, SsrfGuardProxyInstance } from './fetchRenderSSRFProxy.js';
-import { checkSubresourceRobotsPolicy } from './fetchRenderRobots.js';
+import { SubresourceRobotsManager } from './fetchRenderRobots.js';
 
 // ========================================================
 // CONCURRENCY & QUEUE MANAGEMENT
@@ -32,13 +32,19 @@ async function getSharedBrowser(): Promise<Browser> {
   }
 
   browserInitPromise = (async () => {
+    // Preserve Chromium sandboxing; restrict background tasks
     const browser = await chromium.launch({
       headless: true,
       args: [
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--no-first-run',
-        '--no-default-browser-check'
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-extensions',
+        '--disable-sync',
+        '--disable-translate'
       ]
     });
 
@@ -51,7 +57,11 @@ async function getSharedBrowser(): Promise<Browser> {
     return browser;
   })();
 
-  return browserInitPromise;
+  try {
+    return await browserInitPromise;
+  } finally {
+    browserInitPromise = null;
+  }
 }
 
 export async function closeSharedBrowser(): Promise<void> {
@@ -59,7 +69,7 @@ export async function closeSharedBrowser(): Promise<void> {
     try {
       await sharedBrowser.close();
     } catch {
-      // browser close
+      // browser close cleanup
     }
     sharedBrowser = null;
     browserInitPromise = null;
@@ -135,14 +145,41 @@ export async function executeBrowserRender(
   const consoleMessages: CapturedConsoleMessage[] = [];
   let isTruncated = false;
 
+  // Track each network request uniquely
+  let reqSeq = 0;
+  const requestMetadata = new WeakMap<Request, {
+    requestId: string;
+    url: string;
+    type: CapturedResource['type'];
+    startTime: number;
+  }>();
+
+  // Crash detection & propagation
+  let hasCrashed = false;
+  let crashReason = '';
+  let crashReject: ((err: Error) => void) | null = null;
+
+  const crashPromise = new Promise<never>((_, reject) => {
+    crashReject = reject;
+  });
+
   try {
     // 1. Launch dedicated in-process SSRF validating forward proxy
     proxyInstance = await startSsrfGuardProxy({ allowLocalhostForTesting: options.allowLocalhostForTesting });
 
-    // 2. Obtain shared Chromium browser instance
+    // 2. Initialize Subresource Robots Policy Manager
+    const urlObj = new URL(options.url);
+    const subresourceRobotsManager = new SubresourceRobotsManager(
+      urlObj.origin,
+      options.robotsTxtContent,
+      options.userAgent.token,
+      options.allowLocalhostForTesting
+    );
+
+    // 3. Obtain Chromium browser instance
     const browser = await getSharedBrowser();
 
-    // 3. Create isolated browser context routed through SSRF validating proxy
+    // 4. Create isolated browser context routed through SSRF validating proxy
     context = await browser.newContext({
       userAgent: options.userAgent.fullUserAgent,
       viewport: {
@@ -164,7 +201,7 @@ export async function executeBrowserRender(
 
     page = await context.newPage();
 
-    // 4. Attach event listeners for console messages and uncaught exceptions
+    // 5. Attach event listeners for console, page errors, and crash
     page.on('console', (msg) => {
       const type = msg.type();
       if (type === 'error' || type === 'warning') {
@@ -191,14 +228,20 @@ export async function executeBrowserRender(
     });
 
     page.on('crash', () => {
-      throw new Error('Chromium tab process crashed unexpectedly during rendering.');
+      hasCrashed = true;
+      crashReason = 'Chromium page process crashed unexpectedly during rendering.';
+      if (crashReject) {
+        crashReject(new Error(crashReason));
+      }
     });
 
-    // 5. Route interception: enforce robots.txt on subresources and record network activity
+    // 6. Route interception: enforce subresource robots.txt and protocol security
     await page.route('**', async (route) => {
       const request = route.request();
       const reqUrl = request.url();
       const resourceTypeRaw = request.resourceType();
+      const reqId = `req_${++reqSeq}`;
+      const reqStart = Date.now();
 
       let type: CapturedResource['type'] = 'Other';
       if (resourceTypeRaw === 'document') type = 'Document';
@@ -208,116 +251,146 @@ export async function executeBrowserRender(
       else if (resourceTypeRaw === 'font') type = 'Font';
       else if (resourceTypeRaw === 'media') type = 'Media';
 
-      // Check protocol security
+      requestMetadata.set(request, {
+        requestId: reqId,
+        url: reqUrl,
+        type,
+        startTime: reqStart
+      });
+
+      // Protocol security check
       if (!reqUrl.startsWith('http://') && !reqUrl.startsWith('https://')) {
         capturedResources.push({
+          requestId: reqId,
           url: reqUrl,
           type,
           httpStatus: null,
           statusText: 'Blocked non-HTTP protocol',
           loadStatus: 'BLOCKED_SSRF',
-          failureReason: 'Unsupported protocol scheme'
+          failureReason: 'Unsupported protocol scheme',
+          timingMs: Date.now() - reqStart
         });
         await route.abort('blockedbyclient');
         return;
       }
 
-      // If respectRobots is enabled, evaluate subresources against robots.txt
-      if (options.respectRobots && options.robotsTxtContent && resourceTypeRaw !== 'document') {
-        const policy = checkSubresourceRobotsPolicy(
-          reqUrl,
-          options.robotsTxtContent,
-          options.userAgent.token
-        );
+      // Subresource robots.txt policy enforcement
+      if (options.respectRobots && resourceTypeRaw !== 'document') {
+        const policy = await subresourceRobotsManager.checkSubresource(reqUrl);
         if (!policy.isAllowed && policy.status === 'DISALLOWED') {
           capturedResources.push({
+            requestId: reqId,
             url: reqUrl,
             type,
             httpStatus: null,
             statusText: 'Disallowed by robots.txt',
             loadStatus: 'BLOCKED_ROBOTS',
             robotsStatus: 'DISALLOWED',
-            failureReason: policy.ruleSummary || 'Disallowed by applicable robots.txt rule'
+            failureReason: policy.ruleSummary || 'Disallowed by applicable robots.txt rule',
+            timingMs: Date.now() - reqStart
           });
           await route.abort('blockedbyclient');
           return;
         }
       }
 
-      // Continue request
       try {
         await route.continue();
       } catch {
-        // Ignored if route was already handled or navigation completed
+        // Ignored if route was already handled or page closed
       }
     });
 
-    // Track responses
+    // 7. Track responses (preserves multiple requests to same URL)
     page.on('response', (response) => {
+      const req = response.request();
+      const meta = requestMetadata.get(req);
+      const reqId = meta?.requestId || `req_${++reqSeq}`;
+      const timingMs = meta ? Date.now() - meta.startTime : undefined;
       const respUrl = response.url();
       const status = response.status();
-      const req = response.request();
       const resourceTypeRaw = req.resourceType();
 
-      let type: CapturedResource['type'] = 'Other';
-      if (resourceTypeRaw === 'document') type = 'Document';
-      else if (resourceTypeRaw === 'stylesheet') type = 'Stylesheet';
-      else if (resourceTypeRaw === 'script') type = 'Script';
-      else if (resourceTypeRaw === 'image') type = 'Image';
-      else if (resourceTypeRaw === 'font') type = 'Font';
-      else if (resourceTypeRaw === 'media') type = 'Media';
-
-      // Check if already logged as blocked
-      const existing = capturedResources.find(r => r.url === respUrl);
-      if (!existing) {
-        capturedResources.push({
-          url: respUrl,
-          type,
-          httpStatus: status,
-          statusText: response.statusText(),
-          loadStatus: status < 400 ? 'LOADED' : 'FAILED',
-          failureReason: status >= 400 ? `HTTP Error ${status}` : undefined
-        });
+      let type: CapturedResource['type'] = meta?.type || 'Other';
+      if (!meta) {
+        if (resourceTypeRaw === 'document') type = 'Document';
+        else if (resourceTypeRaw === 'stylesheet') type = 'Stylesheet';
+        else if (resourceTypeRaw === 'script') type = 'Script';
+        else if (resourceTypeRaw === 'image') type = 'Image';
+        else if (resourceTypeRaw === 'font') type = 'Font';
+        else if (resourceTypeRaw === 'media') type = 'Media';
       }
+
+      const redirectedTo = req.redirectedTo()?.url();
+
+      capturedResources.push({
+        requestId: reqId,
+        url: respUrl,
+        type,
+        httpStatus: status,
+        statusText: response.statusText(),
+        loadStatus: status < 400 ? 'LOADED' : 'FAILED',
+        failureReason: status >= 400 ? `HTTP Error ${status}` : undefined,
+        redirectUrl: redirectedTo,
+        timingMs
+      });
     });
 
     page.on('requestfailed', (request) => {
+      const meta = requestMetadata.get(request);
+      const reqId = meta?.requestId || `req_${++reqSeq}`;
+      const timingMs = meta ? Date.now() - meta.startTime : undefined;
       const reqUrl = request.url();
       const failure = request.failure();
-      const existing = capturedResources.find(r => r.url === reqUrl);
-      if (!existing) {
-        capturedResources.push({
-          url: reqUrl,
-          type: 'Other',
-          httpStatus: null,
-          statusText: failure?.errorText || 'Request Failed',
-          loadStatus: 'FAILED',
-          failureReason: failure?.errorText || 'Network request failed'
-        });
-      }
+
+      // Avoid duplicate entry if request was already aborted by route filter
+      const alreadyLogged = capturedResources.some(
+        r => r.requestId === reqId && (r.loadStatus === 'BLOCKED_ROBOTS' || r.loadStatus === 'BLOCKED_SSRF')
+      );
+      if (alreadyLogged) return;
+
+      capturedResources.push({
+        requestId: reqId,
+        url: reqUrl,
+        type: meta?.type || 'Other',
+        httpStatus: null,
+        statusText: failure?.errorText || 'Request Failed',
+        loadStatus: 'FAILED',
+        failureReason: failure?.errorText || 'Network request failed',
+        timingMs
+      });
     });
 
-    // 6. Navigate with bounded timeout
+    // 8. Navigate with bounded timeout and crash race
     const navTimeout = Math.min(options.timeoutMs, 20000);
     try {
-      await page.goto(options.url, {
-        timeout: navTimeout,
-        waitUntil: 'domcontentloaded'
-      });
+      await Promise.race([
+        page.goto(options.url, {
+          timeout: navTimeout,
+          waitUntil: 'domcontentloaded'
+        }),
+        crashPromise
+      ]);
     } catch (navErr: any) {
-      // Continue even if navigation had partial failure (e.g., timeout on subresources), if DOM is present
+      if (hasCrashed) throw new Error(crashReason);
       if (!page || navErr.message.includes('SSRF Blocked') || navErr.message.includes('ERR_CONNECTION_REFUSED')) {
         throw navErr;
       }
     }
 
-    // 7. Post-load wait for JavaScript execution and DOM updates
+    // 9. Post-load wait for JavaScript execution and DOM updates
     if (options.postLoadWaitMs > 0) {
-      await page.waitForTimeout(options.postLoadWaitMs);
+      await Promise.race([
+        page.waitForTimeout(options.postLoadWaitMs),
+        crashPromise
+      ]);
     }
 
-    // 8. Capture rendered DOM snapshot before any scrolling
-    let renderedHtml = await page.content();
+    // 10. Capture rendered DOM snapshot
+    let renderedHtml = await Promise.race([
+      page.content(),
+      crashPromise
+    ]);
     let byteSize = Buffer.byteLength(renderedHtml, 'utf-8');
 
     if (byteSize > MAX_HTML_CAPTURE_BYTES) {
@@ -326,18 +399,22 @@ export async function executeBrowserRender(
       isTruncated = true;
     }
 
-    // 9. Capture screenshot if requested
+    // 11. Capture screenshot if requested
     let screenshotBase64: string | undefined = undefined;
     if (options.captureScreenshot) {
       try {
-        const screenshotBuffer = await page.screenshot({
-          type: 'png',
-          fullPage: false // Viewport capture
-        });
+        const screenshotBuffer = await Promise.race([
+          page.screenshot({
+            type: 'png',
+            fullPage: false
+          }),
+          crashPromise
+        ]);
         if (screenshotBuffer.length <= MAX_SCREENSHOT_BYTES) {
           screenshotBase64 = screenshotBuffer.toString('base64');
         }
       } catch (err: any) {
+        if (hasCrashed) throw new Error(crashReason);
         consoleMessages.push({
           type: 'warning',
           text: `Screenshot capture warning: ${err.message}`,
@@ -366,6 +443,10 @@ export async function executeBrowserRender(
     };
   } catch (err: any) {
     const renderDurationMs = Date.now() - startTime;
+    if (hasCrashed || err.message?.includes('crashed')) {
+      // Discard broken browser instance so subsequent tests spawn a clean process
+      sharedBrowser = null;
+    }
     return {
       renderedHtml: '',
       byteSize: 0,
@@ -377,22 +458,29 @@ export async function executeBrowserRender(
       totalResourcesBlocked: 0,
       isTruncated: false,
       renderStatus: 'FAILED',
-      errorMessage: err.message || 'Browser rendering failed'
+      errorMessage: hasCrashed ? crashReason : (err.message || 'Browser rendering failed')
     };
   } finally {
     // Guaranteed cleanup
+    if (page) {
+      try {
+        await page.close();
+      } catch {
+        // Page cleanup
+      }
+    }
     if (context) {
       try {
         await context.close();
       } catch {
-        // Context close cleanup
+        // Context cleanup
       }
     }
     if (proxyInstance) {
       try {
         await proxyInstance.close();
       } catch {
-        // Proxy close cleanup
+        // Proxy cleanup
       }
     }
     releaseSlot();
