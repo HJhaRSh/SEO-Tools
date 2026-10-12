@@ -130,7 +130,20 @@ export default function FetchRenderPage() {
       clearTimeout(stepTimer2);
       clearTimeout(stepTimer3);
 
-      const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      let data: any;
+
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const rawText = await response.text();
+        if (response.status === 500 || rawText.includes('Internal Server Error')) {
+          throw new Error(
+            'Backend API service is not reachable (HTTP 500). Please ensure the backend server is running on http://localhost:5000 (cd backend && npm run dev).'
+          );
+        }
+        throw new Error(rawText || `Server returned HTTP status ${response.status}`);
+      }
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Fetch & Render test failed.');
