@@ -326,6 +326,66 @@ app.get('/api/seo/sitemap/download/:downloadId', (req: Request, res: Response) =
   res.status(404).send('No file payload found for this download.');
 });
 
+// ==========================================
+// TOOL 5: FETCH & RENDER ENDPOINTS
+// ==========================================
+import { FETCH_RENDER_USER_AGENTS } from './seo/fetchRenderUserAgents.js';
+import { runFetchAndRenderTest, getStoredResult, getDownloadPayload } from './seo/fetchRenderService.js';
+
+// GET /api/seo/fetch-render/user-agents
+app.get('/api/seo/fetch-render/user-agents', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    userAgents: FETCH_RENDER_USER_AGENTS
+  });
+});
+
+// POST /api/seo/fetch-render/test
+app.post('/api/seo/fetch-render/test', async (req: Request, res: Response) => {
+  try {
+    const result = await runFetchAndRenderTest(req.body);
+    res.json({
+      success: true,
+      result
+    });
+  } catch (err: any) {
+    const status = err.message && err.message.includes('capacity exhausted') ? 429 : 400;
+    res.status(status).json({
+      success: false,
+      error: err.message || 'Fetch & Render test failed.'
+    });
+  }
+});
+
+// GET /api/seo/fetch-render/result/:id
+app.get('/api/seo/fetch-render/result/:id', (req: Request, res: Response) => {
+  const id = String(req.params.id || '');
+  const result = getStoredResult(id);
+  if (!result) {
+    return res.status(404).json({
+      success: false,
+      error: 'Test result not found or expired from temporary cache.'
+    });
+  }
+  res.json({
+    success: true,
+    result
+  });
+});
+
+// GET /api/seo/fetch-render/download/:token
+app.get('/api/seo/fetch-render/download/:token', (req: Request, res: Response) => {
+  const token = String(req.params.token || '');
+  const payload = getDownloadPayload(token);
+  if (!payload) {
+    return res.status(404).send('Download file not found or expired (TTL: 15 minutes).');
+  }
+
+  res.setHeader('Content-Type', payload.mimeType);
+  res.setHeader('Content-Disposition', `attachment; filename="${payload.filename}"`);
+  res.send(payload.data);
+});
+
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`[Indian Marketers SEO Tools] Backend Server running on http://localhost:${PORT}`);

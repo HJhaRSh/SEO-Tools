@@ -13,6 +13,7 @@ export interface SafeFetchOptions {
   headers?: Record<string, string>;
   userAgent?: string;
   beforeRedirect?: (nextUrl: string, currentUrl: string) => Promise<{ allow: boolean; reason?: string; blockType?: 'BLOCKED' | 'UNKNOWN' | 'ERROR' }>;
+  allowLocalhostForTesting?: boolean;
 }
 
 export interface SafeFetchResult {
@@ -99,7 +100,11 @@ function dispatchNextQueued() {
 /**
  * Resolves a hostname safely and ensures resolved IP is not private/reserved.
  */
-export async function validateAndResolveHost(hostname: string): Promise<string> {
+export async function validateAndResolveHost(hostname: string, allowLocalhostForTesting = false): Promise<string> {
+  if (allowLocalhostForTesting && (hostname === 'localhost' || hostname === '127.0.0.1')) {
+    return '127.0.0.1';
+  }
+
   if (isBlockedHostname(hostname)) {
     throw new Error(`Access to blocked or internal hostname is forbidden: ${hostname}`);
   }
@@ -128,7 +133,7 @@ export async function validateAndResolveHost(hostname: string): Promise<string> 
 /**
  * Validates a target URL against SSRF rules.
  */
-export function validateUrl(rawUrl: string): URL {
+export function validateUrl(rawUrl: string, allowLocalhostForTesting = false): URL {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -140,7 +145,9 @@ export function validateUrl(rawUrl: string): URL {
     throw new Error(`Unsupported URL protocol "${parsed.protocol}". Only HTTP and HTTPS are permitted.`);
   }
 
-  if (!ALLOWED_PORTS.has(parsed.port)) {
+  const isLocalhostTest = allowLocalhostForTesting && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
+
+  if (!isLocalhostTest && !ALLOWED_PORTS.has(parsed.port)) {
     throw new Error(`Port "${parsed.port}" is not allowed for security reasons.`);
   }
 
@@ -159,15 +166,16 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const customUserAgent = options.userAgent || 'Mozilla/5.0 (compatible; IndianMarketersBot/1.0; +https://indianmarketers.in/seo-tools)';
+  const allowLocalhostForTesting = options.allowLocalhostForTesting ?? false;
 
   const redirectHistory: { from: string; to: string; statusCode: number }[] = [];
   let currentUrl = rawUrl;
   const startTime = Date.now();
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    const parsedUrl = validateUrl(currentUrl);
+    const parsedUrl = validateUrl(currentUrl, allowLocalhostForTesting);
     // SSRF DNS re-check on every hop and pin validated IP
-    const resolvedIp = await validateAndResolveHost(parsedUrl.hostname);
+    const resolvedIp = await validateAndResolveHost(parsedUrl.hostname, allowLocalhostForTesting);
 
     const client = parsedUrl.protocol === 'https:' ? https : http;
 
