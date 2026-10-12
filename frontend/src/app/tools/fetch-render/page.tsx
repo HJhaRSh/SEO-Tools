@@ -66,6 +66,7 @@ export default function FetchRenderPage() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [loadingStep, setLoadingStep] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [result, setResult] = useState<any | null>(null);
 
   // Submission race prevention ref
@@ -99,6 +100,7 @@ export default function FetchRenderPage() {
     const currentSubmissionId = ++submissionRef.current;
     setStatus('loading');
     setErrorMessage(null);
+    setErrorCode(null);
     setLoadingStep(
       mode === 'fetch-and-render'
         ? 'Fetching and rendering your webpage. This may take a few moments...'
@@ -137,6 +139,7 @@ export default function FetchRenderPage() {
 
       if (!response.ok || !data || !data.success) {
         let errorMsg = '';
+        let detectedCode = data?.code || null;
 
         if (data && data.error) {
           errorMsg = data.error;
@@ -149,7 +152,8 @@ export default function FetchRenderPage() {
           } else if (response.status === 502) {
             errorMsg = 'Bad Gateway (HTTP 502): The backend API service is unreachable or restarting. Please verify deployment routing and retry shortly.';
           } else if (response.status === 503) {
-            errorMsg = 'Service Unavailable (HTTP 503): Browser rendering service is temporarily unavailable or at capacity. Please switch to "Fetch Only" mode or retry in a few moments.';
+            errorMsg = 'Service Unavailable (HTTP 503): Browser rendering service is temporarily unavailable in this environment.';
+            detectedCode = 'BROWSER_RENDER_UNAVAILABLE';
           } else if (response.status === 429) {
             errorMsg = 'Too Many Requests (HTTP 429): Rendering queue or rate limit reached. Please wait a moment before trying again.';
           } else if (response.status === 404) {
@@ -167,14 +171,18 @@ export default function FetchRenderPage() {
 
         // Tailor message for browser automation issues
         if (
+          detectedCode === 'BROWSER_RENDER_UNAVAILABLE' ||
+          errorMsg.includes('Browser rendering is not available in the current Vercel test environment') ||
           errorMsg.includes("Executable doesn't exist") ||
           errorMsg.includes('Failed to launch browser') ||
           errorMsg.includes('browserType.launch')
         ) {
+          detectedCode = 'BROWSER_RENDER_UNAVAILABLE';
           errorMsg =
-            'Browser runtime unavailable: Headless Chromium could not be launched on the current hosting environment. Please switch to "Fetch Only" mode to inspect HTML and SEO signals without browser rendering.';
+            'Browser rendering is currently unavailable in this testing environment. You can still run the complete server-side analysis using Fetch Only mode.';
         }
 
+        setErrorCode(detectedCode);
         throw new Error(errorMsg);
       }
 
@@ -411,13 +419,48 @@ export default function FetchRenderPage() {
 
         {/* Error Alert */}
         {status === 'error' && errorMessage && (
-          <div className="mt-6 p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-sm flex items-start gap-3">
-            <svg className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div>
-              <p className="font-bold">Test Execution Failed</p>
+          <div
+            className={`mt-6 p-4 rounded-xl border text-sm flex items-start gap-3 ${
+              errorCode === 'BROWSER_RENDER_UNAVAILABLE'
+                ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                : 'bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+            }`}
+          >
+            {errorCode === 'BROWSER_RENDER_UNAVAILABLE' ? (
+              <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            )}
+            <div className="flex-1">
+              <p className="font-bold">
+                {errorCode === 'BROWSER_RENDER_UNAVAILABLE'
+                  ? 'Browser Rendering Notice'
+                  : 'Test Execution Failed'}
+              </p>
               <p className="mt-0.5">{errorMessage}</p>
+              {errorCode === 'BROWSER_RENDER_UNAVAILABLE' && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('fetch-only');
+                      setStatus('idle');
+                      setErrorMessage(null);
+                      setErrorCode(null);
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Switch to Fetch Only
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

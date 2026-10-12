@@ -9,6 +9,7 @@ import { safeFetch } from './seo/safeFetch.js';
 import { testHtaccessRules } from './seo/htaccessService.js';
 import { sanitizeHtaccessSettings } from './seo/htaccessValidation.js';
 import { HTACCESS_EXAMPLES } from './seo/htaccessExamples.js';
+import { isBrowserRenderAvailable, isVercelEnvironment } from './seo/browserRenderProvider.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,7 +32,13 @@ app.use((err: any, req: Request, res: Response, next: any) => {
 
 // Health Check
 app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'healthy',
+    runtime: isVercelEnvironment() ? 'vercel' : 'node',
+    fetchAvailable: true,
+    browserRenderAvailable: isBrowserRenderAvailable(),
+    timestamp: new Date().toISOString()
+  });
 });
 
 // ==========================================
@@ -349,15 +356,34 @@ app.post('/api/seo/fetch-render/test', async (req: Request, res: Response) => {
       result
     });
   } catch (err: any) {
+    console.error('[Fetch & Render Test Error]', err);
+
     let status = 400;
-    if (err.message && err.message.includes('capacity exhausted')) {
-      status = 429;
-    } else if (err.message && (err.message.includes('browserType.launch') || err.message.includes('Executable doesn\'t exist'))) {
+    let code = err.code || 'FETCH_RENDER_ERROR';
+    const message = err.message || 'Fetch & Render test failed.';
+
+    if (err.code === 'BROWSER_RENDER_UNAVAILABLE' || (typeof err.statusCode === 'number' && err.statusCode === 503)) {
       status = 503;
+      code = 'BROWSER_RENDER_UNAVAILABLE';
+    } else if (message.includes('capacity exhausted')) {
+      status = 429;
+      code = 'RATE_LIMITED';
+    } else if (
+      message.includes('browserType.launch') ||
+      message.includes("Executable doesn't exist") ||
+      message.includes('Failed to launch browser')
+    ) {
+      status = 503;
+      code = 'BROWSER_RENDER_UNAVAILABLE';
+    } else if (err.status) {
+      status = err.status;
     }
+
     res.status(status).json({
       success: false,
-      error: err.message || 'Fetch & Render test failed.'
+      code,
+      error: message,
+      details: err.details || undefined
     });
   }
 });

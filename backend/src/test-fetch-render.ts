@@ -987,7 +987,62 @@ async function main() {
       }
     });
 
-    // TEST 6.5: Express dual-export verification for serverless loader compatibility
+    // TEST 6.5: Health check diagnostics endpoint reports capabilities safely
+    await runTest('Diagnostics endpoint: GET /api/health reports capabilities without launching Chromium', async () => {
+      const indexModule = await import('./index.js');
+      const testServer = http.createServer(indexModule.default as any);
+      await new Promise<void>((resolve) => testServer.listen(0, '127.0.0.1', () => resolve()));
+      const port = (testServer.address() as any).port;
+
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+        assert.strictEqual(res.status, 200);
+        const data = await res.json();
+        assert.strictEqual(data.status, 'healthy');
+        assert.strictEqual(data.fetchAvailable, true);
+        assert.strictEqual(typeof data.browserRenderAvailable, 'boolean');
+        assert.strictEqual(typeof data.runtime, 'string');
+      } finally {
+        testServer.close();
+      }
+    });
+
+    // TEST 6.6: Vercel environment simulation returns controlled 503 JSON with BROWSER_RENDER_UNAVAILABLE
+    await runTest('Vercel protection: Fetch & Render on Vercel returns controlled 503 JSON without unhandled rejection', async () => {
+      const originalVercel = process.env.VERCEL;
+      process.env.VERCEL = '1';
+
+      const indexModule = await import('./index.js');
+      const testServer = http.createServer(indexModule.default as any);
+      await new Promise<void>((resolve) => testServer.listen(0, '127.0.0.1', () => resolve()));
+      const port = (testServer.address() as any).port;
+
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/seo/fetch-render/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: 'https://example.com/',
+            mode: 'fetch-and-render'
+          })
+        });
+
+        assert.strictEqual(res.status, 503, 'Should return HTTP 503 on Vercel when remote browser not configured');
+        const data = await res.json();
+        assert.strictEqual(data.success, false);
+        assert.strictEqual(data.code, 'BROWSER_RENDER_UNAVAILABLE');
+        assert.ok(data.error.includes('Switch to Fetch Only mode'));
+      } finally {
+        if (originalVercel === undefined) {
+          delete process.env.VERCEL;
+        } else {
+          process.env.VERCEL = originalVercel;
+        }
+        testServer.close();
+      }
+    });
+
+    // TEST 6.7: Express dual-export verification for serverless loader compatibility
     await runTest('Serverless compatibility: Backend entrypoint exports Express app with dual CJS/ESM access', async () => {
       const indexModule = await import('./index.js');
       assert.strictEqual(typeof indexModule.default, 'function', 'Default export must be Express app function');

@@ -11,7 +11,10 @@ import { validateFetchRenderRequest } from './fetchRenderValidation.js';
 import { getFetchRenderUserAgent } from './fetchRenderUserAgents.js';
 import { fetchInitialHtml } from './fetchRenderFetcher.js';
 import { checkRobotsTxtCrawlability } from './fetchRenderRobots.js';
-import { executeBrowserRender } from './fetchRenderBrowser.js';
+import {
+  isBrowserRenderAvailable,
+  getBrowserRenderProvider
+} from './browserRenderProvider.js';
 import {
   extractSeoSignals,
   compareSeoSignals,
@@ -516,7 +519,17 @@ export async function runFetchAndRenderTest(
     (!validation.respectRobots || !robotsInfo.blockedMainUrl);
 
   if (shouldRender) {
-    renderResult = await executeBrowserRender({
+    if (!isBrowserRenderAvailable()) {
+      const err: any = new Error(
+        'Browser rendering is not available in the current Vercel test environment. Switch to Fetch Only mode.'
+      );
+      err.code = 'BROWSER_RENDER_UNAVAILABLE';
+      err.statusCode = 503;
+      throw err;
+    }
+
+    const provider = getBrowserRenderProvider();
+    renderResult = await provider.render({
       url: initialFetch.finalUrl,
       userAgent,
       respectRobots: validation.respectRobots,
