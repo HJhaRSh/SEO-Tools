@@ -4,11 +4,14 @@
     "backend": {
       "root": "backend",
       "framework": "express",
+      "installCommand": "npm install",
       "buildCommand": "npm run build"
     },
     "frontend": {
       "root": "frontend",
       "framework": "nextjs",
+      "installCommand": "npm install",
+      "buildCommand": "npm run build",
       "bindings": [
         {
           "type": "service",

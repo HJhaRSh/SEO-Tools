@@ -1,0 +1,27 @@
+{
+  "name": "indian-marketers-seo-tools",
+  "version": "1.0.0",
+  "private": true,
+  "main": "backend/dist/index.js",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "test": "npm test --workspace=backend"
+  },
+  "dependencies": {
+    "archiver": "^8.0.0",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.5",
+    "csv-parse": "^7.0.3",
+    "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "fast-xml-parser": "^5.11.2",
+    "playwright": "^1.64.0"
+  }
+}
