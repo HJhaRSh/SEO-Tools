@@ -425,12 +425,35 @@ export function generateDiagnostics(
 
   // 1. HTTP Status check
   if (initial.statusCode >= 400) {
+    const isCloudflare =
+      (initial.headers['server'] || '').toLowerCase().includes('cloudflare') ||
+      Boolean(initial.headers['cf-ray']) ||
+      initial.rawHtml.includes('Attention Required! | Cloudflare') ||
+      initial.rawHtml.includes('Sorry, you have been blocked') ||
+      initial.rawHtml.includes('Cloudflare to restrict access') ||
+      initial.rawHtml.includes('cloudflare-static');
+
+    if (initial.statusCode === 403 && isCloudflare) {
+      diagnostics.push({
+        id: 'waf-bot-challenge',
+        category: 'CRAWLABILITY',
+        severity: 'WARNING',
+        title: 'Cloudflare WAF Bot Protection Detected (HTTP 403)',
+        description: 'The target website uses Cloudflare Bot Management. When requests simulate Googlebot from an IP address outside Google\'s ASN/reverse-DNS range, Cloudflare flags it as an unverified crawler and blocks access with HTTP 403.',
+        seoImpact: 'Real Googlebot crawling from Google\'s verified infrastructure is usually allowed. To view and render the page as a regular visitor, switch the User Agent to "Google Chrome Desktop" or "Google Chrome Mobile".',
+        source: 'INITIAL_HTTP',
+        confidence: 'CONFIRMED'
+      });
+    }
+
     diagnostics.push({
       id: 'http-error',
       category: 'INDEXABILITY',
       severity: 'ERROR',
-      title: `Server Error HTTP ${initial.statusCode}`,
-      description: `The page returned HTTP ${initial.statusCode} (${initial.statusText}).`,
+      title: `Server Response HTTP ${initial.statusCode}`,
+      description: isCloudflare && initial.statusCode === 403
+        ? 'Access denied by Cloudflare WAF challenge rule.'
+        : `The page returned HTTP ${initial.statusCode} (${initial.statusText}).`,
       seoImpact: 'Search engine crawlers will not index pages returning 4xx or 5xx client/server errors.',
       source: 'INITIAL_HTTP',
       confidence: 'CONFIRMED'
