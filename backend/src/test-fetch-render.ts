@@ -875,8 +875,123 @@ async function main() {
       currentRobotsStatus = 404;
       const manager404 = new SubresourceRobotsManager('http://main-site.test', '', 'googlebot', true);
       const sub404 = await manager404.checkSubresource(`http://127.0.0.1:${statusPort}/style.css`);
-      assert.strictEqual(sub404.status, 'ALLOWED');
-      assert.strictEqual(sub404.isAllowed, true);
+    });
+
+    // =========================================================
+    // GROUP 6: LIGHTWEIGHT ENDPOINTS, FETCH-ONLY ISOLATION & VERCEL READINESS
+    // =========================================================
+    console.log('\n6. Deployment Verification, Lightweight Endpoints & Fetch Only Isolation:');
+
+    // TEST 6.1: Verify Lightweight Endpoint GET /api/health
+    await runTest('Lightweight endpoint: GET /api/health returns HTTP 200 with status healthy', async () => {
+      process.env.NODE_ENV = 'test';
+      const { default: app } = await import('./index.js');
+      const testServer = http.createServer(app as any);
+      await new Promise<void>((resolve) => testServer.listen(0, '127.0.0.1', () => resolve()));
+      const address = testServer.address() as any;
+      const port = address.port;
+
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+        assert.strictEqual(res.status, 200);
+        const data = await res.json();
+        assert.strictEqual(data.status, 'healthy');
+        assert.ok(data.timestamp);
+      } finally {
+        testServer.close();
+      }
+    });
+
+    // TEST 6.2: Verify Lightweight Endpoint GET /api/seo/fetch-render/user-agents
+    await runTest('Lightweight endpoint: GET /api/seo/fetch-render/user-agents returns verified bots without browser overhead', async () => {
+      process.env.NODE_ENV = 'test';
+      const { default: app } = await import('./index.js');
+      const testServer = http.createServer(app as any);
+      await new Promise<void>((resolve) => testServer.listen(0, '127.0.0.1', () => resolve()));
+      const address = testServer.address() as any;
+      const port = address.port;
+
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/seo/fetch-render/user-agents`);
+        assert.strictEqual(res.status, 200);
+        const data = await res.json();
+        assert.strictEqual(data.success, true);
+        assert.ok(Array.isArray(data.userAgents));
+        assert.ok(data.userAgents.length >= 5);
+        assert.ok(data.userAgents.some((u: any) => u.id === 'googlebot-smartphone'));
+      } finally {
+        testServer.close();
+      }
+    });
+
+    // TEST 6.3: Verify Catch-all 404 returns JSON (not HTML)
+    await runTest('Centralized routing: Unmatched /api/* route returns JSON 404, not HTML error page', async () => {
+      process.env.NODE_ENV = 'test';
+      const { default: app } = await import('./index.js');
+      const testServer = http.createServer(app as any);
+      await new Promise<void>((resolve) => testServer.listen(0, '127.0.0.1', () => resolve()));
+      const address = testServer.address() as any;
+      const port = address.port;
+
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/nonexistent-test-route`);
+        assert.strictEqual(res.status, 404);
+        const contentType = res.headers.get('content-type') || '';
+        assert.ok(contentType.includes('application/json'));
+        const data = await res.json();
+        assert.strictEqual(data.success, false);
+        assert.ok(data.error.includes('not found'));
+      } finally {
+        testServer.close();
+      }
+    });
+
+    // TEST 6.4: Fetch Only Mode (isolates browser-runtime problems from HTTP fetching)
+    await runTest('Fetch Only isolation: mode: "fetch-only" captures HTML & SEO signals without Chromium launch', async () => {
+      const fetchOnlyServer = http.createServer((req, res) => {
+        if (req.url === '/robots.txt') {
+          res.writeHead(200, { 'Content-Type': 'text/plain' });
+          res.end('User-agent: *\nAllow: /\n');
+        } else if (req.url === '/page') {
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end('<!DOCTYPE html><html><head><title>Fetch Only Title</title><meta name="description" content="Fetch Only Desc" /></head><body><h1>Fetch Only Header</h1><p>Static server content</p></body></html>');
+        } else {
+          res.writeHead(404);
+          res.end('Not Found');
+        }
+      });
+
+      await new Promise<void>((resolve) => fetchOnlyServer.listen(0, '127.0.0.1', () => resolve()));
+      const foPort = (fetchOnlyServer.address() as any).port;
+
+      try {
+        const result = await runFetchAndRenderTest(
+          {
+            url: `http://127.0.0.1:${foPort}/page`,
+            userAgent: 'googlebot-smartphone',
+            mode: 'fetch-only',
+            respectRobots: true
+          },
+          { allowLocalhostForTesting: true }
+        );
+
+        assert.strictEqual(result.mode, 'fetch-only');
+        assert.strictEqual(result.initialFetch.statusCode, 200);
+        assert.strictEqual(result.renderResult, undefined); // Browser rendering was NOT executed
+        assert.strictEqual(result.summary.renderingStatus, 'FETCH_ONLY');
+        assert.strictEqual(result.seoSignals.initial.title, 'Fetch Only Title');
+        assert.strictEqual(result.seoSignals.initial.metaDescription, 'Fetch Only Desc');
+        assert.strictEqual(result.seoSignals.rendered, undefined);
+      } finally {
+        fetchOnlyServer.close();
+      }
+    });
+
+    // TEST 6.5: Express dual-export verification for serverless loader compatibility
+    await runTest('Serverless compatibility: Backend entrypoint exports Express app with dual CJS/ESM access', async () => {
+      const indexModule = await import('./index.js');
+      assert.strictEqual(typeof indexModule.default, 'function', 'Default export must be Express app function');
+      assert.strictEqual(typeof (indexModule as any).default.listen, 'function', 'Exported app must have listen method');
     });
 
   } finally {

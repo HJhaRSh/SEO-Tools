@@ -349,7 +349,12 @@ app.post('/api/seo/fetch-render/test', async (req: Request, res: Response) => {
       result
     });
   } catch (err: any) {
-    const status = err.message && err.message.includes('capacity exhausted') ? 429 : 400;
+    let status = 400;
+    if (err.message && err.message.includes('capacity exhausted')) {
+      status = 429;
+    } else if (err.message && (err.message.includes('browserType.launch') || err.message.includes('Executable doesn\'t exist'))) {
+      status = 503;
+    }
     res.status(status).json({
       success: false,
       error: err.message || 'Fetch & Render test failed.'
@@ -386,10 +391,39 @@ app.get('/api/seo/fetch-render/download/:token', (req: Request, res: Response) =
   res.send(payload.data);
 });
 
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+// Catch-all for undefined /api routes returning standard JSON
+app.all('/api/*', (req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    error: `API endpoint ${req.method} ${req.path} not found.`
+  });
+});
+
+// Centralized Express error handler returning structured JSON (preventing raw HTML 500 pages)
+app.use((err: any, _req: Request, res: Response, _next: any) => {
+  console.error('[Backend Unhandled Error]', err);
+  const statusCode =
+    typeof err?.status === 'number'
+      ? err.status
+      : typeof err?.statusCode === 'number'
+      ? err.statusCode
+      : 500;
+  res.status(statusCode).json({
+    success: false,
+    error: err?.message || 'An unexpected internal server error occurred.'
+  });
+});
+
+if (process.env.NODE_ENV !== 'test' && (process.env.NODE_ENV !== 'production' || !process.env.VERCEL)) {
   app.listen(PORT, () => {
     console.log(`[Indian Marketers SEO Tools] Backend Server running on http://localhost:${PORT}`);
   });
+}
+
+// Support CommonJS runtime loaders (such as Vercel serverless Express launcher)
+if (typeof module !== 'undefined' && module.exports) {
+  (module as any).exports = app;
+  (module as any).exports.default = app;
 }
 
 export default app;

@@ -123,24 +123,59 @@ export default function FetchRenderPage() {
       });
 
       const contentType = response.headers.get('content-type') || '';
-      let data: any;
+      let data: any = null;
 
       if (contentType.includes('application/json')) {
-        data = await response.json();
-      } else {
-        const rawText = await response.text();
-        if (response.status === 500 || rawText.includes('Internal Server Error')) {
-          throw new Error(
-            'Backend API service is not reachable (HTTP 500). Please ensure the backend server is running on http://localhost:5000 (cd backend && npm run dev).'
-          );
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
         }
-        throw new Error(rawText || `Server returned HTTP status ${response.status}`);
       }
 
       if (currentSubmissionId !== submissionRef.current) return;
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Fetch & Render test failed.');
+      if (!response.ok || !data || !data.success) {
+        let errorMsg = '';
+
+        if (data && data.error) {
+          errorMsg = data.error;
+        } else {
+          // Parse non-JSON errors (such as Vercel edge/gateway or proxy status pages)
+          const rawText = !data ? await response.text().catch(() => '') : '';
+
+          if (response.status === 504) {
+            errorMsg = 'Gateway Timeout (HTTP 504): The rendering request exceeded server timeout limits. Try selecting "Fetch Only" mode or testing a lighter webpage.';
+          } else if (response.status === 502) {
+            errorMsg = 'Bad Gateway (HTTP 502): The backend API service is unreachable or restarting. Please verify deployment routing and retry shortly.';
+          } else if (response.status === 503) {
+            errorMsg = 'Service Unavailable (HTTP 503): Browser rendering service is temporarily unavailable or at capacity. Please switch to "Fetch Only" mode or retry in a few moments.';
+          } else if (response.status === 429) {
+            errorMsg = 'Too Many Requests (HTTP 429): Rendering queue or rate limit reached. Please wait a moment before trying again.';
+          } else if (response.status === 404) {
+            errorMsg = 'API Endpoint Not Found (HTTP 404): The Fetch & Render endpoint could not be found. Please check deployment service routes.';
+          } else if (response.status === 500) {
+            errorMsg = 'Backend Server Error (HTTP 500): The server encountered an internal error. If browser rendering failed, try switching to "Fetch Only" mode to isolate browser-runtime issues.';
+          } else {
+            errorMsg = `Backend returned HTTP status ${response.status}${response.statusText ? ` (${response.statusText})` : ''}.`;
+          }
+
+          if (rawText && !rawText.includes('<html') && !rawText.includes('<!DOCTYPE') && rawText.trim().length > 0 && rawText.trim().length < 200) {
+            errorMsg += ` Details: ${rawText.trim()}`;
+          }
+        }
+
+        // Tailor message for browser automation issues
+        if (
+          errorMsg.includes("Executable doesn't exist") ||
+          errorMsg.includes('Failed to launch browser') ||
+          errorMsg.includes('browserType.launch')
+        ) {
+          errorMsg =
+            'Browser runtime unavailable: Headless Chromium could not be launched on the current hosting environment. Please switch to "Fetch Only" mode to inspect HTML and SEO signals without browser rendering.';
+        }
+
+        throw new Error(errorMsg);
       }
 
       setResult(data.result);
