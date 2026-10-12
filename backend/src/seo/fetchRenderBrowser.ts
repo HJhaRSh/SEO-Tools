@@ -275,22 +275,38 @@ export async function executeBrowserRender(
       }
 
       // Subresource robots.txt policy enforcement
-      if (options.respectRobots && resourceTypeRaw !== 'document') {
+      if (resourceTypeRaw !== 'document') {
         const policy = await subresourceRobotsManager.checkSubresource(reqUrl);
-        if (!policy.isAllowed && policy.status === 'DISALLOWED') {
-          capturedResources.push({
-            requestId: reqId,
-            url: reqUrl,
-            type,
-            httpStatus: null,
-            statusText: 'Disallowed by robots.txt',
-            loadStatus: 'BLOCKED_ROBOTS',
-            robotsStatus: 'DISALLOWED',
-            failureReason: policy.ruleSummary || 'Disallowed by applicable robots.txt rule',
-            timingMs: Date.now() - reqStart
-          });
-          await route.abort('blockedbyclient');
-          return;
+        if (options.respectRobots) {
+          if (policy.status === 'DISALLOWED') {
+            capturedResources.push({
+              requestId: reqId,
+              url: reqUrl,
+              type,
+              httpStatus: null,
+              statusText: 'Disallowed by robots.txt',
+              loadStatus: 'BLOCKED_ROBOTS',
+              robotsStatus: 'DISALLOWED',
+              failureReason: policy.ruleSummary || 'Disallowed by applicable robots.txt rule',
+              timingMs: Date.now() - reqStart
+            });
+            await route.abort('blockedbyclient');
+            return;
+          } else if (policy.status === 'UNKNOWN') {
+            capturedResources.push({
+              requestId: reqId,
+              url: reqUrl,
+              type,
+              httpStatus: null,
+              statusText: 'Blocked by conservative policy (robots.txt unresolved)',
+              loadStatus: 'BLOCKED_ROBOTS',
+              robotsStatus: 'UNKNOWN',
+              failureReason: policy.ruleSummary || 'Origin robots.txt unresolved; blocked under conservative policy',
+              timingMs: Date.now() - reqStart
+            });
+            await route.abort('blockedbyclient');
+            return;
+          }
         }
       }
 

@@ -3,16 +3,18 @@ import http from 'http';
 import { validateFetchRenderRequest } from './seo/fetchRenderValidation.js';
 import { extractSeoSignals, compareSeoSignals, generateDiagnostics } from './seo/fetchRenderAnalysis.js';
 import { FETCH_RENDER_USER_AGENTS, getFetchRenderUserAgent, findFetchRenderUserAgent } from './seo/fetchRenderUserAgents.js';
-import { checkSubresourceRobotsPolicy, checkRobotsTxtCrawlability } from './seo/fetchRenderRobots.js';
+import { checkSubresourceRobotsPolicy, checkRobotsTxtCrawlability, SubresourceRobotsManager } from './seo/fetchRenderRobots.js';
 import { executeBrowserRender, closeSharedBrowser } from './seo/fetchRenderBrowser.js';
 import {
   runFetchAndRenderTest,
   getStoredResult,
   getDownloadPayload,
   storeDownloadPayload,
+  storeResult,
   evictStoreEntries,
   getStoreMetrics,
   clearStoresForTesting,
+  calculateResultRetainedBytes,
   MAX_STORED_RESULTS,
   MAX_BYTES_PER_RESULT,
   MAX_TOTAL_RESULT_BYTES,
@@ -41,7 +43,7 @@ function runTest(name: string, fn: () => void | Promise<void>): Promise<void> {
 
 async function main() {
   console.log('\n=====================================================');
-  console.log('TOOL 5 — FETCH & RENDER EXPANDED AUTOMATED QA SUITE');
+  console.log('TOOL 5 — FETCH & RENDER VERIFIED QA & SECURITY SUITE');
   console.log('=====================================================\n');
 
   // =========================================================
@@ -85,10 +87,11 @@ async function main() {
     assert.strictEqual(isBlockedHostname('instance-data'), true);
   });
 
-  await runTest('SSRF Guard: Detects and blocks internal domain extensions (.internal, .local, .corp)', () => {
+  await runTest('SSRF Guard: Detects and blocks internal domain extensions (.internal, .local, .corp, .intranet, .lan)', () => {
     assert.strictEqual(isBlockedHostname('app.local'), true);
     assert.strictEqual(isBlockedHostname('db.internal'), true);
     assert.strictEqual(isBlockedHostname('corp.intranet'), true);
+    assert.strictEqual(isBlockedHostname('gateway.lan'), true);
   });
 
   // =========================================================
@@ -131,7 +134,6 @@ async function main() {
     assert.strictEqual(res.isValid, false);
     assert.match(res.error || '', /Unknown User-Agent ID/);
 
-    // Verify getFetchRenderUserAgent throws on unknown ID
     assert.throws(() => {
       getFetchRenderUserAgent('unknown-spoofed-crawler-xyz');
     }, /Unknown User-Agent ID/);
@@ -144,9 +146,9 @@ async function main() {
   });
 
   // =========================================================
-  // GROUP 3: MEMORY BOUNDS, BYTE LIMITS & EVICITON
+  // GROUP 3: MEMORY BOUNDS, RECALCULATION & EVICTION
   // =========================================================
-  console.log('\n3. Strict Storage Bounds, Byte Caps & Eviction:');
+  console.log('\n3. Strict Storage Bounds, Size Recalculation & Eviction:');
 
   await runTest('Rejects individual download payloads exceeding max item byte size (5 MiB)', () => {
     const oversizedPayload = Buffer.alloc(MAX_DOWNLOAD_ITEM_BYTES + 1024);
@@ -157,7 +159,6 @@ async function main() {
 
   await runTest('Enforces aggregate download storage cap via full eviction loop', () => {
     clearStoresForTesting();
-    // Add multiple valid payloads
     const chunkSize = 1 * 1024 * 1024; // 1 MiB each
     const tokens: string[] = [];
     for (let i = 0; i < 55; i++) {
@@ -166,14 +167,147 @@ async function main() {
     }
 
     const metrics = getStoreMetrics();
-    // Verify total bytes is strictly <= MAX_TOTAL_DOWNLOAD_BYTES (50 MiB)
     assert.ok(metrics.totalDownloadBytes <= MAX_TOTAL_DOWNLOAD_BYTES, `Total bytes ${metrics.totalDownloadBytes} exceeded max ${MAX_TOTAL_DOWNLOAD_BYTES}`);
     assert.ok(metrics.downloadsCount <= 50);
-
-    // First tokens should have been evicted
     assert.strictEqual(getDownloadPayload(tokens[0]), undefined);
-    // Recent tokens should still be retrievable
     assert.ok(getDownloadPayload(tokens[tokens.length - 1]));
+  });
+
+  await runTest('FIX 3: Retained size recalculation drops screenshot and updates byte accounting', () => {
+    clearStoresForTesting();
+    const ua = getFetchRenderUserAgent('googlebot-desktop');
+
+    // Create a result with 3.5 MB screenshot + 1 MB html = 4.5 MB (exceeds 4 MiB)
+    const largeScreenshot = Buffer.alloc(3.5 * 1024 * 1024, 'a').toString('base64');
+    const mockResult: any = {
+      id: 'test-mem-recalc-1',
+      timestamp: new Date().toISOString(),
+      requestedUrl: 'https://example.com/mem-test',
+      finalUrl: 'https://example.com/mem-test',
+      mode: 'fetch-and-render',
+      userAgent: ua,
+      summary: {
+        httpStatus: 200,
+        httpStatusText: 'OK',
+        crawlability: 'ALLOWED',
+        renderingStatus: 'COMPLETED',
+        indexabilitySignal: 'NO_BLOCKING_SIGNAL',
+        totalDurationMs: 500,
+        totalIssuesCount: { errors: 0, warnings: 0, notices: 0 }
+      },
+      initialFetch: {
+        requestedUrl: 'https://example.com/mem-test',
+        finalUrl: 'https://example.com/mem-test',
+        statusCode: 200,
+        statusText: 'OK',
+        headers: {},
+        rawHtml: '<html><body>Short initial</body></html>',
+        byteSize: 35,
+        durationMs: 50,
+        redirectHistory: [],
+        contentType: 'text/html',
+        isTruncated: false
+      },
+      renderResult: {
+        renderedHtml: '<html><body>' + 'x'.repeat(500 * 1024) + '</body></html>', // 500 KB
+        byteSize: 500 * 1024,
+        renderDurationMs: 300,
+        screenshotBase64: largeScreenshot, // ~4.6 MB base64
+        resources: [],
+        consoleMessages: [],
+        totalResourcesLoaded: 1,
+        totalResourcesFailed: 0,
+        totalResourcesBlocked: 0,
+        isTruncated: false,
+        renderStatus: 'COMPLETED'
+      },
+      robotsInfo: {
+        url: 'https://example.com/robots.txt',
+        fetchStatus: 'ALLOWED',
+        explanation: 'Allowed',
+        statusCode: 200,
+        respectRobotsEnabled: true,
+        blockedMainUrl: false
+      },
+      seoSignals: {
+        initial: { title: 'Test', metaDescription: null, metaRobots: null, canonicalUrl: null, h1Headings: [], internalLinksCount: 0, externalLinksCount: 0, imagesCount: 0, imagesWithAltCount: 0, wordCount: 0, structuredDataTypes: [], structuredDataCount: 0, hreflangTags: [] },
+        comparison: []
+      },
+      diagnostics: [],
+      downloads: { originalHtmlId: '1', reportJsonId: '2', seoDiffCsvId: '3' }
+    };
+
+    const initialEstimated = calculateResultRetainedBytes(mockResult);
+    assert.ok(initialEstimated > MAX_BYTES_PER_RESULT, `Estimated ${initialEstimated} should exceed ${MAX_BYTES_PER_RESULT}`);
+
+    // Store the result
+    const storeRes = storeResult(mockResult);
+    assert.strictEqual(storeRes.stored, true);
+
+    // Verify screenshot was stripped
+    assert.strictEqual(mockResult.renderResult.screenshotBase64, undefined);
+    assert.ok(mockResult.renderResult.errorMessage.includes('Screenshot omitted'));
+
+    // Verify size was recalculated and stored bytes is strictly <= 4 MiB
+    assert.ok(storeRes.sizeBytes <= MAX_BYTES_PER_RESULT, `Recalculated size ${storeRes.sizeBytes} should be <= ${MAX_BYTES_PER_RESULT}`);
+  });
+
+  await runTest('FIX 3: Hard limit rejects result that exceeds 4 MiB even without screenshot', () => {
+    clearStoresForTesting();
+    const ua = getFetchRenderUserAgent('googlebot-desktop');
+
+    // Create a result with 4.5 MB of pure HTML text (cannot fit under 4 MiB)
+    const massiveHtml = '<html><body>' + 'A'.repeat(4.5 * 1024 * 1024) + '</body></html>';
+    const oversizedResult: any = {
+      id: 'test-mem-reject-1',
+      timestamp: new Date().toISOString(),
+      requestedUrl: 'https://example.com/massive',
+      finalUrl: 'https://example.com/massive',
+      mode: 'fetch-only',
+      userAgent: ua,
+      summary: {
+        httpStatus: 200,
+        httpStatusText: 'OK',
+        crawlability: 'ALLOWED',
+        renderingStatus: 'FETCH_ONLY',
+        indexabilitySignal: 'NO_BLOCKING_SIGNAL',
+        totalDurationMs: 500,
+        totalIssuesCount: { errors: 0, warnings: 0, notices: 0 }
+      },
+      initialFetch: {
+        requestedUrl: 'https://example.com/massive',
+        finalUrl: 'https://example.com/massive',
+        statusCode: 200,
+        statusText: 'OK',
+        headers: {},
+        rawHtml: massiveHtml,
+        byteSize: Buffer.byteLength(massiveHtml, 'utf-8'),
+        durationMs: 50,
+        redirectHistory: [],
+        contentType: 'text/html',
+        isTruncated: false
+      },
+      robotsInfo: {
+        url: 'https://example.com/robots.txt',
+        fetchStatus: 'ALLOWED',
+        explanation: 'Allowed',
+        statusCode: 200,
+        respectRobotsEnabled: true,
+        blockedMainUrl: false
+      },
+      seoSignals: {
+        initial: { title: 'Massive', metaDescription: null, metaRobots: null, canonicalUrl: null, h1Headings: [], internalLinksCount: 0, externalLinksCount: 0, imagesCount: 0, imagesWithAltCount: 0, wordCount: 0, structuredDataTypes: [], structuredDataCount: 0, hreflangTags: [] },
+        comparison: []
+      },
+      diagnostics: [],
+      downloads: { originalHtmlId: '1', reportJsonId: '2', seoDiffCsvId: '3' }
+    };
+
+    const storeRes = storeResult(oversizedResult);
+    // Must be rejected because even without screenshot it exceeds 4 MiB
+    assert.strictEqual(storeRes.stored, false);
+    assert.match(storeRes.reason || '', /exceeds maximum allowable limit of 4 MiB/);
+    assert.strictEqual(getStoredResult('test-mem-reject-1'), undefined);
   });
 
   // =========================================================
@@ -184,6 +318,7 @@ async function main() {
   let fixtureServer!: http.Server;
   let fixturePort!: number;
   let multiStatusCounter = 0;
+  let target503HitCount = 0;
 
   await new Promise<void>((resolve) => {
     fixtureServer = http.createServer((req, res) => {
@@ -210,6 +345,13 @@ async function main() {
       } else if (url === '/sub-blocked.js') {
         res.writeHead(200, { 'Content-Type': 'application/javascript' });
         res.end('window.subBlockedLoaded = true;');
+      } else if (url === '/robots-503/robots.txt') {
+        res.writeHead(503, { 'Content-Type': 'text/plain' });
+        res.end('503 Service Unavailable');
+      } else if (url === '/robots-503/target') {
+        target503HitCount++;
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<!DOCTYPE html><html><head><title>503 Target</title></head><body><h1>Should Not Be Hit</h1></body></html>');
       } else if (url === '/controlled-render') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
@@ -223,28 +365,17 @@ async function main() {
               <div id="static-content">Server Static Text</div>
               <img src="/missing-asset-404.jpg" alt="Missing Test Image" />
               <script>
-                // 1. Modify title dynamically
                 document.title = "Rendered Dynamic Title";
-
-                // 2. Inject canonical dynamically
                 const can = document.createElement('link');
                 can.rel = 'canonical';
                 can.href = 'https://example.com/dynamically-injected-canonical';
                 document.head.appendChild(can);
-
-                // 3. Inject dynamic content
                 const div = document.createElement('div');
                 div.id = 'dynamic-content';
                 div.innerText = 'Rendered Dynamic Content By JavaScript';
                 document.body.appendChild(div);
-
-                // 4. Intentional console error
                 console.error('Intentional Client QA Console Error');
-
-                // 5. Fire repeated requests to /multi-status (first 503, then 200)
-                fetch('/multi-status').then(() => {
-                  fetch('/multi-status');
-                });
+                fetch('/multi-status').then(() => { fetch('/multi-status'); });
               </script>
             </body>
           </html>
@@ -263,7 +394,7 @@ async function main() {
   });
 
   try {
-    // TEST: Main URL Disallowed Pre-Fetch Enforcement
+    // TEST 1: Main URL Disallowed Pre-Fetch Enforcement
     await runTest('FIX 1: When respectRobots=true, disallows main URL without fetching or rendering', async () => {
       const result = await runFetchAndRenderTest(
         {
@@ -274,23 +405,19 @@ async function main() {
         { allowLocalhostForTesting: true }
       );
 
-      // Verify crawl disallowed status
       assert.strictEqual(result.summary.crawlability, 'DISALLOWED');
       assert.strictEqual(result.summary.httpStatus, 0);
       assert.strictEqual(result.summary.renderingStatus, 'FETCH_ONLY');
       assert.strictEqual(result.robotsInfo.blockedMainUrl, true);
-
-      // Verify rawHtml is empty and rendering was SKIPPED
       assert.strictEqual(result.initialFetch.rawHtml, '');
       assert.strictEqual(result.renderResult?.renderStatus, 'SKIPPED');
 
-      // Verify diagnostic is present
       const disallowDiag = result.diagnostics.find(d => d.id === 'diag_robots_disallowed');
       assert.ok(disallowDiag !== undefined);
       assert.strictEqual(disallowDiag?.severity, 'ERROR');
     });
 
-    // TEST: Main URL Allowed Post-Robots Evaluation
+    // TEST 2: Main URL Allowed Post-Robots Evaluation
     await runTest('FIX 1: Allows allowed URL under robots.txt policy', async () => {
       const result = await runFetchAndRenderTest(
         {
@@ -306,8 +433,82 @@ async function main() {
       assert.ok(result.initialFetch.rawHtml.includes('Public Page'));
     });
 
-    // TEST: robots.txt Override when respectRobots=false
-    await runTest('FIX 1: When respectRobots=false, allows crawl but flags warning diagnostic', async () => {
+    // Dedicated server whose root /robots.txt returns 503 Service Unavailable
+    let server503!: http.Server;
+    let port503!: number;
+    let target503HitCount = 0;
+
+    await new Promise<void>((resolve) => {
+      server503 = http.createServer((req, res) => {
+        const url = req.url || '/';
+        if (url === '/robots.txt') {
+          res.writeHead(503, { 'Content-Type': 'text/plain' });
+          res.end('503 Service Unavailable');
+        } else {
+          target503HitCount++;
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end('<!DOCTYPE html><html><body><h1>Should Not Be Hit</h1></body></html>');
+        }
+      });
+      server503.listen(0, '127.0.0.1', () => {
+        port503 = (server503.address() as any).port;
+        resolve();
+      });
+    });
+
+    try {
+      // TEST 3: Temporary robots.txt 503 error halts fetching when respectRobots=true
+      await runTest('FIX 1: robots.txt 503 halts fetch under conservative policy (target URL is never called)', async () => {
+        target503HitCount = 0;
+        const result = await runFetchAndRenderTest(
+          {
+            url: `http://127.0.0.1:${port503}/target`,
+            mode: 'fetch-and-render',
+            respectRobots: true
+          },
+          { allowLocalhostForTesting: true }
+        );
+
+        // Verify the target URL was NEVER fetched!
+        assert.strictEqual(target503HitCount, 0, 'Target URL should not be requested when robots.txt returns 503');
+        assert.strictEqual(result.summary.crawlability, 'UNKNOWN');
+        assert.strictEqual(result.summary.httpStatus, 0);
+        assert.strictEqual(result.summary.httpStatusText, 'Robots.txt Temporarily Unavailable');
+        assert.strictEqual(result.initialFetch.rawHtml, '');
+        assert.strictEqual(result.renderResult?.renderStatus, 'SKIPPED');
+
+        const tempDiag = result.diagnostics.find(d => d.id === 'diag_robots_temp_unavailable');
+        assert.ok(tempDiag !== undefined);
+        assert.strictEqual(tempDiag?.severity, 'WARNING');
+      });
+
+      // TEST 4: Temporary robots.txt 503 error allows fetch when respectRobots=false with override warning
+      await runTest('FIX 1: When respectRobots=false, allows crawl despite robots.txt 503 but flags warning', async () => {
+        target503HitCount = 0;
+        const result = await runFetchAndRenderTest(
+          {
+            url: `http://127.0.0.1:${port503}/target`,
+            mode: 'fetch-only',
+            respectRobots: false
+          },
+          { allowLocalhostForTesting: true }
+        );
+
+        // Verify target was fetched due to user override
+        assert.strictEqual(target503HitCount, 1);
+        assert.strictEqual(result.summary.httpStatus, 200);
+        assert.ok(result.initialFetch.rawHtml.includes('Should Not Be Hit'));
+
+        const overrideDiag = result.diagnostics.find(d => d.id === 'diag_robots_temp_override');
+        assert.ok(overrideDiag !== undefined);
+        assert.strictEqual(overrideDiag?.severity, 'WARNING');
+      });
+    } finally {
+      server503.close();
+    }
+
+    // TEST 5: robots.txt Override when respectRobots=false on Disallowed URL
+    await runTest('FIX 1: When respectRobots=false on disallowed URL, allows crawl but flags warning diagnostic', async () => {
       const result = await runFetchAndRenderTest(
         {
           url: `http://127.0.0.1:${fixturePort}/private/test-page`,
@@ -325,9 +526,30 @@ async function main() {
       assert.strictEqual(overrideDiag?.severity, 'WARNING');
     });
 
-    // TEST: Real Chromium Execution, Subresource Robots Blocking, Resource Identity & Parity
+    // TEST 6: FIX 2 — Cross-Origin origin limit returns UNKNOWN, never ALLOWED
+    await runTest('FIX 2: Exceeding origin evaluation limit returns UNKNOWN and blocks under conservative policy', async () => {
+      const manager = new SubresourceRobotsManager('http://main-site.test', '', 'googlebot', true);
+
+      // Manually set or simulate up to limit
+      for (let i = 1; i <= 10; i++) {
+        manager.setOriginRobots(`http://sub-origin-${i}.test`, 'User-agent: *\nAllow: /\n');
+      }
+
+      // Check subresource within configured origin (returns ALLOWED)
+      const allowedRes = await manager.checkSubresource('http://sub-origin-1.test/app.js');
+      assert.strictEqual(allowedRes.status, 'ALLOWED');
+      assert.strictEqual(allowedRes.isAllowed, true);
+
+      // Query 11th distinct un-cached origin (exceeds origin fetch bound)
+      const exceededRes = await manager.checkSubresource('http://sub-origin-11.test/widget.js');
+      assert.strictEqual(exceededRes.status, 'UNKNOWN');
+      assert.strictEqual(exceededRes.isAllowed, false);
+      assert.match(exceededRes.ruleSummary || '', /evaluation limit exceeded/i);
+    });
+
+    // TEST 7: Real Chromium Execution, Subresource Robots Blocking, Resource Identity & Parity
     await runTest('FIX 4 & FIX 7: Real Chromium execution with subresource robots blocking, multi-request tracking, and DOM diffing', async () => {
-      multiStatusCounter = 0; // reset counter
+      multiStatusCounter = 0;
 
       const result = await runFetchAndRenderTest(
         {
@@ -349,7 +571,6 @@ async function main() {
       assert.strictEqual(result.seoSignals.initial.canonicalUrl, null);
       assert.strictEqual(result.seoSignals.rendered?.canonicalUrl, 'https://example.com/dynamically-injected-canonical');
 
-      // Check comparison items
       const titleDiff = result.seoSignals.comparison.find(c => c.name === 'title');
       assert.strictEqual(titleDiff?.status, 'MODIFIED');
 
@@ -359,7 +580,7 @@ async function main() {
       // Verify Screenshot
       assert.ok(result.renderResult?.screenshotBase64);
       const pngBuf = Buffer.from(result.renderResult!.screenshotBase64!, 'base64');
-      assert.strictEqual(pngBuf[0], 0x89); // PNG magic bytes
+      assert.strictEqual(pngBuf[0], 0x89);
       assert.strictEqual(pngBuf[1], 0x50);
 
       // Verify Subresource robots.txt blocking
@@ -370,7 +591,7 @@ async function main() {
 
       // Verify Missing Asset (404)
       const missingRes = result.renderResult?.resources.find(r => r.url.includes('/missing-asset-404.jpg'));
-      assert.ok(missingRes !== undefined, 'Missing asset should be tracked');
+      assert.ok(missingRes !== undefined);
       assert.strictEqual(missingRes?.httpStatus, 404);
       assert.strictEqual(missingRes?.loadStatus, 'FAILED');
 
@@ -381,7 +602,6 @@ async function main() {
       const has200 = multiRequests.some(r => r.httpStatus === 200);
       assert.ok(has503, 'Should track 503 status for first request');
       assert.ok(has200, 'Should track 200 status for second request');
-      // Each request should have an internally assigned unique requestId
       assert.notStrictEqual(multiRequests[0].requestId, multiRequests[1].requestId);
 
       // Verify Console Errors

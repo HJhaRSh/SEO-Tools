@@ -28,12 +28,12 @@ export async function checkRobotsTxtCrawlability(
         allowLocalhostForTesting
       });
     } catch (networkErr: any) {
-      // Network failure, DNS failure, or timeout
+      // Network failure, DNS failure, or connection timeout
       return {
         url: robotsTxtUrl,
         fetchStatus: 'TEMPORARY_UNAVAILABLE',
         crawlabilityStatus: 'UNKNOWN',
-        explanation: `robots.txt could not be fetched due to network/timeout error: ${networkErr.message}. Crawlers treat this as temporary unavailable (RFC 9309).`,
+        explanation: `robots.txt could not be retrieved due to network or timeout failure: ${networkErr.message}. RFC 9309 treats unreachable robots.txt as temporary unavailable.`,
         statusCode: null,
         respectRobotsEnabled: respectRobots,
         blockedMainUrl: false
@@ -49,7 +49,7 @@ export async function checkRobotsTxtCrawlability(
         fetchStatus: 'PERMANENT_UNAVAILABLE',
         crawlabilityStatus: 'ALLOWED',
         applicableRule: null,
-        explanation: `robots.txt returned HTTP ${statusCode} (Not Found). RFC 9309 Section 2.3.1.2 defines that crawlers may assume all content on this site is accessible.`,
+        explanation: `robots.txt returned HTTP ${statusCode} (Not Found / Gone). RFC 9309 Section 2.3.1.2 defines that crawlers may assume all content on this site is accessible.`,
         statusCode,
         respectRobotsEnabled: respectRobots,
         blockedMainUrl: false,
@@ -79,7 +79,7 @@ export async function checkRobotsTxtCrawlability(
         fetchStatus: 'TEMPORARY_UNAVAILABLE',
         crawlabilityStatus: 'UNKNOWN',
         applicableRule: null,
-        explanation: `robots.txt returned server error (HTTP ${statusCode}). RFC 9309 Section 2.3.1.3 states crawlers treat 5xx responses as temporary crawl delay or temporary halt.`,
+        explanation: `robots.txt returned server error (HTTP ${statusCode}). RFC 9309 Section 2.3.1.3 states crawlers treat 5xx responses as a temporary halt or crawl delay while permission is unresolved.`,
         statusCode,
         respectRobotsEnabled: respectRobots,
         blockedMainUrl: false,
@@ -148,6 +148,7 @@ export class SubresourceRobotsManager {
     status: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN';
     rules: any[];
     matchedToken: string;
+    explanation?: string;
   }>();
   private originFetchCount = 0;
   private maxOrigins = 10;
@@ -214,9 +215,13 @@ export class SubresourceRobotsManager {
 
       let cached = this.originPolicies.get(origin);
       if (!cached) {
-        if (this.originFetchCount >= this.maxOrigins) {
-          // Bounded origin limit reached: allow request rather than blocking
-          return { isAllowed: true, status: 'ALLOWED', ruleSummary: 'Origin evaluation bound reached' };
+        // FIX 2: When origin evaluation limit is reached, return UNKNOWN (never falsely report ALLOWED)
+        if (this.originPolicies.size >= this.maxOrigins || this.originFetchCount >= this.maxOrigins) {
+          return {
+            isAllowed: false,
+            status: 'UNKNOWN',
+            ruleSummary: 'Origin robots.txt evaluation limit exceeded (maximum 10 distinct origins evaluated); origin crawlability unresolved'
+          };
         }
 
         this.originFetchCount++;
@@ -232,15 +237,54 @@ export class SubresourceRobotsManager {
             const parsed = parseRobotsTxt(fetchRes.body);
             const { rules, matchedToken } = selectRulesForUserAgent(parsed.groups, this.userAgentToken);
             cached = { status: 'ALLOWED', rules, matchedToken };
-          } else {
-            // 404 or other non-200 on cross-origin: allow subresource
+          } else if (fetchRes.statusCode === 404 || fetchRes.statusCode === 410) {
+            // Permanent Unavailable -> No restrictions apply
             cached = { status: 'ALLOWED', rules: [], matchedToken: '*' };
+          } else if (fetchRes.statusCode === 401 || fetchRes.statusCode === 403) {
+            // Access Denied -> Disallowed
+            cached = {
+              status: 'DISALLOWED',
+              rules: [{ type: 'disallow', pattern: '/', originalText: `HTTP ${fetchRes.statusCode} Access Denied` }],
+              matchedToken: '*',
+              explanation: `Robots.txt access denied (HTTP ${fetchRes.statusCode})`
+            };
+          } else if (fetchRes.statusCode >= 500 && fetchRes.statusCode < 600) {
+            // Server Error -> Temporary Unavailable
+            cached = {
+              status: 'UNKNOWN',
+              rules: [],
+              matchedToken: '*',
+              explanation: `Robots.txt server error (HTTP ${fetchRes.statusCode})`
+            };
+          } else {
+            cached = { status: 'UNKNOWN', rules: [], matchedToken: '*' };
           }
-        } catch {
-          // If cross-origin robots.txt fails or times out: allow subresource
-          cached = { status: 'ALLOWED', rules: [], matchedToken: '*' };
+        } catch (subErr: any) {
+          // If cross-origin robots.txt fails or times out: classify as UNKNOWN
+          cached = {
+            status: 'UNKNOWN',
+            rules: [],
+            matchedToken: '*',
+            explanation: `Robots.txt retrieval error: ${subErr.message}`
+          };
         }
         this.originPolicies.set(origin, cached);
+      }
+
+      if (cached.status === 'UNKNOWN') {
+        return {
+          isAllowed: false,
+          status: 'UNKNOWN',
+          ruleSummary: cached.explanation || 'Origin robots.txt temporarily unavailable (unresolved policy)'
+        };
+      }
+
+      if (cached.status === 'DISALLOWED') {
+        return {
+          isAllowed: false,
+          status: 'DISALLOWED',
+          ruleSummary: cached.explanation || 'Disallowed by origin robots.txt policy'
+        };
       }
 
       if (cached.rules && cached.rules.length > 0) {
@@ -257,7 +301,7 @@ export class SubresourceRobotsManager {
 
       return { isAllowed: true, status: 'ALLOWED', ruleSummary: 'Allowed by robots.txt' };
     } catch {
-      return { isAllowed: true, status: 'UNKNOWN', ruleSummary: 'Evaluation error' };
+      return { isAllowed: false, status: 'UNKNOWN', ruleSummary: 'Subresource evaluation error' };
     }
   }
 }
@@ -289,7 +333,6 @@ export function checkSubresourceRobotsPolicy(
     }
     return { isAllowed: true, status: 'ALLOWED', ruleSummary: 'Allowed' };
   } catch {
-    return { isAllowed: true, status: 'UNKNOWN', ruleSummary: 'Evaluation error' };
+    return { isAllowed: false, status: 'UNKNOWN', ruleSummary: 'Evaluation error' };
   }
 }
-
