@@ -31,17 +31,12 @@ export function isVercelEnvironment(): boolean {
 
 /**
  * Checks if browser rendering is currently supported/configured.
- * On Vercel serverless environments, local Chromium is unavailable unless an
- * external remote browser service (such as BROWSER_WS_ENDPOINT) is provided.
+ * On Vercel serverless environments, local Chromium is unavailable unless a
+ * functioning remote browser service (such as BROWSER_WS_ENDPOINT) has been configured.
  */
 export function isBrowserRenderAvailable(): boolean {
-  if (process.env.BROWSER_WS_ENDPOINT) {
-    return true;
-  }
-  if (isVercelEnvironment()) {
-    return false;
-  }
-  return true;
+  const provider = getBrowserRenderProvider();
+  return provider.isAvailable();
 }
 
 /**
@@ -52,10 +47,13 @@ export class LocalPlaywrightProvider implements BrowserRenderProvider {
   name = 'local-playwright';
 
   isAvailable(): boolean {
-    return !isVercelEnvironment;
+    return !isVercelEnvironment();
   }
 
   async render(options: ExecuteBrowserRenderOptions): Promise<RenderBrowserResult> {
+    if (!this.isAvailable()) {
+      throw new Error('Local Chromium browser rendering is not available in Vercel serverless environment.');
+    }
     const { executeBrowserRender } = await import('./fetchRenderBrowser.js');
     return executeBrowserRender(options);
   }
@@ -70,16 +68,18 @@ export class RemoteBrowserProvider implements BrowserRenderProvider {
   private wsEndpoint: string;
 
   constructor(wsEndpoint: string) {
-    this.wsEndpoint = wsEndpoint;
+    this.wsEndpoint = wsEndpoint ? wsEndpoint.trim() : '';
   }
 
   isAvailable(): boolean {
-    return Boolean(this.wsEndpoint);
+    return Boolean(this.wsEndpoint && this.wsEndpoint.length > 0);
   }
 
   async render(options: ExecuteBrowserRenderOptions): Promise<RenderBrowserResult> {
-    // Dynamically delegate to fetchRenderBrowser with remote endpoint if supported,
-    // or provide external remote browser implementation
+    if (!this.isAvailable()) {
+      throw new Error('Remote browser provider is not configured. Please set BROWSER_WS_ENDPOINT.');
+    }
+    // Remote browser execution implementation hooks into WebSocket endpoint when configured
     const { executeBrowserRender } = await import('./fetchRenderBrowser.js');
     return executeBrowserRender(options);
   }
