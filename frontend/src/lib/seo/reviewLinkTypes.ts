@@ -16,7 +16,7 @@ export interface GenerateLinkResponse {
   businessName?: string;
   location?: string;
   reviewUrl: string;
-  source: 'PASTED_REVIEW_URL' | 'PLACE_ID_SYNTACTIC';
+  source: 'PASTED_REVIEW_URL' | 'PLACE_ID_SYNTACTIC' | 'BUSINESS_NAME_SEARCH';
   warning?: string;
   error?: string;
   code?: string;

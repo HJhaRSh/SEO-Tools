@@ -167,11 +167,27 @@ export function executeGenerateLink(
     };
   }
 
+  // Mode 3: Business Name provided (Zero-API automatic search-to-review query)
+  if (businessName) {
+    const fullQuery = [businessName, location].filter(Boolean).join(' ');
+    // Google Maps direct place search query that brings up the business profile with direct review prompt
+    const reviewSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullQuery)}`;
+
+    return {
+      success: true,
+      businessName,
+      location: location || undefined,
+      reviewUrl: reviewSearchUrl,
+      source: 'BUSINESS_NAME_SEARCH' as any,
+      warning: 'Generated via Business Name & Location search link. For direct 5-star popup modal, you can optionally provide the Google Place ID.'
+    };
+  }
+
   return {
     success: false,
     reviewUrl: '',
     source: 'PLACE_ID_SYNTACTIC',
-    error: 'Please enter either a Google Place ID or paste an existing Google review link.',
+    error: 'Please enter a Business Name, Google Place ID, or paste an existing Google review link.',
     code: 'MISSING_INPUT'
   };
 }

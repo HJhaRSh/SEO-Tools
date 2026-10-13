@@ -22,7 +22,7 @@ export default function ReviewLinkGeneratorPage() {
   // ----------------------------------------------------
   // SINGLE BUSINESS STATE
   // ----------------------------------------------------
-  const [singleInputMode, setSingleInputMode] = useState<'placeId' | 'reviewUrl'>('placeId');
+  const [singleInputMode, setSingleInputMode] = useState<'business' | 'placeId' | 'reviewUrl'>('business');
   const [businessName, setBusinessName] = useState('');
   const [location, setLocation] = useState('');
   const [placeId, setPlaceId] = useState('');
@@ -32,7 +32,7 @@ export default function ReviewLinkGeneratorPage() {
   const [singleError, setSingleError] = useState<string | null>(null);
   const [generatedReviewLink, setGeneratedReviewLink] = useState<string | null>(null);
   const [extractedPlaceId, setExtractedPlaceId] = useState<string | null>(null);
-  const [linkSource, setLinkSource] = useState<'PASTED_REVIEW_URL' | 'PLACE_ID_SYNTACTIC' | null>(null);
+  const [linkSource, setLinkSource] = useState<'PASTED_REVIEW_URL' | 'PLACE_ID_SYNTACTIC' | 'BUSINESS_NAME_SEARCH' | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedPlaceId, setCopiedPlaceId] = useState(false);
 
@@ -61,7 +61,7 @@ export default function ReviewLinkGeneratorPage() {
   const handleOpenGoogleMapsSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!businessName.trim()) {
-      setSingleError('Please enter a business name to search on Google Maps.');
+      setSingleError('Please enter a business name.');
       return;
     }
     const mapsUrl = buildGoogleMapsSearchUrl(businessName, location);
@@ -75,7 +75,12 @@ export default function ReviewLinkGeneratorPage() {
     setExtractedPlaceId(null);
     setLinkSource(null);
 
-    if (singleInputMode === 'placeId') {
+    if (singleInputMode === 'business') {
+      if (!businessName.trim()) {
+        setSingleError('Please enter your Business Name to generate the review link.');
+        return;
+      }
+    } else if (singleInputMode === 'placeId') {
       if (!placeId.trim()) {
         setSingleError('Please enter a valid Google Place ID (e.g. ChIJN1t_tDeuEmsRUsoyG83frY4).');
         return;
@@ -320,101 +325,102 @@ export default function ReviewLinkGeneratorPage() {
       {/* ==================================================== */}
       {activeTab === 'single' && (
         <div className="space-y-8">
-          {/* STEP 1: GOOGLE MAPS LOOKUP HELPER */}
-          <div className="bg-slate-50 dark:bg-slate-900/40 p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center">
-                1
-              </span>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Find Your Business on Google Maps (Optional Helper)
-              </h3>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Need to locate your business listing on Google Maps? Enter your business name and city to search on Google Maps in a new tab:
-            </p>
-
-            <form onSubmit={handleOpenGoogleMapsSearch} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <input
-                  type="text"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="Business Name (e.g. Barbeque Nation)"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              <div>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="City / Area (e.g. Indiranagar, Bengaluru)"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              <div>
-                <button
-                  type="submit"
-                  className="w-full px-4 py-2.5 bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  Search on Google Maps
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* STEP 2: GENERATE DIRECT REVIEW LINK */}
+          {/* UNIFIED GENERATE REVIEW LINK FORM */}
           <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 font-bold text-xs flex items-center justify-center">
-                2
-              </span>
+            <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                Generate Review Link
+                Generate Google Review Link
               </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Enter your business details below to generate a direct review link and QR code automatically.
+              </p>
             </div>
 
             {/* Toggle Input Mode */}
-            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-2xl max-w-md">
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-2xl max-w-lg">
+              <button
+                type="button"
+                onClick={() => setSingleInputMode('business')}
+                className={`flex-1 py-2 px-3.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  singleInputMode === 'business'
+                    ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Business Name & City
+              </button>
               <button
                 type="button"
                 onClick={() => setSingleInputMode('placeId')}
-                className={`flex-1 py-2 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                className={`flex-1 py-2 px-3.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                   singleInputMode === 'placeId'
                     ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                Use Google Place ID
+                Place ID
               </button>
               <button
                 type="button"
                 onClick={() => setSingleInputMode('reviewUrl')}
-                className={`flex-1 py-2 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                className={`flex-1 py-2 px-3.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                   singleInputMode === 'reviewUrl'
                     ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                Paste Existing Google Review Link
+                Existing Link
               </button>
             </div>
 
             <form onSubmit={handleGenerateSingleLink} className="space-y-4">
-              {singleInputMode === 'placeId' ? (
+              {singleInputMode === 'business' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Business Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="e.g. Barbeque Nation"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      City / Area <span className="text-xs font-normal text-slate-400">(Recommended)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="e.g. Indiranagar, Bengaluru"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+              ) : singleInputMode === 'placeId' ? (
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Google Place ID <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      Google Place ID <span className="text-red-500">*</span>
+                    </label>
+                    <a
+                      href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-green-600 dark:text-green-400 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      Find Place ID Free ↗
+                    </a>
+                  </div>
                   <input
                     type="text"
                     value={placeId}
                     onChange={(e) => setPlaceId(e.target.value)}
-                    placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
+                    placeholder="e.g. ChIJv_QhFmTO5zsRqN_aE36E4l0"
                     className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -440,7 +446,7 @@ export default function ReviewLinkGeneratorPage() {
               )}
 
               {/* ACTION BUTTON */}
-              <div className="pt-2">
+              <div className="pt-2 flex flex-wrap gap-3 items-center">
                 <button
                   type="submit"
                   disabled={isProcessing}
@@ -451,6 +457,16 @@ export default function ReviewLinkGeneratorPage() {
                   </svg>
                   Generate Direct Review Link
                 </button>
+
+                {singleInputMode === 'business' && businessName.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleOpenGoogleMapsSearch}
+                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>View Listing on Google Maps ↗</span>
+                  </button>
+                )}
               </div>
             </form>
 
@@ -478,7 +494,9 @@ export default function ReviewLinkGeneratorPage() {
                     </h3>
                     <p className="text-xs text-slate-500">
                       {linkSource === 'PLACE_ID_SYNTACTIC'
-                        ? 'Built using official Place ID write-review structure'
+                        ? 'Built using official Place ID write-review direct popup structure'
+                        : linkSource === 'BUSINESS_NAME_SEARCH'
+                        ? 'Direct Google Maps business listing review search link (Zero API key needed)'
                         : 'Formatted and verified Google review link'}
                     </p>
                   </div>
