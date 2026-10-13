@@ -22,6 +22,12 @@
   },
   "rewrites": [
     {
+      "source": "/api/seo/review-link/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"
