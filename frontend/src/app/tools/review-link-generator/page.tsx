@@ -3,15 +3,18 @@
 import React, { useState, useRef } from 'react';
 import ToolLayout from '@/components/ToolLayout';
 import {
-  PlaceCandidate,
   BulkProcessedRow,
   BulkInputRow,
-  SingleSearchResponse,
   GenerateLinkResponse,
   BulkBatchResponse
 } from '@/lib/seo/reviewLinkTypes';
 import { parseClientCsv, detectSpreadsheetColumns } from '@/lib/seo/clientSpreadsheet';
-import { formatBulkResultsToCsv } from '@/lib/seo/reviewLinkService';
+import {
+  buildGoogleMapsSearchUrl,
+  isValidPlaceId,
+  isValidGoogleReviewUrl,
+  formatBulkResultsToCsv
+} from '@/lib/seo/reviewLinkService';
 
 export default function ReviewLinkGeneratorPage() {
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
@@ -19,19 +22,17 @@ export default function ReviewLinkGeneratorPage() {
   // ----------------------------------------------------
   // SINGLE BUSINESS STATE
   // ----------------------------------------------------
+  const [singleInputMode, setSingleInputMode] = useState<'placeId' | 'reviewUrl'>('placeId');
   const [businessName, setBusinessName] = useState('');
   const [location, setLocation] = useState('');
-  const [manualPlaceId, setManualPlaceId] = useState('');
-  const [showManualPlaceId, setShowManualPlaceId] = useState(false);
+  const [placeId, setPlaceId] = useState('');
+  const [pastedReviewUrl, setPastedReviewUrl] = useState('');
 
-  const [isSearching, setIsSearching] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [singleError, setSingleError] = useState<string | null>(null);
-  const [singleErrorCode, setSingleErrorCode] = useState<string | null>(null);
-  const [candidates, setCandidates] = useState<PlaceCandidate[]>([]);
-  const [selectedCandidate, setSelectedCandidate] = useState<PlaceCandidate | null>(null);
   const [generatedReviewLink, setGeneratedReviewLink] = useState<string | null>(null);
-  const [linkSource, setLinkSource] = useState<'GOOGLE_API_VERIFIED' | 'PLACE_ID_SYNTACTIC' | null>(null);
-  const [linkNotice, setLinkNotice] = useState<string | null>(null);
+  const [extractedPlaceId, setExtractedPlaceId] = useState<string | null>(null);
+  const [linkSource, setLinkSource] = useState<'PASTED_REVIEW_URL' | 'PLACE_ID_SYNTACTIC' | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedPlaceId, setCopiedPlaceId] = useState(false);
 
@@ -46,127 +47,79 @@ export default function ReviewLinkGeneratorPage() {
     addressCol?: string;
     cityCol?: string;
     placeIdCol?: string;
+    reviewUrlCol?: string;
   }>({});
-  const [bulkStatus, setBulkStatus] = useState<'idle' | 'parsed' | 'processing' | 'completed' | 'cancelled' | 'error'>('idle');
+  const [bulkStatus, setBulkStatus] = useState<'idle' | 'parsed' | 'completed' | 'error'>('idle');
   const [bulkError, setBulkError] = useState<string | null>(null);
-  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [bulkResults, setBulkResults] = useState<BulkProcessedRow[]>([]);
-  const [activeReviewCandidateRow, setActiveReviewCandidateRow] = useState<BulkProcessedRow | null>(null);
 
-  const cancelBulkRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ----------------------------------------------------
   // SINGLE BUSINESS HANDLERS
   // ----------------------------------------------------
-  const handleSingleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setSingleError(null);
-    setSingleErrorCode(null);
-    setCandidates([]);
-    setSelectedCandidate(null);
-    setGeneratedReviewLink(null);
-    setLinkSource(null);
-    setLinkNotice(null);
-
-    // If manual Place ID is provided directly
-    if (manualPlaceId.trim()) {
-      setIsSearching(true);
-      try {
-        const res = await fetch('/api/seo/review-link/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            placeId: manualPlaceId.trim(),
-            businessName: businessName.trim() || undefined,
-            address: location.trim() || undefined
-          })
-        });
-
-        const data: GenerateLinkResponse = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Failed to generate review link from Place ID');
-        }
-
-        setGeneratedReviewLink(data.reviewUrl);
-        setLinkSource(data.source);
-        if (data.warning) setLinkNotice(data.warning);
-      } catch (err: any) {
-        setSingleError(err.message || 'Error generating link');
-      } finally {
-        setIsSearching(false);
-      }
-      return;
-    }
-
+  const handleOpenGoogleMapsSearch = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!businessName.trim()) {
-      setSingleError('Please enter a business name to search.');
+      setSingleError('Please enter a business name to search on Google Maps.');
       return;
     }
-
-    setIsSearching(true);
-    try {
-      const res = await fetch('/api/seo/review-link/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businessName: businessName.trim(),
-          location: location.trim() || undefined
-        })
-      });
-
-      const data: SingleSearchResponse = await res.json();
-
-      if (!res.ok || !data.success) {
-        setSingleErrorCode(data.code || null);
-        throw new Error(data.error || 'Failed searching Google Places API');
-      }
-
-      if (data.candidates.length === 0) {
-        setSingleError(data.warning || 'No listings found for this business name and location.');
-        return;
-      }
-
-      setCandidates(data.candidates);
-
-      // If exactly 1 candidate with high confidence, auto-select it
-      if (data.candidates.length === 1 && data.candidates[0].confidence === 'HIGH') {
-        handleSelectCandidate(data.candidates[0]);
-      }
-    } catch (err: any) {
-      setSingleError(err.message || 'Network error reaching search service.');
-    } finally {
-      setIsSearching(false);
-    }
+    const mapsUrl = buildGoogleMapsSearchUrl(businessName, location);
+    window.open(mapsUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleSelectCandidate = async (cand: PlaceCandidate) => {
-    setSelectedCandidate(cand);
+  const handleGenerateSingleLink = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setSingleError(null);
+    setGeneratedReviewLink(null);
+    setExtractedPlaceId(null);
+    setLinkSource(null);
 
-    // Call generate endpoint to obtain direct link
+    if (singleInputMode === 'placeId') {
+      if (!placeId.trim()) {
+        setSingleError('Please enter a valid Google Place ID (e.g. ChIJN1t_tDeuEmsRUsoyG83frY4).');
+        return;
+      }
+      if (!isValidPlaceId(placeId.trim())) {
+        setSingleError('Invalid Google Place ID format. Place IDs are alphanumeric strings (15–120 characters).');
+        return;
+      }
+    } else {
+      if (!pastedReviewUrl.trim()) {
+        setSingleError('Please paste your existing Google review link (e.g. from Google Business Profile or g.page).');
+        return;
+      }
+      if (!isValidGoogleReviewUrl(pastedReviewUrl.trim())) {
+        setSingleError('Please enter a valid Google review link (e.g. search.google.com/local/writereview... or g.page/r/...).');
+        return;
+      }
+    }
+
+    setIsProcessing(true);
     try {
       const res = await fetch('/api/seo/review-link/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          placeId: cand.placeId,
-          businessName: cand.name,
-          address: cand.address,
-          writeReviewUrl: cand.writeReviewUrl
+          placeId: singleInputMode === 'placeId' ? placeId.trim() : undefined,
+          reviewUrl: singleInputMode === 'reviewUrl' ? pastedReviewUrl.trim() : undefined,
+          businessName: businessName.trim() || undefined,
+          location: location.trim() || undefined
         })
       });
 
       const data: GenerateLinkResponse = await res.json();
-      if (data.success) {
-        setGeneratedReviewLink(data.reviewUrl);
-        setLinkSource(data.source);
-        setLinkNotice(data.warning || null);
-      } else {
-        setSingleError(data.error || 'Failed generating review link.');
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to generate review link.');
       }
+
+      setGeneratedReviewLink(data.reviewUrl);
+      setExtractedPlaceId(data.placeId || null);
+      setLinkSource(data.source);
     } catch (err: any) {
-      setSingleError(err.message || 'Error generating link');
+      setSingleError(err.message || 'Error generating review link.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -181,7 +134,6 @@ export default function ReviewLinkGeneratorPage() {
         setTimeout(() => setCopiedPlaceId(false), 2500);
       }
     } catch {
-      // Fallback
       alert('Copied to clipboard: ' + text);
     }
   };
@@ -219,7 +171,6 @@ export default function ReviewLinkGeneratorPage() {
         headers = parsed.headers;
         rawRows = parsed.rows;
       } else {
-        // Reuse backend parse endpoint for Excel format if available
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
@@ -248,19 +199,22 @@ export default function ReviewLinkGeneratorPage() {
       }
 
       const cols = detectSpreadsheetColumns(headers);
-      if (!cols.businessNameCol && !cols.placeIdCol) {
-        throw new Error('Could not identify a "business_name" or "place_id" column in spreadsheet headers.');
+      if (!cols.placeIdCol && !cols.reviewUrlCol) {
+        throw new Error('Could not identify a "place_id" or "review_url" column in spreadsheet headers.');
       }
 
       setDetectedColumns(cols);
 
-      // Map rows to BulkInputRow
       const mapped: BulkInputRow[] = rawRows.map((r, idx) => ({
         rowIndex: idx + 1,
         businessName: cols.businessNameCol ? String(r[cols.businessNameCol] || '').trim() : '',
-        address: cols.addressCol ? String(r[cols.addressCol] || '').trim() : undefined,
-        city: cols.cityCol ? String(r[cols.cityCol] || '').trim() : undefined,
-        placeId: cols.placeIdCol ? String(r[cols.placeIdCol] || '').trim() : undefined
+        location: cols.cityCol
+          ? String(r[cols.cityCol] || '').trim()
+          : cols.addressCol
+          ? String(r[cols.addressCol] || '').trim()
+          : '',
+        placeId: cols.placeIdCol ? String(r[cols.placeIdCol] || '').trim() : undefined,
+        reviewUrl: cols.reviewUrlCol ? String(r[cols.reviewUrlCol] || '').trim() : undefined
       }));
 
       setParsedRows(mapped);
@@ -271,98 +225,28 @@ export default function ReviewLinkGeneratorPage() {
     }
   };
 
-  const startBulkProcessing = async () => {
+  const processBulkRows = async () => {
     if (parsedRows.length === 0) return;
-    setBulkStatus('processing');
     setBulkError(null);
-    cancelBulkRef.current = false;
 
-    const BATCH_SIZE = 50;
-    const allResults: BulkProcessedRow[] = [];
-    const totalBatches = Math.ceil(parsedRows.length / BATCH_SIZE);
+    try {
+      const res = await fetch('/api/seo/review-link/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: parsedRows })
+      });
 
-    setBulkProgress({ current: 0, total: parsedRows.length });
-
-    for (let b = 0; b < totalBatches; b++) {
-      if (cancelBulkRef.current) {
-        setBulkStatus('cancelled');
-        break;
+      const data: BulkBatchResponse = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to process bulk review links.');
       }
 
-      const chunk = parsedRows.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
-
-      try {
-        const res = await fetch('/api/seo/review-link/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rows: chunk,
-            batchIndex: b,
-            totalBatches
-          })
-        });
-
-        const data: BulkBatchResponse = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || `Batch ${b + 1} processing failed.`);
-        }
-
-        allResults.push(...data.results);
-        setBulkResults([...allResults]);
-        setBulkProgress({ current: allResults.length, total: parsedRows.length });
-
-        if (data.rateLimited) {
-          setBulkError('Google API rate limit reached. Remaining rows may be preserved or retried.');
-          break;
-        }
-      } catch (err: any) {
-        setBulkError(err.message || 'Error occurred during batch processing.');
-        // Add synthetic error rows for the failed chunk to preserve order
-        for (const item of chunk) {
-          allResults.push({
-            rowIndex: item.rowIndex,
-            inputBusinessName: item.businessName,
-            inputAddress: item.address || '',
-            inputCity: item.city || '',
-            status: 'API_ERROR',
-            statusNote: err.message || 'Batch request failed',
-            source: 'NONE'
-          });
-        }
-        setBulkResults([...allResults]);
-      }
-    }
-
-    if (!cancelBulkRef.current) {
+      setBulkResults(data.results);
       setBulkStatus('completed');
+    } catch (err: any) {
+      setBulkError(err.message || 'Error occurred during bulk processing.');
+      setBulkStatus('error');
     }
-  };
-
-  const handleCancelBulk = () => {
-    cancelBulkRef.current = true;
-    setBulkStatus('cancelled');
-  };
-
-  const handleConfirmCandidateForBulk = (rowIndex: number, candidate: PlaceCandidate) => {
-    setBulkResults(prev =>
-      prev.map(row => {
-        if (row.rowIndex === rowIndex) {
-          return {
-            ...row,
-            matchedBusinessName: candidate.name,
-            matchedAddress: candidate.address,
-            googlePlaceId: candidate.placeId,
-            googleReviewUrl: candidate.writeReviewUrl,
-            googleMapsUrl: candidate.mapsUrl,
-            status: 'MATCHED',
-            statusNote: 'Confirmed by user',
-            source: 'USER_CONFIRMED'
-          };
-        }
-        return row;
-      })
-    );
-    setActiveReviewCandidateRow(null);
   };
 
   const downloadBulkCsv = () => {
@@ -382,28 +266,28 @@ export default function ReviewLinkGeneratorPage() {
   return (
     <ToolLayout
       title="Google Review Link Generator"
-      description="Find your business on Google Maps and generate direct review links customers can use to leave a 5-star review."
+      description="Create direct, 5-star Google Review links for your business using Google Place IDs or existing GBP links — with zero API costs."
       category="Local SEO"
       breadcrumbs={[{ label: 'Review Link Generator' }]}
-      aboutText="Getting customers to write a Google Review is much higher when there is zero friction. This tool queries the official Google Places API (New) to identify your Google Business Profile and produces a genuine direct write-review URL that opens the 5-star rating popup directly."
+      aboutText="Customers are significantly more likely to leave a 5-star Google review when all friction is removed. This tool creates or cleans direct Google review URLs that launch the rating box immediately on desktop and mobile — completely free without requiring Google Cloud billing or paid API keys."
       howItWorks={[
-        "Enter your business name and location, or provide an existing Google Place ID.",
-        "Our server searches the Google Places API (New) to find matching verified listings.",
-        "Select your listing or confirm ambiguous candidate matches.",
-        "Copy your direct review link to share via SMS, email, WhatsApp, or print on receipts and QR codes."
+        "Option A: Enter your Google Place ID to generate the official direct write-review link.",
+        "Option B: Paste your existing Google review link (from Google Business Profile) to format and bulk-export it.",
+        "Need to find your business? Use the Google Maps Search helper above to open your listing and locate your Place ID.",
+        "For multiple branches, upload a spreadsheet with Place IDs or links and download a clean CSV."
       ]}
       faq={[
         {
-          question: "How does the direct review link work?",
-          answer: "It uses either the official Google-provided writeAReviewUri or Google's local write-review format (search.google.com/local/writereview?placeid=...). Customers click it and the 5-star review box opens instantly on desktop and mobile."
+          question: "How does the direct Google review link work?",
+          answer: "It uses Google's official local write-review format: https://search.google.com/local/writereview?placeid=PLACE_ID. When clicked by customers, it opens directly into the 5-star review dialog without requiring extra navigation."
         },
         {
-          question: "Can I generate links for multiple locations in bulk?",
-          answer: "Yes! Switch to the 'Bulk Upload' tab, upload a CSV or Excel file containing your business names and cities, and the tool will batch-match them and provide a complete downloadable CSV."
+          question: "How do I find my Google Place ID?",
+          answer: "You can find your Place ID through Google's free Place ID Finder (developers.google.com/maps/documentation/places/web-service/place-id) or from your Google Business Profile dashboard under 'Ask for reviews'."
         },
         {
-          question: "What if Google finds multiple businesses with the same name?",
-          answer: "We do not guess. If multiple plausible locations are returned, the tool marks them as 'Needs Review' and lets you select the exact branch."
+          question: "Does this require Google Cloud billing or API keys?",
+          answer: "No! This tool operates at 100% zero cost. No Google Cloud project, billing accounts, credit cards, or paid APIs are required."
         }
       ]}
     >
@@ -417,7 +301,7 @@ export default function ReviewLinkGeneratorPage() {
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
-          Single Business Lookup
+          Single Business Link Generator
         </button>
         <button
           onClick={() => setActiveTab('bulk')}
@@ -427,185 +311,156 @@ export default function ReviewLinkGeneratorPage() {
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
-          Bulk Spreadsheet Upload
+          Bulk Spreadsheet Upload & Export
         </button>
       </div>
 
       {/* ==================================================== */}
-      {/* TAB 1: SINGLE BUSINESS LOOKUP                        */}
+      {/* TAB 1: SINGLE BUSINESS GENERATOR                     */}
       {/* ==================================================== */}
       {activeTab === 'single' && (
         <div className="space-y-8">
-          <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-              Find Business Listing
-            </h2>
+          {/* STEP 1: GOOGLE MAPS LOOKUP HELPER */}
+          <div className="bg-slate-50 dark:bg-slate-900/40 p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center">
+                1
+              </span>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Find Your Business on Google Maps (Optional Helper)
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Need to locate your business listing on Google Maps? Enter your business name and city to search on Google Maps in a new tab:
+            </p>
 
-            <form onSubmit={handleSingleSearch} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Business Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
-                    placeholder="e.g. Barbeque Nation"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    City or Location <span className="text-slate-400 text-xs font-normal">(Recommended)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="e.g. Indiranagar, Bengaluru"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
+            <form onSubmit={handleOpenGoogleMapsSearch} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <input
+                  type="text"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="Business Name (e.g. Barbeque Nation)"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
               </div>
-
-              {/* Expandable Manual Place ID Option */}
-              <div className="pt-2">
+              <div>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="City / Area (e.g. Indiranagar, Bengaluru)"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
                 <button
-                  type="button"
-                  onClick={() => setShowManualPlaceId(!showManualPlaceId)}
-                  className="text-sm font-semibold text-green-600 dark:text-green-400 hover:underline flex items-center gap-1.5 cursor-pointer"
+                  type="submit"
+                  className="w-full px-4 py-2.5 bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <svg
-                    className={`w-4 h-4 transition-transform ${showManualPlaceId ? 'rotate-90' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                  Already have a Google Place ID? (Bypass API search)
+                  Search on Google Maps
                 </button>
-
-                {showManualPlaceId && (
-                  <div className="mt-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-700">
-                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                      Direct Google Place ID
-                    </label>
-                    <input
-                      type="text"
-                      value={manualPlaceId}
-                      onChange={(e) => setManualPlaceId(e.target.value)}
-                      placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
-                      className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Entering a Place ID generates the direct review link immediately without requiring a Google Maps API search.
-                    </p>
-                  </div>
-                )}
               </div>
+            </form>
+          </div>
+
+          {/* STEP 2: GENERATE DIRECT REVIEW LINK */}
+          <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 font-bold text-xs flex items-center justify-center">
+                2
+              </span>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                Generate Review Link
+              </h2>
+            </div>
+
+            {/* Toggle Input Mode */}
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-2xl max-w-md">
+              <button
+                type="button"
+                onClick={() => setSingleInputMode('placeId')}
+                className={`flex-1 py-2 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  singleInputMode === 'placeId'
+                    ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Use Google Place ID
+              </button>
+              <button
+                type="button"
+                onClick={() => setSingleInputMode('reviewUrl')}
+                className={`flex-1 py-2 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  singleInputMode === 'reviewUrl'
+                    ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Paste Existing Google Review Link
+              </button>
+            </div>
+
+            <form onSubmit={handleGenerateSingleLink} className="space-y-4">
+              {singleInputMode === 'placeId' ? (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Google Place ID <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={placeId}
+                    onChange={(e) => setPlaceId(e.target.value)}
+                    placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Generates <code>https://search.google.com/local/writereview?placeid=...</code> directly.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Existing Google Review URL <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={pastedReviewUrl}
+                    onChange={(e) => setPastedReviewUrl(e.target.value)}
+                    placeholder="e.g. https://g.page/r/Cb77_example/review or https://search.google.com/local/writereview?placeid=..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Paste your review link from your Google Business Profile dashboard under &quot;Ask for reviews&quot;.
+                  </p>
+                </div>
+              )}
 
               {/* ACTION BUTTON */}
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={isSearching}
+                  disabled={isProcessing}
                   className="w-full sm:w-auto px-8 py-3.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {isSearching ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Searching Google Places...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      {manualPlaceId.trim() ? 'Generate Review Link' : 'Find Business'}
-                    </>
-                  )}
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Generate Direct Review Link
                 </button>
               </div>
             </form>
 
-            {/* ERROR OR CONFIGURATION WARNING */}
+            {/* ERROR NOTICE */}
             {singleError && (
-              <div className="mt-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200">
-                <div className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <div>
-                    <h4 className="font-bold text-sm">
-                      {singleErrorCode === 'API_KEY_NOT_CONFIGURED' ? 'Google API Key Required' : 'Search Notice'}
-                    </h4>
-                    <p className="text-sm mt-0.5">{singleError}</p>
-                    {singleErrorCode === 'API_KEY_NOT_CONFIGURED' && (
-                      <p className="text-xs text-amber-800 dark:text-amber-300 mt-2">
-                        Tip: You can still generate direct review links by clicking <strong>&quot;Already have a Google Place ID?&quot;</strong> above and entering your Place ID directly.
-                      </p>
-                    )}
-                  </div>
-                </div>
+              <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-800 dark:text-red-300 text-sm">
+                {singleError}
               </div>
             )}
           </div>
-
-          {/* CANDIDATES LIST */}
-          {candidates.length > 0 && !generatedReviewLink && (
-            <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Matching Google Business Listings ({candidates.length})
-                </h3>
-                <span className="text-xs text-slate-500">Please select your listing below</span>
-              </div>
-
-              <div className="space-y-3">
-                {candidates.map((cand) => (
-                  <div
-                    key={cand.placeId}
-                    className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-green-500 dark:hover:border-green-500 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 dark:text-white">{cand.name}</span>
-                        {cand.confidence === 'HIGH' && (
-                          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
-                            High Match
-                          </span>
-                        )}
-                        {cand.confidence === 'NEEDS_CONFIRMATION' && (
-                          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-                            Review Match
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">{cand.address}</p>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 font-mono">
-                        <span>Place ID: {cand.placeId}</span>
-                        {cand.rating && (
-                          <span className="flex items-center gap-1 text-amber-600 font-sans font-bold">
-                            ★ {cand.rating} ({cand.userRatingCount || 0})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleSelectCandidate(cand)}
-                      className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold text-sm rounded-xl shrink-0 transition-all cursor-pointer"
-                    >
-                      Select Listing
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* GENERATED RESULT CARD */}
           {generatedReviewLink && (
@@ -622,9 +477,9 @@ export default function ReviewLinkGeneratorPage() {
                       Google Review Link Ready
                     </h3>
                     <p className="text-xs text-slate-500">
-                      {linkSource === 'GOOGLE_API_VERIFIED'
-                        ? 'Verified through Google Places API (writeAReviewUri)'
-                        : 'Generated via verified Google Place ID'}
+                      {linkSource === 'PLACE_ID_SYNTACTIC'
+                        ? 'Built using official Place ID write-review structure'
+                        : 'Formatted and verified Google review link'}
                     </p>
                   </div>
                 </div>
@@ -632,34 +487,40 @@ export default function ReviewLinkGeneratorPage() {
                 <button
                   onClick={() => {
                     setGeneratedReviewLink(null);
-                    setSelectedCandidate(null);
+                    setExtractedPlaceId(null);
                   }}
                   className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline cursor-pointer"
                 >
-                  Search Again
+                  Clear Result
                 </button>
               </div>
 
               {/* DETAILS */}
-              {selectedCandidate && (
-                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
-                  <div className="text-base font-bold text-slate-900 dark:text-white">
-                    {selectedCandidate.name}
-                  </div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400">
-                    {selectedCandidate.address}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <span className="text-xs font-mono bg-white dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300">
-                      Place ID: {selectedCandidate.placeId}
-                    </span>
-                    <button
-                      onClick={() => copyToClipboard(selectedCandidate.placeId, 'placeId')}
-                      className="text-xs text-green-600 dark:text-green-400 font-bold hover:underline cursor-pointer"
-                    >
-                      {copiedPlaceId ? 'Copied ID!' : 'Copy ID'}
-                    </button>
-                  </div>
+              {(businessName || location || extractedPlaceId) && (
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                  {businessName && (
+                    <div className="text-base font-bold text-slate-900 dark:text-white">
+                      {businessName}
+                    </div>
+                  )}
+                  {location && (
+                    <div className="text-sm text-slate-600 dark:text-slate-400">
+                      {location}
+                    </div>
+                  )}
+                  {extractedPlaceId && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-xs font-mono bg-white dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300">
+                        Place ID: {extractedPlaceId}
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(extractedPlaceId, 'placeId')}
+                        className="text-xs text-green-600 dark:text-green-400 font-bold hover:underline cursor-pointer"
+                      >
+                        {copiedPlaceId ? 'Copied ID!' : 'Copy ID'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -700,12 +561,6 @@ export default function ReviewLinkGeneratorPage() {
                     </a>
                   </div>
                 </div>
-
-                {linkNotice && (
-                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
-                    {linkNotice}
-                  </p>
-                )}
               </div>
             </div>
           )}
@@ -720,10 +575,10 @@ export default function ReviewLinkGeneratorPage() {
           <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-                Bulk Review Link Generation
+                Bulk Review Link Generation & Export
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Upload a CSV or Excel spreadsheet containing your branch locations. Our system will process them in bounded batches.
+                Upload a spreadsheet (.csv or .xlsx) containing Place IDs or Google review URLs to generate and clean links for all locations at once.
               </p>
             </div>
 
@@ -768,7 +623,7 @@ export default function ReviewLinkGeneratorPage() {
                 {file ? file.name : 'Click or drag spreadsheet file here'}
               </h3>
               <p className="text-xs text-slate-500">
-                Supports .CSV and .XLSX (Max 10 MB). Expected columns: <code>business_name</code>, <code>city</code>, or <code>place_id</code>.
+                Supports .CSV and .XLSX (Max 10 MB). Columns detected automatically: <code>place_id</code> or <code>review_url</code>, with optional <code>business_name</code> and <code>city</code>.
               </p>
             </div>
 
@@ -785,46 +640,21 @@ export default function ReviewLinkGeneratorPage() {
                 <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-100 dark:bg-slate-900/50">
                   <div>
                     <div className="font-bold text-slate-900 dark:text-white text-sm">
-                      {parsedRows.length} locations detected
+                      {parsedRows.length} locations ready to process
                     </div>
                     <div className="text-xs text-slate-500 flex flex-wrap gap-2 mt-0.5">
-                      <span>Name Column: <strong>{detectedColumns.businessNameCol || 'N/A'}</strong></span>
-                      <span>City/Address Column: <strong>{detectedColumns.cityCol || detectedColumns.addressCol || 'N/A'}</strong></span>
-                      {detectedColumns.placeIdCol && <span>Place ID Column: <strong>{detectedColumns.placeIdCol}</strong></span>}
+                      {detectedColumns.placeIdCol && <span>Place ID: <strong>{detectedColumns.placeIdCol}</strong></span>}
+                      {detectedColumns.reviewUrlCol && <span>Review URL: <strong>{detectedColumns.reviewUrlCol}</strong></span>}
+                      {detectedColumns.businessNameCol && <span>Name: <strong>{detectedColumns.businessNameCol}</strong></span>}
                     </div>
                   </div>
 
                   <button
-                    onClick={startBulkProcessing}
+                    onClick={processBulkRows}
                     className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md cursor-pointer transition-all text-sm"
                   >
-                    Generate Review Links
+                    Generate All Review Links
                   </button>
-                </div>
-              </div>
-            )}
-
-            {/* PROCESSING PROGRESS */}
-            {bulkStatus === 'processing' && (
-              <div className="space-y-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-bold text-slate-800 dark:text-white">
-                    Processing batches... ({bulkProgress.current} / {bulkProgress.total})
-                  </span>
-                  <button
-                    onClick={handleCancelBulk}
-                    className="text-xs font-bold text-red-600 dark:text-red-400 hover:underline cursor-pointer"
-                  >
-                    Cancel Remaining
-                  </button>
-                </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
-                    style={{
-                      width: `${bulkProgress.total > 0 ? (bulkProgress.current / bulkProgress.total) * 100 : 0}%`
-                    }}
-                  ></div>
                 </div>
               </div>
             )}
@@ -839,13 +669,10 @@ export default function ReviewLinkGeneratorPage() {
                     </h3>
                     <div className="text-xs text-slate-500 flex gap-3 mt-1">
                       <span className="text-green-600 dark:text-green-400 font-bold">
-                        Matched: {bulkResults.filter(r => r.status === 'MATCHED').length}
-                      </span>
-                      <span className="text-amber-600 dark:text-amber-400 font-bold">
-                        Needs Review: {bulkResults.filter(r => r.status === 'NEEDS_REVIEW').length}
+                        Ready: {bulkResults.filter(r => r.status === 'MATCHED').length}
                       </span>
                       <span className="text-red-500 font-bold">
-                        Failed/Not Found: {bulkResults.filter(r => ['NOT_FOUND', 'INVALID_INPUT', 'API_ERROR', 'RATE_LIMITED'].includes(r.status)).length}
+                        Invalid Input: {bulkResults.filter(r => r.status === 'INVALID_INPUT').length}
                       </span>
                     </div>
                   </div>
@@ -866,10 +693,11 @@ export default function ReviewLinkGeneratorPage() {
                     <thead>
                       <tr className="bg-slate-100 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-300">
                         <th className="p-3">#</th>
-                        <th className="p-3">Input Business</th>
-                        <th className="p-3">Matched Listing</th>
-                        <th className="p-3">Status</th>
+                        <th className="p-3">Business</th>
+                        <th className="p-3">Location</th>
+                        <th className="p-3">Place ID</th>
                         <th className="p-3">Review Link</th>
+                        <th className="p-3">Status</th>
                         <th className="p-3">Action</th>
                       </tr>
                     </thead>
@@ -877,40 +705,10 @@ export default function ReviewLinkGeneratorPage() {
                       {bulkResults.map((r) => (
                         <tr key={r.rowIndex} className="hover:bg-slate-50 dark:hover:bg-slate-900/30">
                           <td className="p-3 font-mono text-slate-500">{r.rowIndex}</td>
-                          <td className="p-3">
-                            <div className="font-bold">{r.inputBusinessName || '—'}</div>
-                            <div className="text-xs text-slate-500">{[r.inputAddress, r.inputCity].filter(Boolean).join(', ')}</div>
-                          </td>
-                          <td className="p-3">
-                            <div className="font-bold">{r.matchedBusinessName || '—'}</div>
-                            <div className="text-xs text-slate-500">{r.matchedAddress || '—'}</div>
-                            {r.googlePlaceId && (
-                              <div className="text-[11px] font-mono text-slate-400">ID: {r.googlePlaceId}</div>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            {r.status === 'MATCHED' && (
-                              <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 font-bold text-xs">
-                                Matched
-                              </span>
-                            )}
-                            {r.status === 'NEEDS_REVIEW' && (
-                              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-bold text-xs">
-                                Needs Review
-                              </span>
-                            )}
-                            {r.status === 'NOT_FOUND' && (
-                              <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 font-bold text-xs">
-                                Not Found
-                              </span>
-                            )}
-                            {['API_ERROR', 'RATE_LIMITED', 'INVALID_INPUT'].includes(r.status) && (
-                              <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold text-xs">
-                                {r.status}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 max-w-[200px]">
+                          <td className="p-3 font-bold">{r.inputBusinessName || '—'}</td>
+                          <td className="p-3 text-slate-600 dark:text-slate-400">{r.inputLocation || '—'}</td>
+                          <td className="p-3 font-mono text-xs text-slate-500">{r.googlePlaceId || r.inputPlaceId || '—'}</td>
+                          <td className="p-3 max-w-[220px]">
                             {r.googleReviewUrl ? (
                               <a
                                 href={r.googleReviewUrl}
@@ -925,14 +723,17 @@ export default function ReviewLinkGeneratorPage() {
                             )}
                           </td>
                           <td className="p-3">
-                            {r.status === 'NEEDS_REVIEW' && r.candidates && r.candidates.length > 0 && (
-                              <button
-                                onClick={() => setActiveReviewCandidateRow(r)}
-                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg cursor-pointer"
-                              >
-                                Choose ({r.candidates.length})
-                              </button>
+                            {r.status === 'MATCHED' ? (
+                              <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 font-bold text-xs">
+                                Ready
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold text-xs">
+                                Invalid
+                              </span>
                             )}
+                          </td>
+                          <td className="p-3">
                             {r.googleReviewUrl && (
                               <button
                                 onClick={() => copyToClipboard(r.googleReviewUrl!, 'link')}
@@ -950,51 +751,6 @@ export default function ReviewLinkGeneratorPage() {
               </div>
             )}
           </div>
-
-          {/* CANDIDATE CONFIRMATION MODAL FOR AMBIGUOUS BULK ROW */}
-          {activeReviewCandidateRow && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-              <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                      Confirm Listing for Row #{activeReviewCandidateRow.rowIndex}
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Query: &quot;{activeReviewCandidateRow.inputBusinessName}&quot; ({activeReviewCandidateRow.inputCity || activeReviewCandidateRow.inputAddress || 'No location'})
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setActiveReviewCandidateRow(null)}
-                    className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                  {activeReviewCandidateRow.candidates?.map((cand) => (
-                    <div
-                      key={cand.placeId}
-                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-green-500 flex items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="font-bold text-sm text-slate-900 dark:text-white">{cand.name}</div>
-                        <div className="text-xs text-slate-600 dark:text-slate-400">{cand.address}</div>
-                        <div className="text-[11px] font-mono text-slate-400">ID: {cand.placeId}</div>
-                      </div>
-                      <button
-                        onClick={() => handleConfirmCandidateForBulk(activeReviewCandidateRow.rowIndex, cand)}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0"
-                      >
-                        Select
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </ToolLayout>

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeBulkBatch, MAX_BATCH_SIZE } from '@/lib/seo/reviewLinkService';
+import { executeBulkBatch } from '@/lib/seo/reviewLinkService';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { rows, batchIndex, totalBatches } = body;
+    const { rows } = body;
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json(
@@ -19,22 +19,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (rows.length > MAX_BATCH_SIZE) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Batch size of ${rows.length} exceeds maximum allowed limit of ${MAX_BATCH_SIZE} rows per request.`,
-          code: 'BATCH_SIZE_EXCEEDED'
-        },
-        { status: 400 }
-      );
-    }
-
-    const result = await executeBulkBatch(
-      rows,
-      typeof batchIndex === 'number' ? batchIndex : 0,
-      typeof totalBatches === 'number' ? totalBatches : 1
-    );
+    const result = executeBulkBatch(rows);
 
     return NextResponse.json(result, { status: 200 });
   } catch (err: any) {

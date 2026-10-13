@@ -6,9 +6,9 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { placeId, businessName, address, writeReviewUrl } = body;
+    const { placeId, reviewUrl, businessName, location } = body;
 
-    const result = executeGenerateLink(placeId, businessName, address, writeReviewUrl);
+    const result = executeGenerateLink(placeId, reviewUrl, businessName, location);
 
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });

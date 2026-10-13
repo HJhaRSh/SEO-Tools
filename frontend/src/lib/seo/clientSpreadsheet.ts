@@ -118,13 +118,14 @@ export function parseClientCsv(text: string): { headers: string[]; rows: Record<
 }
 
 /**
- * Automatically identify business_name, address, city, and place_id columns
+ * Automatically identify business_name, address, city, place_id, and review_url columns
  */
 export function detectSpreadsheetColumns(headers: string[]): {
   businessNameCol?: string;
   addressCol?: string;
   cityCol?: string;
   placeIdCol?: string;
+  reviewUrlCol?: string;
 } {
   const lowerMap = new Map<string, string>();
   for (const h of headers) {
@@ -181,10 +182,22 @@ export function detectSpreadsheetColumns(headers: string[]): {
     'google_id'
   ]);
 
+  const reviewUrlCol = findFirstMatch([
+    'review_url',
+    'review url',
+    'google_review_url',
+    'google review url',
+    'review_link',
+    'review link',
+    'link',
+    'url'
+  ]);
+
   return {
     businessNameCol,
     addressCol,
     cityCol,
-    placeIdCol
+    placeIdCol,
+    reviewUrlCol
   };
 }
