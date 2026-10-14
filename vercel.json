@@ -28,6 +28,12 @@
       }
     },
     {
+      "source": "/api/seo/serp-simulator/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"

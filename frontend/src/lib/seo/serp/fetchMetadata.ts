@@ -1,6 +1,5 @@
 import dns from 'dns';
 import { promisify } from 'util';
-import * as cheerio from 'cheerio';
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -139,11 +138,70 @@ export interface ExtractedMetadata {
 }
 
 /**
- * Clean and collapse duplicate whitespace.
+ * Decodes standard HTML entities without external libraries.
+ */
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, dec) => {
+      try {
+        return String.fromCharCode(parseInt(dec, 10));
+      } catch {
+        return _;
+      }
+    })
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+      try {
+        return String.fromCharCode(parseInt(hex, 16));
+      } catch {
+        return _;
+      }
+    });
+}
+
+/**
+ * Clean, decode entities, and collapse duplicate whitespace.
  */
 function cleanText(str: string | null | undefined): string {
   if (!str) return '';
-  return str.replace(/\s+/g, ' ').trim();
+  const decoded = decodeHtmlEntities(str);
+  return decoded.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Safely extracts tag text and attribute values without external dependencies.
+ */
+function extractHtmlTagContent(html: string, tagName: string): string | null {
+  const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, 'i');
+  const match = html.match(regex);
+  return match ? match[1] : null;
+}
+
+function extractMetaContent(html: string, attrName: string, attrValue: string): string | null {
+  const regex = new RegExp(`<meta[^>]*${attrName}=["']${attrValue}["'][^>]*content=["']([^"']*)["']`, 'i');
+  const match = html.match(regex);
+  if (match) return match[1];
+
+  // Try reverse order: content="..." attrName="..."
+  const reverseRegex = new RegExp(`<meta[^>]*content=["']([^"']*)["'][^>]*${attrName}=["']${attrValue}["']`, 'i');
+  const reverseMatch = html.match(reverseRegex);
+  return reverseMatch ? reverseMatch[1] : null;
+}
+
+function extractLinkHref(html: string, relValue: string): string | null {
+  const regex = new RegExp(`<link[^>]*rel=["'][^"']*${relValue}[^"']*["'][^>]*href=["']([^"']*)["']`, 'i');
+  const match = html.match(regex);
+  if (match) return match[1];
+
+  const reverseRegex = new RegExp(`<link[^>]*href=["']([^"']*)["'][^>]*rel=["'][^"']*${relValue}[^"']*["']`, 'i');
+  const reverseMatch = html.match(reverseRegex);
+  return reverseMatch ? reverseMatch[1] : null;
 }
 
 /**
@@ -211,35 +269,33 @@ export async function fetchPageMetadata(targetUrl: string): Promise<ExtractedMet
       html = await response.text();
     }
 
-    const $ = cheerio.load(html);
-
-    // Title extraction with priority: <title> then og:title
-    let title = cleanText($('title').first().text());
+    // Title extraction with priority: <title> then og:title then twitter:title
+    let title = cleanText(extractHtmlTagContent(html, 'title'));
     if (!title) {
-      title = cleanText($('meta[property="og:title"]').attr('content'));
+      title = cleanText(extractMetaContent(html, 'property', 'og:title') || extractMetaContent(html, 'name', 'og:title'));
     }
     if (!title) {
-      title = cleanText($('meta[name="twitter:title"]').attr('content'));
+      title = cleanText(extractMetaContent(html, 'name', 'twitter:title') || extractMetaContent(html, 'property', 'twitter:title'));
     }
 
-    // Description extraction with priority: meta[name="description"] then og:description
-    let description = cleanText($('meta[name="description"]').attr('content'));
+    // Description extraction with priority: meta[name="description"] then og:description then twitter:description
+    let description = cleanText(extractMetaContent(html, 'name', 'description') || extractMetaContent(html, 'property', 'description'));
     if (!description) {
-      description = cleanText($('meta[property="og:description"]').attr('content'));
+      description = cleanText(extractMetaContent(html, 'property', 'og:description') || extractMetaContent(html, 'name', 'og:description'));
     }
     if (!description) {
-      description = cleanText($('meta[name="twitter:description"]').attr('content'));
+      description = cleanText(extractMetaContent(html, 'name', 'twitter:description') || extractMetaContent(html, 'property', 'twitter:description'));
     }
 
     // Canonical link
-    const canonical = cleanText($('link[rel="canonical"]').attr('href')) || null;
+    const canonical = cleanText(extractLinkHref(html, 'canonical')) || null;
 
     // Site Name
-    const siteName = cleanText($('meta[property="og:site_name"]').attr('content')) || null;
+    const siteName = cleanText(extractMetaContent(html, 'property', 'og:site_name') || extractMetaContent(html, 'name', 'og:site_name')) || null;
 
     // Favicon link
     let favicon: string | null = null;
-    const faviconHref = $('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').first().attr('href');
+    const faviconHref = extractLinkHref(html, 'icon') || extractLinkHref(html, 'shortcut icon') || extractLinkHref(html, 'apple-touch-icon');
     if (faviconHref) {
       try {
         favicon = new URL(faviconHref, response.url || validatedUrl.toString()).toString();
