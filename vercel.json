@@ -34,6 +34,12 @@
       }
     },
     {
+      "source": "/api/seo/knowledge-graph/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"
