@@ -40,6 +40,12 @@
       }
     },
     {
+      "source": "/api/seo/hreflang/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"
