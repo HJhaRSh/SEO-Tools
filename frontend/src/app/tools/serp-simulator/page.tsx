@@ -120,7 +120,12 @@ export default function SerpSimulator() {
     let approxLines = Math.max(1, Math.ceil(width / limits.descriptionLineWidthPx));
 
     if (isMounted) {
-      const wrapped = calculateWrappedLines(fullDescriptionText, limits.descriptionLineWidthPx, fonts.description);
+      const wrapped = calculateWrappedLines(
+        fullDescriptionText,
+        limits.descriptionLineWidthPx,
+        fonts.description,
+        limits.descriptionLines
+      );
       isOverLimit = wrapped.isOverLimit;
       approxLines = wrapped.totalLines;
     }
@@ -399,7 +404,7 @@ export default function SerpSimulator() {
                   <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
-                  Description is longer than typical 2-line visible SERP capacity.
+                  Description is longer than typical {limits.descriptionLines}-line visible SERP capacity.
                 </p>
               )}
             </div>

@@ -262,20 +262,43 @@ export async function validateHreflangCluster(
           ...headerParsed.annotations,
         ];
 
-        // Does any annotation on the alternate page link back to the source URL?
-        const normSource = sourceUrl.replace(/\/$/, '');
+        // Does any annotation on the alternate page link back to the exact source URL?
         const matchingReturn = alternateDeclaredAnnotations.find((altAnn) => {
-          const normAltHref = altAnn.href.replace(/\/$/, '');
-          return normAltHref === normSource;
+          return altAnn.href === sourceUrl;
         });
 
         if (matchingReturn) {
-          returnTagFound = true;
-          returnTagDetails = {
-            expectedUrl: sourceUrl,
-            foundHreflang: matchingReturn.hreflang,
-            foundUrl: matchingReturn.href,
-          };
+          // Identify source page's expected language from its own self-referencing tags or annotations
+          const sourceSelfAnn = annotations.find((a) => a.isSelfReference || a.href === sourceUrl);
+          const expectedSourceLang = sourceSelfAnn?.normalizedHreflang;
+
+          let languageMatches = true;
+          if (expectedSourceLang && matchingReturn.normalizedHreflang !== 'x-default') {
+            languageMatches = matchingReturn.normalizedHreflang === expectedSourceLang;
+          }
+
+          if (languageMatches) {
+            returnTagFound = true;
+            returnTagDetails = {
+              expectedUrl: sourceUrl,
+              foundHreflang: matchingReturn.hreflang,
+              foundUrl: matchingReturn.href,
+            };
+          } else {
+            returnTagFound = false;
+            returnTagDetails = {
+              expectedUrl: sourceUrl,
+              foundHreflang: matchingReturn.hreflang,
+              foundUrl: matchingReturn.href,
+            };
+            itemIssues.push({
+              code: 'WRONG_LANGUAGE_RETURN_TAG',
+              severity: 'error',
+              message: `Reciprocal return link language mismatch: "${ann.href}" links back to "${sourceUrl}" with hreflang="${matchingReturn.hreflang}", but source declares "${expectedSourceLang}".`,
+              alternateUrl: ann.href,
+              hreflang: ann.hreflang,
+            });
+          }
         } else {
           returnTagFound = false;
           returnTagDetails = {

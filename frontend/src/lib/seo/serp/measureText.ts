@@ -108,11 +108,13 @@ export function truncateToPixelWidth(
 /**
  * Accurately simulates multiline text wrapping by word boundaries
  * rather than simple linear width division.
+ * Gracefully handles words wider than lineWidthPx (matching CSS word-break: break-word).
  */
 export function calculateWrappedLines(
   text: string,
   lineWidthPx: number,
-  font: string
+  font: string,
+  maxLines: number = 2
 ): { lines: string[]; isOverLimit: boolean; totalLines: number } {
   if (!text || !text.trim()) {
     return { lines: [], isOverLimit: false, totalLines: 0 };
@@ -131,8 +133,25 @@ export function calculateWrappedLines(
     } else {
       if (currentLine) {
         lines.push(currentLine);
+        currentLine = '';
       }
-      currentLine = word;
+
+      // If a single word itself exceeds lineWidthPx, break characters (CSS word-break: break-word)
+      if (measureTextWidth(word, font) > lineWidthPx) {
+        let remainingWord = word;
+        while (remainingWord.length > 0) {
+          const chars = Array.from(remainingWord);
+          let sliceCount = chars.length;
+          while (sliceCount > 1 && measureTextWidth(chars.slice(0, sliceCount).join(''), font) > lineWidthPx) {
+            sliceCount--;
+          }
+          const chunk = chars.slice(0, sliceCount).join('');
+          lines.push(chunk);
+          remainingWord = chars.slice(sliceCount).join('');
+        }
+      } else {
+        currentLine = word;
+      }
     }
   }
 
@@ -142,7 +161,7 @@ export function calculateWrappedLines(
 
   return {
     lines,
-    isOverLimit: lines.length > 2,
+    isOverLimit: lines.length > maxLines,
     totalLines: lines.length,
   };
 }

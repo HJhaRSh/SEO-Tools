@@ -114,29 +114,63 @@ export async function POST(req: NextRequest) {
         }
       );
     } else {
+      // Identify the declared language of each source URL in the sitemap
+      // sourceUrl -> (language or x-default declared for itself)
+      const sourceSelfLangs = new Map<string, Set<string>>();
+      for (const ann of allAnnotations) {
+        if (!sourceSelfLangs.has(ann.sourceUrl)) {
+          sourceSelfLangs.set(ann.sourceUrl, new Set<string>());
+        }
+        if (ann.isSelfReference) {
+          sourceSelfLangs.get(ann.sourceUrl)!.add(ann.normalizedHreflang);
+        }
+      }
+
       // Static validation across the sitemap dataset
       for (const ann of allAnnotations) {
         const itemIssues = [...sitemapIssues.filter((iss) => iss.alternateUrl === ann.href && iss.hreflang === ann.hreflang)];
         
         // Static return check: Check if destination URL also exists as a <url> in the sitemap
-        // and points back to sourceUrl with the correct language tag
+        // and points back to exact sourceUrl with the correct language tag
         let returnTagFound: boolean | null = null;
         if (ann.isSelfReference) {
           returnTagFound = true;
         } else {
           const destEntry = sitemapMap.get(ann.href);
           if (destEntry) {
-            let foundBack = false;
+            let foundBackUrl = false;
             let foundCorrectLanguage = false;
+            let returnLangFound: string | undefined = undefined;
+
+            // What languages are declared for sourceUrl on its own page?
+            const expectedSourceLangs = sourceSelfLangs.get(ann.sourceUrl) || new Set<string>();
+
             for (const [retLang, returnHref] of destEntry.entries()) {
-              if (returnHref === ann.sourceUrl || returnHref.replace(/\/$/, '') === ann.sourceUrl.replace(/\/$/, '')) {
-                foundBack = true;
-                foundCorrectLanguage = true;
-                break;
+              // Exact URL comparison (respect trailing slash)
+              if (returnHref === ann.sourceUrl) {
+                foundBackUrl = true;
+                returnLangFound = retLang;
+
+                // Return language must match one of the languages the source claims for itself, or be x-default,
+                // or if source has no self-ref, it should not contradict ann's own relationship
+                if (expectedSourceLangs.size > 0) {
+                  if (expectedSourceLangs.has(retLang) || retLang === 'x-default') {
+                    foundCorrectLanguage = true;
+                    break;
+                  }
+                } else {
+                  // Fallback when source has no explicit self-referencing tag:
+                  // The destination should not declare the same language as its own target
+                  if (retLang !== ann.normalizedHreflang || retLang === 'x-default') {
+                    foundCorrectLanguage = true;
+                    break;
+                  }
+                }
               }
             }
-            returnTagFound = foundBack && foundCorrectLanguage;
-            if (!foundBack) {
+
+            if (!foundBackUrl) {
+              returnTagFound = false;
               itemIssues.push({
                 code: 'MISSING_RETURN_TAG',
                 severity: 'error',
@@ -144,6 +178,17 @@ export async function POST(req: NextRequest) {
                 alternateUrl: ann.href,
                 hreflang: ann.hreflang,
               });
+            } else if (!foundCorrectLanguage) {
+              returnTagFound = false;
+              itemIssues.push({
+                code: 'WRONG_LANGUAGE_RETURN_TAG',
+                severity: 'error',
+                message: `Reciprocal return link language mismatch: Destination URL "${ann.href}" links back to "${ann.sourceUrl}" but with hreflang="${returnLangFound}", which does not match source language.`,
+                alternateUrl: ann.href,
+                hreflang: ann.hreflang,
+              });
+            } else {
+              returnTagFound = true;
             }
           } else {
             // Not listed as an entry in this sitemap

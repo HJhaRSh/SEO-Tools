@@ -150,13 +150,23 @@ export async function safeFetch(
   const redirectChain: string[] = [];
   let redirectCount = 0;
 
-  while (redirectCount <= maxRedirects) {
-    const validatedUrl = await validateSafeUrl(currentUrl);
+  // Single overall deadline controller covering DNS resolution, redirects, headers, and full streaming body
+  const overallController = new AbortController();
+  const overallTimer = setTimeout(() => {
+    overallController.abort();
+  }, timeoutMs);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    while (redirectCount <= maxRedirects) {
+      const validatedUrl = await validateSafeUrl(currentUrl);
 
-    try {
+      // Check if timeout fired during DNS or loop processing
+      if (overallController.signal.aborted) {
+        const err = new Error(`Request timed out after ${timeoutMs / 1000}s. The server may be unresponsive or blocking automated queries.`);
+        (err as any).code = 'FETCH_TIMEOUT';
+        throw err;
+      }
+
       const response = await fetch(validatedUrl.toString(), {
         method: 'GET',
         headers: {
@@ -165,16 +175,15 @@ export async function safeFetch(
           'Accept-Language': 'en-US,en;q=0.9',
         },
         redirect: 'manual', // Manual handling to inspect and re-validate every redirect against SSRF
-        signal: controller.signal,
+        signal: overallController.signal,
         cache: 'no-store',
       });
-
-      clearTimeout(timer);
 
       // Check for redirect responses
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const locationHeader = response.headers.get('location');
         if (!locationHeader) {
+          clearTimeout(overallTimer);
           return {
             requestedUrl: targetUrl,
             finalUrl: currentUrl,
@@ -188,11 +197,19 @@ export async function safeFetch(
 
         redirectCount++;
         if (redirectCount > maxRedirects) {
-          throw new Error(`Too many redirects encountered (exceeded limit of ${maxRedirects}).`);
+          const err = new Error(`Too many redirects encountered (exceeded limit of ${maxRedirects}).`);
+          (err as any).code = 'TOO_MANY_REDIRECTS';
+          throw err;
         }
 
         // Resolve relative redirect against current URL
         const nextUrl = new URL(locationHeader, validatedUrl).toString();
+        if (redirectChain.includes(nextUrl) || nextUrl === currentUrl) {
+          const err = new Error('Redirect loop detected.');
+          (err as any).code = 'REDIRECT_LOOP';
+          throw err;
+        }
+
         redirectChain.push(nextUrl);
         currentUrl = nextUrl;
         continue;
@@ -204,19 +221,33 @@ export async function safeFetch(
       if (reader) {
         let receivedBytes = 0;
         const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          receivedBytes += value.length;
-          body += decoder.decode(value, { stream: true });
-          if (receivedBytes > maxBytes) {
-            await reader.cancel();
-            break;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            receivedBytes += value.length;
+            if (receivedBytes > maxBytes) {
+              await reader.cancel();
+              overallController.abort();
+              const err = new Error(`RESPONSE_TOO_LARGE: Response body exceeded maximum allowed limit of ${(maxBytes / (1024 * 1024)).toFixed(1)}MB.`);
+              (err as any).code = 'RESPONSE_TOO_LARGE';
+              throw err;
+            }
+            body += decoder.decode(value, { stream: true });
           }
+        } finally {
+          reader.releaseLock();
         }
       } else {
         body = await response.text();
+        if (Buffer.byteLength(body, 'utf8') > maxBytes) {
+          const err = new Error(`RESPONSE_TOO_LARGE: Response body exceeded maximum allowed limit of ${(maxBytes / (1024 * 1024)).toFixed(1)}MB.`);
+          (err as any).code = 'RESPONSE_TOO_LARGE';
+          throw err;
+        }
       }
+
+      clearTimeout(overallTimer);
 
       return {
         requestedUrl: targetUrl,
@@ -227,14 +258,18 @@ export async function safeFetch(
         body,
         redirectChain,
       };
-    } catch (err: any) {
-      clearTimeout(timer);
-      if (err.name === 'AbortError') {
-        throw new Error(`Request timed out after ${timeoutMs / 1000}s. The server may be unresponsive or blocking automated queries.`);
-      }
-      throw err;
     }
-  }
 
-  throw new Error(`Redirect chain exceeded ${maxRedirects} redirects.`);
+    const err = new Error(`Redirect chain exceeded ${maxRedirects} redirects.`);
+    (err as any).code = 'TOO_MANY_REDIRECTS';
+    throw err;
+  } catch (err: any) {
+    clearTimeout(overallTimer);
+    if (err.name === 'AbortError' || err.code === 'FETCH_TIMEOUT') {
+      const timeoutErr = new Error(`Request timed out after ${timeoutMs / 1000}s. The server may be unresponsive or blocking automated queries.`);
+      (timeoutErr as any).code = 'FETCH_TIMEOUT';
+      throw timeoutErr;
+    }
+    throw err;
+  }
 }

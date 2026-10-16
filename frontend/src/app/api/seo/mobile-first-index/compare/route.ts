@@ -4,6 +4,16 @@ import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+interface SchemaEntitySummary {
+  type: string;
+  id?: string;
+  name?: string;
+  headline?: string;
+  description?: string;
+  author?: string;
+  publisher?: string;
+}
+
 interface ExtractedSignals {
   title: string | null;
   description: string | null;
@@ -14,7 +24,18 @@ interface ExtractedSignals {
   canonical: string | null;
   robotsMeta: string | null;
   schemaTypes: string[];
+  schemaEntities: SchemaEntitySummary[];
   statusCode: number;
+}
+
+function stringifySchemaProp(val: any): string | undefined {
+  if (val === null || val === undefined) return undefined;
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'object') {
+    if (typeof val.name === 'string') return val.name.trim();
+    if (typeof val['@id'] === 'string') return val['@id'].trim();
+  }
+  return undefined;
 }
 
 function extractSignalsFromHtml(html: string, baseUrl: string, statusCode: number): ExtractedSignals {
@@ -41,28 +62,39 @@ function extractSignalsFromHtml(html: string, baseUrl: string, statusCode: numbe
     html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']robots["']/i);
   const robotsMeta = robotsMatch ? robotsMatch[1].trim() : null;
 
-  // Schema types parsing
+  // Schema types & entity property parsing
   const schemaTypes: string[] = [];
+  const schemaEntities: SchemaEntitySummary[] = [];
   const scriptRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   let scriptMatch: RegExpExecArray | null;
   while ((scriptMatch = scriptRegex.exec(html)) !== null) {
     try {
       const parsed = JSON.parse(scriptMatch[1].trim());
-      const scanType = (obj: any) => {
+      const scanEntity = (obj: any) => {
         if (!obj || typeof obj !== 'object') return;
         if (obj['@type']) {
-          const t = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
-          for (const item of t) {
+          const rawTypes = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
+          for (const item of rawTypes) {
             if (typeof item === 'string' && !schemaTypes.includes(item)) {
               schemaTypes.push(item);
             }
           }
+          const primaryType = typeof rawTypes[0] === 'string' ? rawTypes[0] : 'Thing';
+          schemaEntities.push({
+            type: primaryType,
+            id: typeof obj['@id'] === 'string' ? obj['@id'] : undefined,
+            name: stringifySchemaProp(obj.name),
+            headline: stringifySchemaProp(obj.headline),
+            description: stringifySchemaProp(obj.description),
+            author: stringifySchemaProp(obj.author),
+            publisher: stringifySchemaProp(obj.publisher),
+          });
         }
         if (Array.isArray(obj['@graph'])) {
-          for (const g of obj['@graph']) scanType(g);
+          for (const g of obj['@graph']) scanEntity(g);
         }
       };
-      scanType(parsed);
+      scanEntity(parsed);
     } catch {
       // Ignored if json-ld is malformed
     }
@@ -117,6 +149,7 @@ function extractSignalsFromHtml(html: string, baseUrl: string, statusCode: numbe
     canonical,
     robotsMeta,
     schemaTypes,
+    schemaEntities,
     statusCode,
   };
 }
@@ -165,13 +198,37 @@ export async function POST(req: NextRequest) {
     };
 
     // Helper for schema comparison
-    const desktopSchemas = desktop.schemaTypes.sort().join(', ');
-    const mobileSchemas = mobile.schemaTypes.sort().join(', ');
+    const desktopTypes = desktop.schemaTypes.slice().sort();
+    const mobileTypes = mobile.schemaTypes.slice().sort();
+    const desktopSchemas = desktopTypes.join(', ');
+    const mobileSchemas = mobileTypes.join(', ');
+
     let schemaStatus = 'Difference';
     if (!desktopSchemas && !mobileSchemas) {
       schemaStatus = 'Both Missing';
     } else if (desktopSchemas === mobileSchemas) {
-      schemaStatus = 'Match';
+      // Deep check properties of extracted entities
+      let propertiesMatch = true;
+      if (desktop.schemaEntities.length !== mobile.schemaEntities.length) {
+        propertiesMatch = false;
+      } else {
+        for (let idx = 0; idx < desktop.schemaEntities.length; idx++) {
+          const dEnt = desktop.schemaEntities[idx];
+          const mEnt = mobile.schemaEntities[idx];
+          if (
+            dEnt.type !== mEnt.type ||
+            dEnt.name !== mEnt.name ||
+            dEnt.headline !== mEnt.headline ||
+            dEnt.id !== mEnt.id ||
+            dEnt.author !== mEnt.author ||
+            dEnt.publisher !== mEnt.publisher
+          ) {
+            propertiesMatch = false;
+            break;
+          }
+        }
+      }
+      schemaStatus = propertiesMatch ? 'Match' : 'Difference';
     }
 
     // Build comparison rows
@@ -215,8 +272,8 @@ export async function POST(req: NextRequest) {
       },
       {
         name: 'Schema Markup (JSON-LD)',
-        desktop: desktopSchemas || '(None detected)',
-        mobile: mobileSchemas || '(None detected)',
+        desktop: desktopSchemas ? `${desktopSchemas} (${desktop.schemaEntities.length} entities)` : '(None detected)',
+        mobile: mobileSchemas ? `${mobileSchemas} (${mobile.schemaEntities.length} entities)` : '(None detected)',
         status: schemaStatus,
       },
       {
