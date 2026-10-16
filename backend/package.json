@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "tsx src/test-ai-bots.ts && tsx src/test-robots.ts && tsx src/test-htaccess.ts && tsx src/test-sitemap.ts && tsx src/test-fetch-render.ts",
+    "test": "tsx src/test-ai-bots.ts && tsx src/test-robots.ts && tsx src/test-htaccess.ts && tsx src/test-sitemap.ts && tsx src/test-fetch-render.ts && tsx src/test-prerendering.ts",
     "test:v7": "tsx src/test-v7-corrections.ts"
   },
   "dependencies": {

@@ -60,6 +60,12 @@
       }
     },
     {
+      "source": "/api/seo/prerendering/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"
