@@ -129,6 +129,13 @@ export interface ExecuteBrowserRenderOptions {
   acceptLanguage: string;
   captureScreenshot: boolean;
   allowLocalhostForTesting?: boolean;
+  evaluateScript?: string;
+  customViewport?: {
+    width: number;
+    height: number;
+    deviceScaleFactor?: number;
+    isMobile?: boolean;
+  };
 }
 
 export async function executeBrowserRender(
@@ -180,15 +187,22 @@ export async function executeBrowserRender(
     const browser = await getSharedBrowser();
 
     // 4. Create isolated browser context routed through SSRF validating proxy
+    const effectiveViewport = options.customViewport || {
+      width: options.userAgent.viewport.width,
+      height: options.userAgent.viewport.height,
+      deviceScaleFactor: options.userAgent.viewport.deviceScaleFactor,
+      isMobile: options.userAgent.viewport.isMobile,
+    };
+
     context = await browser.newContext({
       userAgent: options.userAgent.fullUserAgent,
       viewport: {
-        width: options.userAgent.viewport.width,
-        height: options.userAgent.viewport.height
+        width: effectiveViewport.width,
+        height: effectiveViewport.height
       },
-      deviceScaleFactor: options.userAgent.viewport.deviceScaleFactor,
-      isMobile: options.userAgent.viewport.isMobile,
-      hasTouch: options.userAgent.viewport.isMobile,
+      deviceScaleFactor: effectiveViewport.deviceScaleFactor ?? options.userAgent.viewport.deviceScaleFactor,
+      isMobile: effectiveViewport.isMobile ?? options.userAgent.viewport.isMobile,
+      hasTouch: effectiveViewport.isMobile ?? options.userAgent.viewport.isMobile,
       locale: options.acceptLanguage.split(',')[0] || 'en-US',
       extraHTTPHeaders: {
         'Accept-Language': options.acceptLanguage
@@ -439,6 +453,24 @@ export async function executeBrowserRender(
       }
     }
 
+    // 12. Execute client-side DOM evaluation script if requested
+    let evaluatedMetrics: any = undefined;
+    if (options.evaluateScript) {
+      try {
+        evaluatedMetrics = await Promise.race([
+          page.evaluate(options.evaluateScript),
+          crashPromise
+        ]);
+      } catch (err: any) {
+        if (hasCrashed) throw new Error(crashReason);
+        consoleMessages.push({
+          type: 'warning',
+          text: `Evaluate script warning: ${err.message}`,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
     const renderDurationMs = Date.now() - startTime;
     const totalLoaded = capturedResources.filter(r => r.loadStatus === 'LOADED').length;
     const totalFailed = capturedResources.filter(r => r.loadStatus === 'FAILED').length;
@@ -455,7 +487,8 @@ export async function executeBrowserRender(
       totalResourcesFailed: totalFailed,
       totalResourcesBlocked: totalBlocked,
       isTruncated,
-      renderStatus: 'COMPLETED'
+      renderStatus: 'COMPLETED',
+      evaluatedMetrics
     };
   } catch (err: any) {
     const renderDurationMs = Date.now() - startTime;

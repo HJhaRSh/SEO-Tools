@@ -176,7 +176,134 @@ async function runMobileFriendlyTestSuite() {
     assert.ok(res.issues.some((i) => i.category === 'INCOMPATIBLE_PLUGINS'));
   });
 
-  console.log('\n3. CSV & XLSX Exporters:');
+  console.log('\n3. HTTP Error, Non-HTML & Edge Case Handling:');
+
+  await it('HTTP 404: Classifies as ERROR without false mobile-friendly warnings', () => {
+    const errorHtml = `<!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>`;
+    const res = auditStaticHtmlMobileFriendliness(errorHtml, {
+      url: 'https://example.com/missing',
+      finalUrl: 'https://example.com/missing',
+      statusCode: 404,
+      statusText: 'Not Found',
+      durationMs: 40,
+    });
+    assert.strictEqual(res.overallStatus, 'ERROR');
+    assert.strictEqual(res.errorCode, 'HTTP_ERROR');
+    assert.strictEqual(res.tests.configureViewport.status, 'NOT_TESTED');
+    assert.strictEqual(res.tests.sizeContentToViewport.status, 'NOT_TESTED');
+    assert.strictEqual(res.screenshot?.available, false);
+    assert.ok(res.issues.some((i) => i.title.includes('HTTP 404')));
+  });
+
+  await it('HTTP 500: Server error classified cleanly as ERROR', () => {
+    const errorHtml = `<!DOCTYPE html><html><body><h1>500 Internal Server Error</h1></body></html>`;
+    const res = auditStaticHtmlMobileFriendliness(errorHtml, {
+      url: 'https://example.com/crash',
+      finalUrl: 'https://example.com/crash',
+      statusCode: 500,
+      statusText: 'Internal Server Error',
+      durationMs: 45,
+    });
+    assert.strictEqual(res.overallStatus, 'ERROR');
+    assert.strictEqual(res.errorCode, 'HTTP_ERROR');
+    assert.strictEqual(res.tests.legibleFontSizes.status, 'NOT_TESTED');
+    assert.strictEqual(res.tests.tapTargets.status, 'NOT_TESTED');
+  });
+
+  await it('Non-HTML: Recognizes and rejects non-HTML content payload', () => {
+    const jsonBody = `{"status": "ok", "items": [1, 2, 3]}`;
+    const res = auditStaticHtmlMobileFriendliness(jsonBody, {
+      url: 'https://example.com/api/data',
+      finalUrl: 'https://example.com/api/data',
+      statusCode: 200,
+      statusText: 'OK',
+      durationMs: 30,
+    });
+    assert.strictEqual(res.overallStatus, 'ERROR');
+    assert.strictEqual(res.errorCode, 'UNSUPPORTED_CONTENT');
+    assert.ok(res.issues.some((i) => i.title.includes('Non-HTML')));
+  });
+
+  await it('Static Assessment Classification: Assigns NOT_TESTED to unrendered checks and includes accurate label', () => {
+    const plainHtml = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><p>Hello world without inline CSS</p></body></html>`;
+    const res = auditStaticHtmlMobileFriendliness(plainHtml, {
+      url: 'https://example.com',
+      finalUrl: 'https://example.com',
+      statusCode: 200,
+      durationMs: 50,
+    });
+    assert.strictEqual(res.tests.sizeContentToViewport.status, 'NOT_TESTED');
+    assert.strictEqual(res.tests.legibleFontSizes.status, 'NOT_TESTED');
+    assert.strictEqual(res.tests.tapTargets.status, 'NOT_TESTED');
+    assert.strictEqual(res.assessmentLabel, 'Static HTML Assessment — Browser rendering not performed');
+    assert.strictEqual(res.overallStatus, 'NOT_TESTED');
+  });
+
+  console.log('\n4. Browser DOM Metrics Evaluation:');
+
+  await it('Browser Evaluator: Assembles genuine browser-rendered audit result with live bounding boxes and measurements', () => {
+    const { buildBrowserRenderedAuditResult } = require('../../frontend/src/lib/seo/mobile-friendly/browserEvaluator.ts');
+    const mockMetrics = {
+      documentScrollWidth: 420,
+      viewportClientWidth: 390,
+      horizontalOverflow: 30,
+      overflowingElements: [
+        { selector: '#wide-banner', width: 420, rightOffset: 30, tagName: 'div' },
+      ],
+      fontStats: {
+        totalEvaluated: 15,
+        smallCount: 2,
+        examples: [
+          { selector: '.fine-print', fontSizePx: 10, textSample: 'Terms and conditions apply', tagName: 'span' },
+        ],
+      },
+      tapTargetStats: {
+        totalEvaluated: 8,
+        undersizedCount: 1,
+        tooCloseCount: 1,
+        examples: [
+          { selector: 'button.close-btn', width: 22, height: 22, label: 'Close', issueType: 'too-small' },
+          { selector: 'a.nav-1', width: 44, height: 44, minDistancePx: 4, closestNeighborSelector: 'a.nav-2', label: 'Home', issueType: 'too-close' },
+        ],
+      },
+      viewportMeta: {
+        present: true,
+        rawContent: 'width=device-width, initial-scale=1',
+        hasDeviceWidth: true,
+        hasInitialScale: true,
+        userScalableNo: false,
+        maximumScaleRestricted: false,
+        fixedWidthNumber: null,
+        multipleTags: false,
+      },
+      incompatiblePlugins: {
+        found: false,
+        pluginTypes: [],
+      },
+    };
+
+    const result = buildBrowserRenderedAuditResult({
+      url: 'https://example.com/rendered-page',
+      finalUrl: 'https://example.com/rendered-page',
+      statusCode: 200,
+      durationMs: 800,
+      screenshotBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      metrics: mockMetrics,
+    });
+
+    assert.strictEqual(result.executionMode, 'browser-rendered');
+    assert.strictEqual(result.assessmentLabel, 'Browser-Rendered Mobile Usability Assessment');
+    assert.strictEqual(result.tests.sizeContentToViewport.status, 'FAIL');
+    assert.strictEqual(result.tests.legibleFontSizes.status, 'WARNING');
+    assert.strictEqual(result.tests.tapTargets.status, 'WARNING');
+    assert.strictEqual(result.screenshot?.available, true);
+    assert.strictEqual(result.metrics.horizontalScrollWidth, 420);
+    assert.strictEqual(result.metrics.viewportClientWidth, 390);
+    assert.strictEqual(result.metrics.flaggedTextNodes, 2);
+    assert.strictEqual(result.metrics.flaggedTapTargets, 2);
+  });
+
+  console.log('\n5. CSV & XLSX Exporters:');
 
   await it('Protects against spreadsheet formula injection (=, +, -, @)', () => {
     assert.strictEqual(sanitizeSpreadsheetField('=cmd|/c calc'), "'=cmd|/c calc");
@@ -196,7 +323,8 @@ async function runMobileFriendlyTestSuite() {
       isCompleted: true,
       overallStatus: 'PASS',
       overallSummary: 'No major mobile usability issues detected.',
-      executionMode: 'static-dom-heuristics',
+      executionMode: 'browser-rendered',
+      assessmentLabel: 'Browser-Rendered Mobile Usability Assessment',
       viewport: { width: 390, height: 844, deviceScaleFactor: 3 },
       viewportDeclaration: {
         present: true,
@@ -235,7 +363,8 @@ async function runMobileFriendlyTestSuite() {
       isCompleted: true,
       overallStatus: 'WARNING',
       overallSummary: 'Small touch targets detected.',
-      executionMode: 'static-dom-heuristics',
+      executionMode: 'browser-rendered',
+      assessmentLabel: 'Browser-Rendered Mobile Usability Assessment',
       viewport: { width: 390, height: 844, deviceScaleFactor: 3 },
       viewportDeclaration: {
         present: true,

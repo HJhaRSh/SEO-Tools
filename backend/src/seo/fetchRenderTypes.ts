@@ -85,6 +85,7 @@ export interface RenderBrowserResult {
   isTruncated: boolean;
   renderStatus: 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'SKIPPED';
   errorMessage?: string;
+  evaluatedMetrics?: any;
 }
 
 export interface ExtractedSeoSignals {

@@ -417,6 +417,87 @@ app.get('/api/seo/fetch-render/download/:token', (req: Request, res: Response) =
   res.send(payload.data);
 });
 
+// ==========================================
+// TOOL 6: MOBILE-FRIENDLY TESTER BROWSER ENDPOINTS
+// ==========================================
+import { getBrowserRenderProvider } from './seo/browserRenderProvider.js';
+
+// POST /api/seo/mobile-friendly/render
+app.post('/api/seo/mobile-friendly/render', async (req: Request, res: Response) => {
+  try {
+    const { url, viewport, evaluateScript } = req.body;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ success: false, error: 'A valid target webpage URL is required.' });
+    }
+
+    const provider = getBrowserRenderProvider();
+    if (!provider.isAvailable()) {
+      return res.status(503).json({
+        success: false,
+        code: 'BROWSER_RENDER_UNAVAILABLE',
+        error: 'Browser rendering is not available in the current environment.'
+      });
+    }
+
+    // Default to mobile Chrome User-Agent
+    const mobileUa = FETCH_RENDER_USER_AGENTS.find(u => u.id === 'chrome-mobile') || FETCH_RENDER_USER_AGENTS[0];
+
+    const vpWidth = viewport && typeof viewport.width === 'number' ? viewport.width : 390;
+    const vpHeight = viewport && typeof viewport.height === 'number' ? viewport.height : 844;
+    const vpScale = viewport && typeof viewport.deviceScaleFactor === 'number' ? viewport.deviceScaleFactor : 3;
+
+    const renderResult = await provider.render({
+      url,
+      userAgent: mobileUa,
+      respectRobots: false,
+      postLoadWaitMs: 1500,
+      timeoutMs: 15000,
+      acceptLanguage: 'en-US,en;q=0.9',
+      captureScreenshot: true,
+      evaluateScript: typeof evaluateScript === 'string' ? evaluateScript : undefined,
+      customViewport: {
+        width: vpWidth,
+        height: vpHeight,
+        deviceScaleFactor: vpScale,
+        isMobile: true
+      },
+      allowLocalhostForTesting: Boolean(req.body.allowLocalhostForTesting)
+    });
+
+    res.json({
+      success: true,
+      result: {
+        renderedHtml: renderResult.renderedHtml,
+        screenshotBase64: renderResult.screenshotBase64,
+        metrics: renderResult.evaluatedMetrics,
+        renderDurationMs: renderResult.renderDurationMs,
+        renderStatus: renderResult.renderStatus
+      }
+    });
+  } catch (err: any) {
+    const message = err.message || 'Mobile rendering failed.';
+    let status = 400;
+    let code = 'RENDER_FAILED';
+
+    if (err.code === 'BROWSER_RENDER_UNAVAILABLE' || message.includes('not available')) {
+      status = 503;
+      code = 'BROWSER_RENDER_UNAVAILABLE';
+    } else if (message.includes('SSRF') || message.includes('Blocked')) {
+      status = 403;
+      code = 'BLOCKED_DESTINATION';
+    } else if (message.includes('timeout') || message.includes('Timeout')) {
+      status = 504;
+      code = 'REQUEST_TIMEOUT';
+    }
+
+    res.status(status).json({
+      success: false,
+      code,
+      error: message
+    });
+  }
+});
+
 // Catch-all for undefined /api routes returning standard JSON
 app.all('/api/*', (req: Request, res: Response) => {
   res.status(404).json({

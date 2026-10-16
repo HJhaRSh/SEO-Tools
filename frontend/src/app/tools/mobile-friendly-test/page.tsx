@@ -494,10 +494,20 @@ export default function MobileFriendlyTest() {
                                 {/* Summary Banner */}
                                 <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                                   <div>
-                                    <div className="text-xs uppercase tracking-wider font-extrabold text-slate-400">
-                                      Overall Usability Finding
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs uppercase tracking-wider font-extrabold px-2 py-0.5 rounded ${
+                                        r.executionMode === 'browser-rendered'
+                                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                      }`}>
+                                        {r.assessmentLabel || (
+                                          r.executionMode === 'browser-rendered'
+                                            ? 'Browser-Rendered Mobile Usability Assessment'
+                                            : 'Static HTML Assessment — Browser rendering not performed'
+                                        )}
+                                      </span>
                                     </div>
-                                    <div className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                                    <div className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1.5">
                                       {r.overallSummary}
                                     </div>
                                     <div className="text-xs text-slate-500 mt-1">

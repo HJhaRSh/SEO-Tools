@@ -13,6 +13,13 @@ export interface ExecuteBrowserRenderOptions {
   acceptLanguage: string;
   captureScreenshot: boolean;
   allowLocalhostForTesting?: boolean;
+  evaluateScript?: string;
+  customViewport?: {
+    width: number;
+    height: number;
+    deviceScaleFactor?: number;
+    isMobile?: boolean;
+  };
 }
 
 export interface BrowserRenderProvider {

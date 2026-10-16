@@ -32,9 +32,159 @@ export function auditStaticHtmlMobileFriendliness(
   html: string,
   options: StaticAuditOptions
 ): SingleUrlMobileAuditResult {
-  const $ = cheerio.load(html);
   const vp = options.viewport || DEFAULT_VIEWPORT_PRESET;
   const issues: MobileIssue[] = [];
+
+  // ==========================================
+  // HTTP ERROR & NON-HTML HANDLING
+  // ==========================================
+  if (options.statusCode >= 400) {
+    const errorStatusText = options.statusText || `HTTP ${options.statusCode}`;
+    return {
+      url: options.url,
+      finalUrl: options.finalUrl,
+      statusCode: options.statusCode,
+      statusText: errorStatusText,
+      durationMs: options.durationMs,
+      testedAt: options.testedAt || new Date().toISOString(),
+      isCompleted: true,
+      overallStatus: 'ERROR',
+      overallSummary: `Server returned HTTP ${options.statusCode} (${errorStatusText}). Mobile usability audit could not be performed on an error response.`,
+      executionMode: 'static-dom-heuristics',
+      assessmentLabel: 'Static HTML Assessment — Browser rendering not performed',
+      errorCode: 'HTTP_ERROR',
+      viewport: {
+        width: vp.width,
+        height: vp.height,
+        deviceScaleFactor: vp.deviceScaleFactor,
+      },
+      viewportDeclaration: {
+        present: false,
+        rawContent: null,
+        hasDeviceWidth: false,
+        hasInitialScale: false,
+        userScalableNo: false,
+        maximumScaleRestricted: false,
+      },
+      tests: {
+        configureViewport: {
+          status: 'NOT_TESTED',
+          summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`,
+          evidence: `HTTP ${options.statusCode}`,
+          issues: [],
+        },
+        fixedWidthViewport: {
+          status: 'NOT_TESTED',
+          summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`,
+          evidence: `HTTP ${options.statusCode}`,
+          issues: [],
+        },
+        sizeContentToViewport: {
+          status: 'NOT_TESTED',
+          summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`,
+          evidence: `HTTP ${options.statusCode}`,
+          issues: [],
+        },
+        legibleFontSizes: {
+          status: 'NOT_TESTED',
+          summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`,
+          evidence: `HTTP ${options.statusCode}`,
+          issues: [],
+        },
+        tapTargets: {
+          status: 'NOT_TESTED',
+          summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`,
+          evidence: `HTTP ${options.statusCode}`,
+          issues: [],
+        },
+        incompatiblePlugins: {
+          status: 'NOT_TESTED',
+          summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`,
+          evidence: `HTTP ${options.statusCode}`,
+          issues: [],
+        },
+      },
+      screenshot: {
+        available: false,
+        errorMessage: 'Screenshots require a successful browser-rendered response.',
+        format: 'png',
+        width: vp.width,
+        height: vp.height,
+      },
+      issues: [
+        {
+          category: 'NETWORK',
+          title: `Server Responded With HTTP ${options.statusCode}`,
+          severity: 'CRITICAL',
+          description: `The web server responded with error code ${options.statusCode} (${errorStatusText}). Mobile usability evaluations cannot be run on error documents.`,
+          evidence: `Status Code: ${options.statusCode}`,
+          recommendedAction: 'Ensure the requested URL returns an HTTP 200 OK status for mobile user-agents.',
+        },
+      ],
+      metrics: {},
+    };
+  }
+
+  // Handle non-HTML or empty content
+  const trimmedHtml = (html || '').trim();
+  const isLikelyHtml = trimmedHtml.includes('<html') || trimmedHtml.includes('<!DOCTYPE') || trimmedHtml.includes('<body') || trimmedHtml.includes('<div') || trimmedHtml.includes('<head');
+  if (!isLikelyHtml && trimmedHtml.length > 0 && !trimmedHtml.startsWith('<')) {
+    return {
+      url: options.url,
+      finalUrl: options.finalUrl,
+      statusCode: options.statusCode,
+      statusText: options.statusText || 'OK',
+      durationMs: options.durationMs,
+      testedAt: options.testedAt || new Date().toISOString(),
+      isCompleted: true,
+      overallStatus: 'ERROR',
+      overallSummary: 'The response content does not appear to be an HTML document (e.g. JSON, plain text, or binary).',
+      executionMode: 'static-dom-heuristics',
+      assessmentLabel: 'Static HTML Assessment — Browser rendering not performed',
+      errorCode: 'UNSUPPORTED_CONTENT',
+      viewport: {
+        width: vp.width,
+        height: vp.height,
+        deviceScaleFactor: vp.deviceScaleFactor,
+      },
+      viewportDeclaration: {
+        present: false,
+        rawContent: null,
+        hasDeviceWidth: false,
+        hasInitialScale: false,
+        userScalableNo: false,
+        maximumScaleRestricted: false,
+      },
+      tests: {
+        configureViewport: { status: 'NOT_TESTED', summary: 'Skipped for non-HTML payload.', issues: [] },
+        fixedWidthViewport: { status: 'NOT_TESTED', summary: 'Skipped for non-HTML payload.', issues: [] },
+        sizeContentToViewport: { status: 'NOT_TESTED', summary: 'Skipped for non-HTML payload.', issues: [] },
+        legibleFontSizes: { status: 'NOT_TESTED', summary: 'Skipped for non-HTML payload.', issues: [] },
+        tapTargets: { status: 'NOT_TESTED', summary: 'Skipped for non-HTML payload.', issues: [] },
+        incompatiblePlugins: { status: 'NOT_TESTED', summary: 'Skipped for non-HTML payload.', issues: [] },
+      },
+      screenshot: {
+        available: false,
+        errorMessage: 'Screenshots require browser rendering on valid HTML pages.',
+        format: 'png',
+        width: vp.width,
+        height: vp.height,
+      },
+      issues: [
+        {
+          category: 'NETWORK',
+          title: 'Non-HTML Content Received',
+          severity: 'CRITICAL',
+          description: 'The response received from the server does not contain standard HTML markup.',
+          evidence: `Payload preview: ${trimmedHtml.slice(0, 100)}`,
+          recommendedAction: 'Test URLs that serve text/html webpage content.',
+        },
+      ],
+      metrics: {},
+    };
+  }
+
+  const $ = cheerio.load(html);
 
   // ==========================================
   // 1. CONFIGURE VIEWPORT & 2. FIXED WIDTH VIEWPORT
@@ -246,6 +396,11 @@ export function auditStaticHtmlMobileFriendliness(
     overflowStatus = 'WARNING';
     overflowSummary = `Found ${flaggedContainers.length} container(s) with fixed widths exceeding mobile screen (${vp.width}px).`;
     overflowEvidence = `Identified: ${flaggedContainers.slice(0, 3).join(', ')}`;
+  } else {
+    // Layout-level horizontal overflow cannot be reliably determined without browser rendering
+    overflowStatus = 'NOT_TESTED';
+    overflowSummary = 'No rigid inline width violations detected. Dynamic stylesheet overflow requires browser rendering.';
+    overflowEvidence = 'Static HTML inspected; stylesheet CSS computed layout not tested.';
   }
 
   // ==========================================
@@ -291,6 +446,11 @@ export function auditStaticHtmlMobileFriendliness(
     fontStatus = 'WARNING';
     fontSummary = `Detected ${smallFontCount} element(s) with inline font sizes under 12px.`;
     fontEvidence = `${smallFontCount} small font style rules flagged.`;
+  } else {
+    // Computed stylesheet font sizes cannot be calculated without browser rendering
+    fontStatus = 'NOT_TESTED';
+    fontSummary = 'No inline font sizes < 12px found. Computed CSS stylesheet font sizes require browser rendering.';
+    fontEvidence = 'Static HTML inspected; stylesheet CSS computed font sizes not tested.';
   }
 
   // ==========================================
@@ -338,6 +498,11 @@ export function auditStaticHtmlMobileFriendliness(
     tapTargetStatus = 'WARNING';
     tapTargetSummary = `Identified ${flaggedTapCount} interactive target(s) with small fixed dimensions.`;
     tapTargetEvidence = `${flaggedTapCount} targets flagged with small inline bounds.`;
+  } else {
+    // Computed bounding boxes and touch spacing cannot be measured without browser rendering
+    tapTargetStatus = 'NOT_TESTED';
+    tapTargetSummary = 'No undersized inline targets found. Computed touch target bounds and spacing require browser rendering.';
+    tapTargetEvidence = 'Static HTML inspected; rendered element bounding rects not tested.';
   }
 
   // ==========================================
@@ -372,18 +537,25 @@ export function auditStaticHtmlMobileFriendliness(
   }
 
   // Calculate Overall Status
+  // In static mode, if there are CRITICAL failures (e.g. missing/fixed viewport, obsolete plugins), overallStatus is FAIL.
+  // If there are warnings, overallStatus is WARNING.
+  // If static checks pass but layout/font/tap checks were NOT_TESTED, overallStatus is NOT_TESTED (or PASS only for static criteria with clear disclaimer).
   let overallStatus: TestStatus = 'PASS';
   if (issues.some((i) => i.severity === 'CRITICAL')) {
     overallStatus = 'FAIL';
   } else if (issues.some((i) => i.severity === 'WARNING')) {
     overallStatus = 'WARNING';
+  } else if ([overflowStatus, fontStatus, tapTargetStatus].every((s) => s === 'NOT_TESTED')) {
+    overallStatus = 'NOT_TESTED';
   }
 
-  let overallSummary = 'No major mobile usability issues detected in markup.';
+  let overallSummary = 'Static HTML criteria evaluated. Full layout and touch measurements require browser rendering.';
   if (overallStatus === 'FAIL') {
-    overallSummary = 'Page has critical mobile usability issues that impede smartphone users.';
+    overallSummary = 'Page has critical mobile usability issues (e.g. missing viewport or fixed-width declaration).';
   } else if (overallStatus === 'WARNING') {
-    overallSummary = 'Page is mostly usable, but mobile configuration and sizing warnings were identified.';
+    overallSummary = 'Page is partially usable, but mobile configuration and sizing warnings were identified.';
+  } else if (overallStatus === 'NOT_TESTED') {
+    overallSummary = 'Static viewport & plugin checks passed. Computed layout, font size, and touch target checks were NOT_TESTED (requires browser rendering).';
   }
 
   return {
@@ -397,6 +569,7 @@ export function auditStaticHtmlMobileFriendliness(
     overallStatus,
     overallSummary,
     executionMode: 'static-dom-heuristics',
+    assessmentLabel: 'Static HTML Assessment — Browser rendering not performed',
     viewport: {
       width: vp.width,
       height: vp.height,
@@ -449,6 +622,13 @@ export function auditStaticHtmlMobileFriendliness(
       },
     },
     issues,
+    screenshot: {
+      available: false,
+      errorMessage: 'Screenshots require browser rendering.',
+      format: 'png',
+      width: vp.width,
+      height: vp.height,
+    },
     metrics: {
       totalTextNodesEvaluated: $('p, h1, h2, h3, h4, h5, h6, li, span, a').length,
       flaggedTextNodes: smallFontCount,

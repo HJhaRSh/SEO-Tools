@@ -91,7 +91,9 @@ export interface SingleUrlMobileAuditResult {
     horizontalScrollWidth?: number;
     viewportClientWidth?: number;
   };
+  assessmentLabel?: string;
   errorMessage?: string;
+  errorCode?: 'INVALID_URL' | 'BLOCKED_DESTINATION' | 'REQUEST_TIMEOUT' | 'FETCH_FAILED' | 'RENDER_FAILED' | 'UNSUPPORTED_CONTENT' | 'HTTP_ERROR' | 'INTERNAL_ERROR';
 }
 
 export interface BulkUrlProgress {
@@ -113,7 +115,14 @@ export interface MobileAuditApiResponse {
     failed: number;
     error: number;
   };
+  validationReport?: {
+    totalSubmitted: number;
+    validCount: number;
+    duplicateCount: number;
+    invalidRows: { row: number; raw: string; error: string }[];
+  };
   executionMode: 'browser-rendered' | 'static-dom-heuristics';
   serverRuntimeNotice: string;
   error?: string;
+  errorCode?: string;
 }

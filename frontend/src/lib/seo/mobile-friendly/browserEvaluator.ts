@@ -518,6 +518,7 @@ export function buildBrowserRenderedAuditResult(
     overallStatus,
     overallSummary,
     executionMode: 'browser-rendered',
+    assessmentLabel: 'Browser-Rendered Mobile Usability Assessment',
     viewport: {
       width: vp.width,
       height: vp.height,

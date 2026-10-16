@@ -38,65 +38,50 @@ export async function auditSingleUrl(
     (options.viewportPresetId && MOBILE_VIEWPORT_PRESETS[options.viewportPresetId]) ||
     DEFAULT_VIEWPORT_PRESET;
 
-  // Attempt real browser rendering via backend if configured and available
-  const isVercel = Boolean(
-    process.env.VERCEL || process.env.VERCEL_ENV || process.env.NOW_REGION
-  );
-
+  // Determine whether to attempt real browser rendering
+  // If FORCE_STATIC_AUDIT is set, skip browser rendering immediately
   let browserResult: SingleUrlMobileAuditResult | null = null;
 
-  // If local development or explicit remote browser configured, we can attempt backend fetch-render
-  if (!isVercel && !process.env.FORCE_STATIC_AUDIT) {
+  if (!process.env.FORCE_STATIC_AUDIT) {
     try {
       const backendUrl = getBackendBaseUrl();
-      const testRes = await fetch(`${backendUrl}/api/seo/fetch-render/test`, {
+      const renderRes = await fetch(`${backendUrl}/api/seo/mobile-friendly/render`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: options.url,
-          userAgent: 'chrome-mobile',
-          mode: 'fetch-and-render',
-          postLoadWaitMs: 1500,
-          timeoutMs: 12000,
-          captureScreenshot: true,
+          viewport: {
+            width: preset.width,
+            height: preset.height,
+            deviceScaleFactor: preset.deviceScaleFactor,
+          },
+          evaluateScript: BROWSER_AUDIT_INJECTION_SCRIPT,
+          allowLocalhostForTesting: Boolean(options.allowLocalhostForTesting),
         }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(18000),
       }).catch(() => null);
 
-      if (testRes && testRes.ok) {
-        const data = await testRes.json().catch(() => null);
-        if (data && data.success && data.result) {
+      if (renderRes && renderRes.ok) {
+        const data = await renderRes.json().catch(() => null);
+        if (data && data.success && data.result && data.result.metrics) {
           const r = data.result;
-          const html = r.renderResult?.renderedHtml || r.initialFetch?.rawHtml || '';
-          const screenshot = r.renderResult?.screenshotBase64;
+          const liveMetrics: RenderAuditDomMetrics = r.metrics;
+          const screenshot = r.screenshotBase64;
 
-          // Perform DOM metrics analysis on the rendered HTML
-          const staticParsed = auditStaticHtmlMobileFriendliness(html, {
+          browserResult = buildBrowserRenderedAuditResult({
             url: options.url,
-            finalUrl: r.initialFetch?.finalUrl || options.url,
-            statusCode: r.initialFetch?.statusCode || 200,
-            statusText: r.initialFetch?.statusText || 'OK',
+            finalUrl: options.url,
+            statusCode: 200,
+            statusText: 'OK',
             durationMs: Date.now() - startTime,
             viewport: preset,
+            screenshotBase64: screenshot,
+            metrics: liveMetrics,
           });
-
-          browserResult = {
-            ...staticParsed,
-            executionMode: 'browser-rendered',
-            screenshot: screenshot
-              ? {
-                  available: true,
-                  base64Data: screenshot,
-                  format: 'png',
-                  width: preset.width,
-                  height: preset.height,
-                }
-              : undefined,
-          };
         }
       }
     } catch {
-      // Backend browser render unavailable or errored; gracefully fallback to safe mobile fetch
+      // Backend browser render unavailable, errored, or 503; gracefully fallback to safe mobile fetch
     }
   }
 
