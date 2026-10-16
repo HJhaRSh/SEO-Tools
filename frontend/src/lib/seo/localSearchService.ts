@@ -185,6 +185,7 @@ export function buildGoogleSearchUrl(options: {
   languageCode?: string;
   reducePersonalization?: boolean;
   uule?: string | null;
+  adtest?: boolean;
 }): string {
   const url = new URL('https://www.google.com/search');
   url.searchParams.set('q', options.query);
@@ -200,6 +201,9 @@ export function buildGoogleSearchUrl(options: {
   }
   if (options.uule) {
     url.searchParams.set('uule', options.uule);
+    // Decouple user's physical IP address so Google prioritizes the UULE target location
+    url.searchParams.set('ip', '0.0.0.0');
+    url.searchParams.set('source_ip', '0.0.0.0');
   }
 
   return url.toString();

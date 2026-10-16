@@ -175,11 +175,14 @@ export default function LocalSearchTool() {
               id="local-search-location"
               type="text"
               className="input font-medium"
-              placeholder="e.g. Mumbai, Maharashtra, India or New York, NY, United States"
+              placeholder="e.g. Ahmednagar, Maharashtra, India or Mumbai, Maharashtra, India"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               maxLength={200}
             />
+            <p className="text-xs text-slate-500 mt-1.5">
+              💡 <strong>Pro-Tip for Google UULE:</strong> Google&apos;s location database requires full canonical format: <code>City, State, Country</code> (e.g. <strong>Ahmednagar, Maharashtra, India</strong>). Appending the country ensures Google overrides your physical IP instead of falling back to your local city.
+            </p>
 
             {/* Quick Pick Curated Locations */}
             <div className="mt-3">

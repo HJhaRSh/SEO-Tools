@@ -88,6 +88,7 @@ async function runLocalSearchTests() {
   assert(parsed1.searchParams.get('hl') === 'en', 'Parameter hl is en');
   assert(parsed1.searchParams.get('pws') === '0', 'Parameter pws is 0');
   assert(parsed1.searchParams.get('uule') === mumbaiEncoded.uule, 'Parameter uule matches generated UULE');
+  assert(parsed1.searchParams.get('ip') === '0.0.0.0', 'Parameter ip decouples client IP');
 
   // Special characters & Unicode in query
   const unicodeQuery = 'सर्वश्रेष्ठ रेस्टोरेंट & कैफे Mumbai 100% "veg"';
