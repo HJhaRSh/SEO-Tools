@@ -770,13 +770,34 @@ export default function MobileFriendlyTest() {
               <span className="text-xs text-slate-500">
                 Viewport: {screenshotModalUrl.viewport.width} x {screenshotModalUrl.viewport.height}px
               </span>
-              <a
-                href={`data:image/png;base64,${screenshotModalUrl.screenshot.base64Data}`}
-                download={`mobile-screenshot-${new Date().toISOString().slice(0, 10)}.png`}
+              <button
+                type="button"
                 className="btn btn-primary text-xs py-2 px-4"
+                onClick={() => {
+                  try {
+                    const base64 = screenshotModalUrl.screenshot!.base64Data!;
+                    const byteCharacters = atob(base64);
+                    const byteNumbers = new Uint8Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                      byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const blob = new Blob([byteNumbers], { type: 'image/png' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `mobile-screenshot-${new Date().toISOString().slice(0, 10)}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch {
+                    // fallback: open in new tab
+                    window.open(`data:image/png;base64,${screenshotModalUrl.screenshot!.base64Data}`, '_blank');
+                  }
+                }}
               >
                 Download Screenshot
-              </a>
+              </button>
             </div>
           </div>
         </div>
