@@ -585,13 +585,19 @@ export default function PrerenderingTester() {
                             </td>
 
                             {/* Image Count */}
-                            <td className="py-3 px-3 whitespace-nowrap">
-                              {row.imageCount !== null ? row.imageCount : '-'}
+                            <td className="py-3 px-3 whitespace-nowrap" title={`Total: ${row.imageCount ?? 0} | Sampled for comparison: ${row.imagesSample?.length ?? 0}`}>
+                              <span>{row.imageCount !== null ? row.imageCount : '-'}</span>
+                              {row.imagesSample && row.imagesSample.length > 0 && (
+                                <span className="text-[10px] text-slate-400 block font-sans">({row.imagesSample.length} smp)</span>
+                              )}
                             </td>
 
                             {/* Link Count */}
-                            <td className="py-3 px-3 whitespace-nowrap" title={`${row.internalLinkCount || 0} int / ${row.externalLinkCount || 0} ext`}>
-                              {row.linkCount !== null ? row.linkCount : '-'}
+                            <td className="py-3 px-3 whitespace-nowrap" title={`Total: ${row.linkCount ?? 0} (${row.internalLinkCount || 0} int / ${row.externalLinkCount || 0} ext) | Sampled: ${(row.internalLinksSample?.length ?? 0) + (row.externalLinksSample?.length ?? 0)}`}>
+                              <span>{row.linkCount !== null ? row.linkCount : '-'}</span>
+                              {(row.internalLinksSample || row.externalLinksSample) && (
+                                <span className="text-[10px] text-slate-400 block font-sans">({(row.internalLinksSample?.length ?? 0) + (row.externalLinksSample?.length ?? 0)} smp)</span>
+                              )}
                             </td>
 
                             {/* Vary: User-Agent */}
@@ -689,10 +695,14 @@ export default function PrerenderingTester() {
                               ? c.severity === 'error'
                                 ? 'badge-error'
                                 : 'badge-warning'
+                              : c.status === 'insufficient-comparable-responses'
+                              ? 'badge-neutral'
+                              : c.status === 'unsupported-content' || c.status === 'http-error-response'
+                              ? 'badge-warning'
                               : 'badge-neutral'
                           }`}
                         >
-                          {c.status.toUpperCase()}
+                          {c.status.replace(/-/g, ' ').toUpperCase()}
                         </span>
                       </div>
                       <p className="text-xs text-slate-600 dark:text-slate-300 mb-3">{c.explanation}</p>

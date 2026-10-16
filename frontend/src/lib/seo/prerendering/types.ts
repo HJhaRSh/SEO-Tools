@@ -48,7 +48,14 @@ export interface AgentTestResult {
   errorCode?: string | null;
 }
 
-export type FieldComparisonStatus = 'matched' | 'different' | 'missing' | 'not-tested';
+export type FieldComparisonStatus =
+  | 'matched'
+  | 'different'
+  | 'missing'
+  | 'not-tested'
+  | 'unsupported-content'
+  | 'http-error-response'
+  | 'insufficient-comparable-responses';
 export type ComparisonSeverity = 'error' | 'warning' | 'info';
 
 export interface ComparisonFieldResult {

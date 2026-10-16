@@ -15,6 +15,7 @@ export const dynamic = 'force-dynamic';
 
 const CONCURRENT_REQUESTS = 3;
 const MAX_RAW_HTML_EXCERPT_CHARS = 100 * 1024; // 100 KB excerpt for safe Vercel JSON payload response size
+const MAX_AGGREGATE_SOURCE_BUDGET_CHARS = 500 * 1024; // 500 KB total aggregate source budget across all user agents
 const MAX_URL_LENGTH = 2048;
 
 /**
@@ -311,12 +312,31 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
 
     const { comparisons, summary } = compareAgentResults(results);
 
+    // Enforce aggregate source budget across all agent results to protect Vercel response payload limits
+    let accumulatedSourceChars = 0;
+    const boundedResults = results.map((r) => {
+      if (!r.rawHtml) return r;
+      if (accumulatedSourceChars + r.rawHtml.length > MAX_AGGREGATE_SOURCE_BUDGET_CHARS) {
+        const remainingChars = Math.max(0, MAX_AGGREGATE_SOURCE_BUDGET_CHARS - accumulatedSourceChars);
+        const clampedSource = r.rawHtml.slice(0, remainingChars);
+        accumulatedSourceChars += clampedSource.length;
+        return {
+          ...r,
+          rawHtml: clampedSource,
+          rawHtmlExcerpt: clampedSource.slice(0, MAX_RAW_HTML_EXCERPT_CHARS),
+          isTruncatedSource: true,
+        };
+      }
+      accumulatedSourceChars += r.rawHtml.length;
+      return r;
+    });
+
     return NextResponse.json(
       {
         success: true,
         requestedUrl: cleanUrl,
         summary,
-        results,
+        results: boundedResults,
         comparisons,
       },
       {

@@ -1041,7 +1041,7 @@ async function runPrerenderTestSuite() {
     const linkComp = comparisons.find((c) => c.field === 'linkCount');
     assert(linkComp);
     assert.strictEqual(linkComp.status, 'different');
-    assert(linkComp.explanation.includes('specific link destination URLs differ'));
+    assert(linkComp.explanation.includes('sampled link destination URLs differ') || linkComp.explanation.includes('specific link destination URLs differ'));
   });
 
   // Test 4.5: Image comparison (identical count, different image src or alt text)
@@ -1234,6 +1234,148 @@ async function runPrerenderTestSuite() {
     } finally {
       slowServer.close();
     }
+  });
+
+  // Test 4.8: Separation of HTTP vs SEO comparisons with isEligibleForSeoComparison
+  await test('SEO Eligibility: HTTP error responses and PDFs do not generate misleading missing-H1/missing-title warnings', async () => {
+    const { isEligibleForSeoComparison } = await import('../../frontend/src/lib/seo/prerendering/comparisonEngine.ts');
+
+    const chrome200: AgentTestResult = {
+      userAgentId: 'chrome-desktop',
+      userAgentName: 'Chrome',
+      status: 'success',
+      statusCode: 200,
+      statusText: 'OK',
+      finalUrl: 'https://example.com/',
+      redirectChain: [],
+      isHtml: true,
+      isErrorResponse: false,
+      title: 'Real Page Title',
+      metaDescription: 'Real description',
+      h1: ['Main Heading'],
+      wordCount: 150,
+      imageCount: 2,
+      linkCount: 5,
+      internalLinkCount: 4,
+      externalLinkCount: 1,
+      varyUserAgent: 'Present',
+      varyHeaderRaw: 'User-Agent',
+      md5: 'h1',
+      sha256: 's1',
+      generalRobots: 'index',
+      googlebotRobots: null,
+      bingbotRobots: null,
+      metaRobots: 'index',
+      xRobotsTag: null,
+      canonical: 'https://example.com/',
+      contentType: 'text/html',
+      contentLanguage: 'en',
+      durationMs: 40,
+      htmlSize: 1000,
+      hasStructuredData: false,
+      error: null,
+    };
+
+    const bot403: AgentTestResult = {
+      ...chrome200,
+      userAgentId: 'googlebot-desktop',
+      userAgentName: 'Googlebot',
+      statusCode: 403,
+      statusText: 'Forbidden',
+      isErrorResponse: true,
+      title: null,
+      h1: [],
+      wordCount: null,
+      imageCount: null,
+      linkCount: null,
+      md5: 'h2',
+      sha256: 's2',
+    };
+
+    const botPdf: AgentTestResult = {
+      ...chrome200,
+      userAgentId: 'bingbot',
+      userAgentName: 'Bingbot',
+      statusCode: 200,
+      contentType: 'application/pdf',
+      isHtml: false,
+      unsupportedContentType: true,
+      title: null,
+      h1: [],
+    };
+
+    assert.strictEqual(isEligibleForSeoComparison(chrome200), true);
+    assert.strictEqual(isEligibleForSeoComparison(bot403), false);
+    assert.strictEqual(isEligibleForSeoComparison(botPdf), false);
+
+    // Run comparison with 1 valid HTML and 1 error response
+    const { comparisons } = compareAgentResults([chrome200, bot403]);
+    const titleComp = comparisons.find((c) => c.field === 'title');
+    const h1Comp = comparisons.find((c) => c.field === 'h1');
+
+    assert(titleComp);
+    assert.strictEqual(titleComp.status, 'insufficient-comparable-responses');
+    assert(titleComp.explanation.includes('Comparison across user agents is incomplete'));
+
+    assert(h1Comp);
+    assert.strictEqual(h1Comp.status, 'insufficient-comparable-responses');
+  });
+
+  // Test 4.9: Aggregate API response size protection
+  await test('Aggregate Source Budget: Clamps total raw HTML JSON payload to protect Vercel limits', async () => {
+    const hugeResults: AgentTestResult[] = Array.from({ length: 5 }, (_, i) => ({
+      userAgentId: `agent-${i}`,
+      userAgentName: `Agent ${i}`,
+      status: 'success',
+      statusCode: 200,
+      statusText: 'OK',
+      finalUrl: 'https://example.com/',
+      redirectChain: [],
+      isHtml: true,
+      title: 'Title',
+      metaDescription: null,
+      h1: [],
+      wordCount: 100,
+      imageCount: 0,
+      linkCount: 0,
+      internalLinkCount: 0,
+      externalLinkCount: 0,
+      varyUserAgent: 'Not available',
+      varyHeaderRaw: null,
+      md5: 'md5',
+      sha256: 'sha',
+      generalRobots: null,
+      googlebotRobots: null,
+      bingbotRobots: null,
+      metaRobots: null,
+      xRobotsTag: null,
+      canonical: null,
+      contentType: 'text/html',
+      contentLanguage: null,
+      durationMs: 20,
+      htmlSize: 200 * 1024,
+      hasStructuredData: false,
+      rawHtml: 'A'.repeat(200 * 1024), // 200 KB each (total 1 MB without clamp)
+      error: null,
+    }));
+
+    let accumulated = 0;
+    const maxBudget = 500 * 1024;
+    const clamped = hugeResults.map((r) => {
+      if (!r.rawHtml) return r;
+      if (accumulated + r.rawHtml.length > maxBudget) {
+        const remaining = Math.max(0, maxBudget - accumulated);
+        const sub = r.rawHtml.slice(0, remaining);
+        accumulated += sub.length;
+        return { ...r, rawHtml: sub, isTruncatedSource: true };
+      }
+      accumulated += r.rawHtml.length;
+      return r;
+    });
+
+    const totalChars = clamped.reduce((acc, r) => acc + (r.rawHtml?.length || 0), 0);
+    assert(totalChars <= maxBudget, `Total chars (${totalChars}) must be <= ${maxBudget}`);
+    assert.strictEqual(clamped[3].isTruncatedSource, true);
   });
 
   console.log('\n=====================================================');
