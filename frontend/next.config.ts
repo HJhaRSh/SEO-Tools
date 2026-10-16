@@ -7,6 +7,9 @@ const backendTarget =
   (isDev ? "http://localhost:5000" : "");
 
 const nextConfig: NextConfig = {
+  // Prevent Next.js from bundling native-binary packages — they must be loaded at runtime
+  serverExternalPackages: ['@sparticuz/chromium', 'playwright-core'],
+
   async rewrites() {
     // Only configure Next.js proxy rewrites if a backend target is defined.
     // In production on Vercel where vercel.json routes /api directly to the Express backend service,

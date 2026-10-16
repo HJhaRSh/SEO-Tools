@@ -9,6 +9,7 @@ import { DEFAULT_VIEWPORT_PRESET, MOBILE_VIEWPORT_PRESETS } from '@/lib/seo/mobi
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Allow Chromium cold start + page load + screenshot
 
 const CONCURRENT_REQUESTS = 3;
 

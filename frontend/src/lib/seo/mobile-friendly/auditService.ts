@@ -15,27 +15,105 @@ export interface AuditMobileUrlOptions {
 }
 
 /**
- * Returns the base URL for the mobile-friendly browser render endpoint.
- * In Next.js server context (Vercel), we call our own /api/seo/mobile-friendly/render route
- * which uses @sparticuz/chromium — no external backend needed.
+ * Runs a real Chromium browser session to audit a URL for mobile-friendliness.
+ * Uses @sparticuz/chromium on Vercel/Lambda, Playwright's bundled Chromium in local dev.
+ * Called directly — no HTTP round-trip to a separate endpoint.
  */
-function getRenderEndpointUrl(): string {
-  // When running inside a Next.js server action/route handler, use relative path.
-  // VERCEL_URL is always set on Vercel deployments.
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}/api/seo/mobile-friendly/render`;
+async function runBrowserAudit(options: {
+  url: string;
+  vpWidth: number;
+  vpHeight: number;
+  vpScale: number;
+}): Promise<{ metrics: RenderAuditDomMetrics; screenshotBase64: string | null; finalUrl: string; statusCode: number; statusText: string }> {
+  const { url, vpWidth, vpHeight, vpScale } = options;
+
+  const isVercel = Boolean(
+    process.env.VERCEL || process.env.VERCEL_ENV || process.env.NOW_REGION
+  );
+
+  let executablePath: string | undefined;
+  let chromiumArgs: string[] = [];
+
+  if (isVercel) {
+    const chromium = (await import('@sparticuz/chromium')).default;
+    executablePath = await chromium.executablePath();
+    chromiumArgs = chromium.args;
   }
-  // Local dev: call the same Next.js dev server
-  const port = process.env.PORT || 3000;
-  return `http://localhost:${port}/api/seo/mobile-friendly/render`;
+
+  const { chromium: playwrightChromium } = await import('playwright-core');
+
+  const browser = await playwrightChromium.launch({
+    executablePath,
+    args: isVercel
+      ? chromiumArgs
+      : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    headless: true,
+  });
+
+  try {
+    const context = await browser.newContext({
+      viewport: { width: vpWidth, height: vpHeight },
+      deviceScaleFactor: vpScale,
+      isMobile: true,
+      hasTouch: true,
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      acceptDownloads: false,
+    });
+
+    const page = await context.newPage();
+    page.setDefaultNavigationTimeout(20000);
+    page.setDefaultTimeout(15000);
+
+    let finalUrl = url;
+    let statusCode = 200;
+    let statusText = 'OK';
+
+    try {
+      const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      if (response) {
+        statusCode = response.status();
+        statusText = response.statusText();
+        finalUrl = response.url();
+      }
+    } catch (navErr: any) {
+      if (navErr?.message?.includes('net::ERR_')) {
+        throw new Error(`Navigation failed: ${navErr.message}`);
+      }
+      // non-fatal nav errors (e.g. mixed content) — continue
+    }
+
+    await page.waitForTimeout(1500).catch(() => {});
+
+    let metrics: RenderAuditDomMetrics = {} as RenderAuditDomMetrics;
+    try {
+      metrics = await page.evaluate(BROWSER_AUDIT_INJECTION_SCRIPT as string) as RenderAuditDomMetrics;
+    } catch {
+      // metrics unavailable — still return screenshot
+    }
+
+    let screenshotBase64: string | null = null;
+    try {
+      const buf = await page.screenshot({
+        type: 'png',
+        clip: { x: 0, y: 0, width: vpWidth, height: Math.min(vpHeight * 2, 1600) },
+        fullPage: false,
+      });
+      screenshotBase64 = `data:image/png;base64,${buf.toString('base64')}`;
+    } catch {
+      // non-fatal
+    }
+
+    return { metrics, screenshotBase64, finalUrl, statusCode, statusText };
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
 
 /**
  * Audits a single URL for mobile friendliness:
- * 1. Checks if browser rendering via dedicated service is viable.
- * 2. If browser rendering is available, captures real mobile viewport metrics and screenshot.
- * 3. If running purely in serverless environment or browser rendering is unavailable, executes
- *    high-fidelity static DOM analysis using mobile HTTP fetch and Cheerio heuristics.
+ * 1. Attempts real Chromium browser rendering directly (no HTTP hop).
+ * 2. Falls back to high-fidelity static DOM analysis using mobile HTTP fetch and Cheerio heuristics.
  */
 export async function auditSingleUrl(
   options: AuditMobileUrlOptions
@@ -45,8 +123,6 @@ export async function auditSingleUrl(
     (options.viewportPresetId && MOBILE_VIEWPORT_PRESETS[options.viewportPresetId]) ||
     DEFAULT_VIEWPORT_PRESET;
 
-  // Determine whether to attempt real browser rendering
-  // If FORCE_STATIC_AUDIT is set, skip browser rendering immediately
   let browserAttempted = false;
   let browserFailureReason: string | undefined = undefined;
   let browserResult: SingleUrlMobileAuditResult | null = null;
@@ -54,56 +130,32 @@ export async function auditSingleUrl(
   if (!process.env.FORCE_STATIC_AUDIT) {
     browserAttempted = true;
     try {
-      const renderEndpoint = getRenderEndpointUrl();
-      const renderRes = await fetch(renderEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: options.url,
-          viewport: {
-            width: preset.width,
-            height: preset.height,
-            deviceScaleFactor: preset.deviceScaleFactor,
-          },
-          allowLocalhostForTesting: Boolean(options.allowLocalhostForTesting),
-        }),
-        signal: AbortSignal.timeout(18000),
-      }).catch((fetchErr) => {
-        browserFailureReason = fetchErr?.name === 'TimeoutError' ? 'Browser render request timed out' : 'Backend browser service unreachable';
-        return null;
+      const renderData = await runBrowserAudit({
+        url: options.url,
+        vpWidth: preset.width,
+        vpHeight: preset.height,
+        vpScale: preset.deviceScaleFactor,
       });
 
-      if (renderRes && renderRes.ok) {
-        const data = await renderRes.json().catch(() => null);
-        if (data && data.success && data.result && data.result.metrics) {
-          const r = data.result;
-          const liveMetrics: RenderAuditDomMetrics = r.metrics;
-          const screenshot = r.screenshotBase64;
-
-          browserResult = buildBrowserRenderedAuditResult({
-            url: options.url,
-            finalUrl: r.finalUrl || options.url,
-            statusCode: typeof r.statusCode === 'number' ? r.statusCode : 200,
-            statusText: r.statusText || 'OK',
-            durationMs: Date.now() - startTime,
-            viewport: preset,
-            screenshotBase64: screenshot,
-            metrics: liveMetrics,
-          });
-        } else {
-          browserFailureReason = data?.error || 'Browser returned incomplete metrics';
-        }
-      } else if (renderRes) {
-        if (renderRes.status === 503) {
-          browserFailureReason = 'Chromium browser rendering unavailable in serverless environment';
-        } else if (renderRes.status === 403) {
-          browserFailureReason = 'Target destination blocked by browser SSRF guard';
-        } else {
-          browserFailureReason = `Browser rendering endpoint returned HTTP ${renderRes.status}`;
-        }
-      }
+      browserResult = buildBrowserRenderedAuditResult({
+        url: options.url,
+        finalUrl: renderData.finalUrl,
+        statusCode: renderData.statusCode,
+        statusText: renderData.statusText,
+        durationMs: Date.now() - startTime,
+        viewport: preset,
+        screenshotBase64: renderData.screenshotBase64 ?? undefined,
+        metrics: renderData.metrics,
+      });
     } catch (err: any) {
-      browserFailureReason = err?.message || 'Unexpected browser rendering failure';
+      const msg = err?.message || 'Browser rendering failed';
+      if (msg.includes('Executable') || msg.includes('Failed to launch') || msg.includes('not available')) {
+        browserFailureReason = 'Chromium browser rendering unavailable in this environment';
+      } else if (msg.includes('timeout') || msg.includes('Timeout')) {
+        browserFailureReason = 'Browser render timed out';
+      } else {
+        browserFailureReason = msg;
+      }
     }
   }
 
@@ -111,7 +163,7 @@ export async function auditSingleUrl(
     return browserResult;
   }
 
-  // Pure Next.js safe fetch + static DOM heuristics audit
+  // Fallback: static DOM heuristics via HTTP fetch
   const fetchRes = await safeFetch(options.url, {
     userAgent: preset.userAgent,
     timeoutMs: 10000,
@@ -131,3 +183,4 @@ export async function auditSingleUrl(
     browserFailureReason,
   });
 }
+
