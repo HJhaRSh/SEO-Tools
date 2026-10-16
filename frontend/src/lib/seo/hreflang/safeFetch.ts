@@ -109,6 +109,52 @@ export async function validateSafeUrl(rawUrl: string): Promise<URL> {
   return parsed;
 }
 
+/**
+ * Performs connection-level DNS resolution that rejects any internal, loopback,
+ * or private IP destinations before the socket connection is made.
+ */
+export async function resolveAndVerifyPublicIp(hostname: string): Promise<string> {
+  const cleanHost = hostname.replace(/^\[|\]$/g, '');
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(cleanHost)) {
+    if (isPrivateIPv4(cleanHost)) {
+      const err = new Error('Requests to private or reserved IP addresses are blocked for security.');
+      (err as any).code = 'BLOCKED_DESTINATION';
+      throw err;
+    }
+    return cleanHost;
+  }
+  if (cleanHost.includes(':')) {
+    if (isPrivateIPv6(cleanHost)) {
+      const err = new Error('Requests to private or loopback IPv6 addresses are blocked for security.');
+      (err as any).code = 'BLOCKED_DESTINATION';
+      throw err;
+    }
+    return cleanHost;
+  }
+
+  const lookupResult = await lookupAsync(cleanHost, { all: true });
+  if (!lookupResult || lookupResult.length === 0) {
+    const err = new Error(`Unable to resolve domain "${cleanHost}". Ensure the host exists and is publicly accessible.`);
+    (err as any).code = 'DNS_ERROR';
+    throw err;
+  }
+
+  for (const entry of lookupResult) {
+    if (entry.family === 4 && isPrivateIPv4(entry.address)) {
+      const err = new Error('The domain resolves to a private or restricted IP address.');
+      (err as any).code = 'BLOCKED_DESTINATION';
+      throw err;
+    }
+    if (entry.family === 6 && isPrivateIPv6(entry.address)) {
+      const err = new Error('The domain resolves to a private or restricted IPv6 address.');
+      (err as any).code = 'BLOCKED_DESTINATION';
+      throw err;
+    }
+  }
+
+  return lookupResult[0].address;
+}
+
 export interface SafeFetchResult {
   requestedUrl: string;
   finalUrl: string;
@@ -128,8 +174,8 @@ export interface FetchOptions {
 }
 
 /**
- * Executes a secure, bounded HTTP GET request with SSRF validation at every hop,
- * manual redirect following, size cap, and strict timeout.
+ * Executes a secure, bounded HTTP GET request with connection-level IP verification,
+ * SSRF validation at every hop, manual redirect following, size cap, and strict timeout.
  */
 export async function safeFetch(
   targetUrl: string,
@@ -150,7 +196,7 @@ export async function safeFetch(
   const redirectChain: string[] = [];
   let redirectCount = 0;
 
-  // Single overall deadline controller covering DNS resolution, redirects, headers, and full streaming body
+  // Single overall deadline controller covering DNS resolution, connection, redirects, headers, and full streaming body
   const overallController = new AbortController();
   const overallTimer = setTimeout(() => {
     overallController.abort();
@@ -159,6 +205,9 @@ export async function safeFetch(
   try {
     while (redirectCount <= maxRedirects) {
       const validatedUrl = await validateSafeUrl(currentUrl);
+
+      // Connection-level IP enforcement: Resolve and verify the actual public IP immediately before connection
+      await resolveAndVerifyPublicIp(validatedUrl.hostname);
 
       // Check if timeout fired during DNS or loop processing
       if (overallController.signal.aborted) {

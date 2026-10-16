@@ -672,6 +672,8 @@ export default function HreflangTester() {
                       <span className="text-emerald-600">✓ Bi-directional return link verified</span>
                     ) : selectedItem.returnTagFound === false ? (
                       <span className="text-rose-600">✗ Missing return tag on alternate page</span>
+                    ) : selectedItem.issues.some((i) => i.code === 'AMBIGUOUS_RETURN_TAG') ? (
+                      <span className="text-amber-600">? Unverified (Source language ambiguous)</span>
                     ) : (
                       <span className="text-slate-500">Untested / Live check disabled</span>
                     )}
@@ -828,6 +830,8 @@ export default function HreflangTester() {
                               <span className="text-emerald-600">✓ Found</span>
                             ) : item.returnTagFound === false ? (
                               <span className="text-rose-600">✗ Missing</span>
+                            ) : item.issues.some((i) => i.code === 'AMBIGUOUS_RETURN_TAG') ? (
+                              <span className="text-amber-600 font-bold">? Unverified</span>
                             ) : (
                               <span className="text-slate-400">Untested</span>
                             )}

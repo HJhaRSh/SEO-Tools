@@ -142,29 +142,31 @@ export async function POST(req: NextRequest) {
             let foundCorrectLanguage = false;
             let returnLangFound: string | undefined = undefined;
 
+            let isAmbiguous = false;
+
             // What languages are declared for sourceUrl on its own page?
             const expectedSourceLangs = sourceSelfLangs.get(ann.sourceUrl) || new Set<string>();
 
             for (const [retLang, returnHref] of destEntry.entries()) {
-              // Exact URL comparison (respect trailing slash)
+              // Exact URL comparison (strictly respect trailing slash)
               if (returnHref === ann.sourceUrl) {
                 foundBackUrl = true;
                 returnLangFound = retLang;
 
-                // Return language must match one of the languages the source claims for itself, or be x-default,
-                // or if source has no self-ref, it should not contradict ann's own relationship
+                // Return language validation:
+                // 1. If ann.normalizedHreflang is 'x-default', destination must link back with the specific language declared for sourceUrl.
+                // 2. If ann is a language mapping (e.g. 'fr'), destination must link back with the specific language declared for sourceUrl (e.g. 'en').
+                // Do not treat x-default as interchangeable with a language-specific mapping.
                 if (expectedSourceLangs.size > 0) {
-                  if (expectedSourceLangs.has(retLang) || retLang === 'x-default') {
+                  if (expectedSourceLangs.has(retLang)) {
                     foundCorrectLanguage = true;
                     break;
                   }
                 } else {
-                  // Fallback when source has no explicit self-referencing tag:
-                  // The destination should not declare the same language as its own target
-                  if (retLang !== ann.normalizedHreflang || retLang === 'x-default') {
-                    foundCorrectLanguage = true;
-                    break;
-                  }
+                  // Source has no explicit self-referencing declaration in the sitemap.
+                  // The relationship cannot be conclusively determined without source language declaration.
+                  isAmbiguous = true;
+                  break;
                 }
               }
             }
@@ -178,12 +180,21 @@ export async function POST(req: NextRequest) {
                 alternateUrl: ann.href,
                 hreflang: ann.hreflang,
               });
+            } else if (isAmbiguous) {
+              returnTagFound = null; // Unverified
+              itemIssues.push({
+                code: 'AMBIGUOUS_RETURN_TAG',
+                severity: 'warning',
+                message: `Reciprocal return link unverified: Source page "${ann.sourceUrl}" lacks an explicit self-referencing language declaration, making the expected return language code ambiguous.`,
+                alternateUrl: ann.href,
+                hreflang: ann.hreflang,
+              });
             } else if (!foundCorrectLanguage) {
               returnTagFound = false;
               itemIssues.push({
                 code: 'WRONG_LANGUAGE_RETURN_TAG',
                 severity: 'error',
-                message: `Reciprocal return link language mismatch: Destination URL "${ann.href}" links back to "${ann.sourceUrl}" but with hreflang="${returnLangFound}", which does not match source language.`,
+                message: `Reciprocal return link language mismatch: Destination URL "${ann.href}" links back to "${ann.sourceUrl}" with hreflang="${returnLangFound}", which does not match source language (${Array.from(expectedSourceLangs).join(', ')}).`,
                 alternateUrl: ann.href,
                 hreflang: ann.hreflang,
               });
