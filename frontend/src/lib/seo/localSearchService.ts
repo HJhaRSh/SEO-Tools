@@ -31,7 +31,9 @@ export interface LocalSearchResult {
   uule: string | null;
   uuleStatus: 'encoded' | 'empty' | 'fallback_length_exceeded';
   googleSearchUrl: string;
+  googleSearchEmbedUrl: string;
   googleMapsUrl: string;
+  googleMapsEmbedUrl: string;
   mapsQuery: string;
   warning?: string;
 }
@@ -263,7 +265,17 @@ export function generateLocalSearchResults(options: LocalSearchOptions): LocalSe
     uule
   });
 
+  // Embed URL with igu=1 (as used by TechnicalSEO reference) to permit iframe rendering in browser
+  const googleSearchEmbedUrl = buildGoogleSearchUrl({
+    query: sanitizedQuery,
+    countryCode: countryCode || undefined,
+    languageCode: languageCode || undefined,
+    reducePersonalization,
+    uule
+  }) + '&igu=1';
+
   const mapsResult = buildGoogleMapsSearchUrl(sanitizedQuery, sanitizedLocation);
+  const googleMapsEmbedUrl = `https://www.google.com/maps?output=embed&q=${encodeURIComponent(mapsResult.mapsQuery)}`;
 
   return {
     searchQuery: sanitizedQuery,
@@ -274,7 +286,9 @@ export function generateLocalSearchResults(options: LocalSearchOptions): LocalSe
     uule,
     uuleStatus,
     googleSearchUrl,
+    googleSearchEmbedUrl,
     googleMapsUrl: mapsResult.url,
+    googleMapsEmbedUrl,
     mapsQuery: mapsResult.mapsQuery,
     warning
   };

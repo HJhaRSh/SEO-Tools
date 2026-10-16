@@ -21,6 +21,10 @@ export default function LocalSearchTool() {
   // Advanced section toggle
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // Active Embedded Viewer View
+  const [activeTab, setActiveTab] = useState<'search' | 'maps'>('search');
+  const [deviceViewport, setDeviceViewport] = useState<'desktop' | 'mobile'>('desktop');
+
   // Execution & Feedback State
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LocalSearchResult | null>(null);
@@ -76,21 +80,37 @@ export default function LocalSearchTool() {
     }
   };
 
+  const activeEmbedUrl = result
+    ? activeTab === 'search'
+      ? result.googleSearchEmbedUrl
+      : result.googleMapsEmbedUrl
+    : '';
+
+  const activeExternalUrl = result
+    ? activeTab === 'search'
+      ? result.googleSearchUrl
+      : result.googleMapsUrl
+    : '';
+
   return (
     <ToolLayout
       title="Local Search Results Tool"
-      description="Inspect geographically targeted Google Search and Google Maps queries from any location without paid APIs or cloud billing."
+      description="Inspect geographically targeted Google Search and Google Maps queries in real-time right inside your browser window without paid APIs or cloud billing."
       category="Local SEO"
       breadcrumbs={[{ label: 'Local Search Results Tool' }]}
-      aboutText="Search engine results pages (SERPs) vary significantly based on where a user searches from. Google tailors organic results, Local Map Packs, Knowledge Panels, and local business citations according to location signals. This free tool lets technical SEOs, local marketers, and business owners formulate authentic localized Google search URLs equipped with official canonical location parameters (Google UULE), country market bias (gl), language controls (hl), and reduced personalization (pws=0). All generation runs transparently on your device without paid APIs or registration."
+      aboutText="Search engine results pages (SERPs) vary significantly based on where a user searches from. Google tailors organic results, Local Map Packs, Knowledge Panels, and local business citations according to location signals. This free tool lets technical SEOs, local marketers, and business owners formulate authentic localized Google search URLs equipped with official canonical location parameters (Google UULE), country market bias (gl), language controls (hl), and reduced personalization (pws=0). You can inspect the live results directly in the embedded interactive browser pane or open them in external browser tabs."
       howItWorks={[
         "Enter your search keyword or phrase (e.g. 'best restaurants in Mumbai', 'dentist near me', 'digital marketing agency').",
         "Specify the search location (e.g. 'Mumbai, Maharashtra, India' or select from quick suggestions).",
         "Adjust advanced options if needed: target country (gl), interface language (hl), and personalization reduction (pws=0).",
-        "Click 'Generate Local Search Targets'.",
-        "Launch Google Search to inspect organic SERP ranking, or launch Google Maps to check Map Pack local prominence."
+        "Click 'Generate & Inspect Local Search'.",
+        "View the live Google Search or Google Maps results directly in the embedded pane below, toggle between desktop and mobile viewport containers, or open in a new tab."
       ]}
       faq={[
+        {
+          question: "How does the embedded live browser pane work?",
+          answer: "The live browser pane embeds the location-targeted Google Search (utilizing the reference 'igu=1' parameter) and Google Maps in an interactive container. This enables you to inspect the localized query directly inside this application without having to switch tabs. You can also toggle between desktop container width and mobile device container view."
+        },
         {
           question: "How does Google determine location in these generated search URLs?",
           answer: "Google uses the canonical 'uule' parameter to associate search queries with a geographic location. This tool formats the location name into Google's standard length-keyed Base64 UULE specification. Combined with the country domain/market parameter (gl) and interface language (hl), Google serves results tailored to the designated region."
@@ -116,7 +136,7 @@ export default function LocalSearchTool() {
             <h2 className="text-xl font-extrabold text-slate-900">Configure Local Search</h2>
             <p className="text-sm text-slate-500 mt-0.5">Specify your target keyword, search territory, and geographic parameters.</p>
           </div>
-          <span className="badge badge-success hidden sm:inline-flex">100% Free & No API Mandate</span>
+          <span className="badge badge-success hidden sm:inline-flex">100% Free &amp; No API Mandate</span>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -280,12 +300,12 @@ export default function LocalSearchTool() {
             type="submit"
             className="btn btn-primary w-full text-base py-3.5 shadow-md flex items-center justify-center gap-2"
           >
-            <span>🔍</span> Generate Local Search Targets
+            <span>🔍</span> Generate &amp; Inspect Local Search
           </button>
         </form>
       </div>
 
-      {/* SECTION 2: RESULTS SECTION */}
+      {/* SECTION 2: RESULTS & EMBEDDED IN-PANE BROWSER */}
       {result && (
         <div className="card space-y-6 mb-8 border-green-200 shadow-md">
           {/* Header */}
@@ -302,7 +322,7 @@ export default function LocalSearchTool() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="badge badge-success text-xs">URLs Generated</span>
+              <span className="badge badge-success text-xs">Live Pane Ready</span>
             </div>
           </div>
 
@@ -349,94 +369,124 @@ export default function LocalSearchTool() {
             </div>
           )}
 
-          {/* Action Launch Panels */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Google Search Card */}
-            <div className="p-5 rounded-2xl border-2 border-slate-200 bg-white hover:border-green-500/60 transition-all flex flex-col justify-between shadow-sm">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                    <span className="text-blue-600">G</span> Google Search (Localized)
-                  </h3>
-                  <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded">
-                    SERP &amp; Organic
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed mb-3">
-                  Launches Google web search parameterized with market code (<code className="text-xs">gl={result.countryCode || 'none'}</code>), interface language (<code className="text-xs">hl={result.languageCode || 'none'}</code>), and canonical location encoding (<code className="text-xs">uule</code>).
-                </p>
-
-                {/* URL preview box */}
-                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 mb-4 font-mono text-[11px] text-slate-700 break-all select-all max-h-24 overflow-y-auto">
-                  {result.googleSearchUrl}
-                </div>
+          {/* EMBEDDED IN-PANE BROWSER VIEWER */}
+          <div className="border-2 border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+            {/* Viewer Bar Controls */}
+            <div className="bg-slate-100 p-3 sm:px-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              {/* Tab Selector: Google Search vs Google Maps */}
+              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('search')}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                    activeTab === 'search'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>🔍</span> Google Search (SERP)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('maps')}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                    activeTab === 'maps'
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>📍</span> Google Maps
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-2">
+              {/* Viewport Dimension Toggle: Desktop vs Mobile */}
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setDeviceViewport('desktop')}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      deviceViewport === 'desktop'
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    🖥️ Desktop
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeviceViewport('mobile')}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      deviceViewport === 'mobile'
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    📱 Mobile View
+                  </button>
+                </div>
+
+                {/* External Launch & Copy Quick Buttons */}
                 <a
-                  href={result.googleSearchUrl}
+                  href={activeExternalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn-primary text-xs py-2.5 px-3 flex items-center justify-center gap-1.5"
+                  className="btn btn-secondary text-xs py-1.5 px-3 bg-white text-slate-800 border-slate-300 hover:bg-slate-50 flex items-center gap-1"
                 >
-                  <span>Open Search ↗</span>
+                  <span>Open Full Tab ↗</span>
                 </a>
                 <button
                   type="button"
-                  onClick={() => handleCopy(result.googleSearchUrl, 'search')}
-                  className="btn btn-secondary text-xs py-2.5 px-3 flex items-center justify-center gap-1.5"
+                  onClick={() => handleCopy(activeExternalUrl, activeTab)}
+                  className="btn btn-secondary text-xs py-1.5 px-3 bg-white text-slate-800 border-slate-300 hover:bg-slate-50 flex items-center gap-1"
                 >
-                  {copiedType === 'search' ? (
-                    <span className="text-emerald-700 font-bold">✓ Copied!</span>
+                  {copiedType === activeTab ? (
+                    <span className="text-emerald-700 font-bold">✓ Copied</span>
                   ) : (
-                    <span>📋 Copy Link</span>
+                    <span>📋 Copy</span>
                   )}
                 </button>
               </div>
             </div>
 
-            {/* Google Maps Card */}
-            <div className="p-5 rounded-2xl border-2 border-slate-200 bg-white hover:border-green-500/60 transition-all flex flex-col justify-between shadow-sm">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                    <span className="text-red-500">📍</span> Google Maps (Map Pack)
-                  </h3>
-                  <span className="text-xs bg-red-50 text-red-700 font-bold px-2 py-0.5 rounded">
-                    Maps / Local Pack
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed mb-3">
-                  Opens Google Maps search centered on the geographic target query (<code className="text-xs">&quot;{result.mapsQuery}&quot;</code>) to inspect business clusters and local pack visibility without Places API billing.
-                </p>
+            {/* Embedded Browser Frame Display */}
+            <div className="bg-slate-200/60 p-2 sm:p-4 flex items-center justify-center min-h-[550px]">
+              <div
+                className={`transition-all duration-300 bg-white rounded-xl shadow-md border border-slate-300 overflow-hidden ${
+                  deviceViewport === 'mobile'
+                    ? 'w-full max-w-[420px] h-[680px] rounded-3xl border-4 border-slate-800'
+                    : 'w-full h-[620px]'
+                }`}
+              >
+                {/* Simulated Device Header (if in mobile view) */}
+                {deviceViewport === 'mobile' && (
+                  <div className="bg-slate-800 px-4 py-1.5 text-[11px] font-medium text-slate-300 flex items-center justify-between">
+                    <span>9:41</span>
+                    <span className="flex items-center gap-1.5 text-[10px]">
+                      <span>📶</span> <span>🔋 100%</span>
+                    </span>
+                  </div>
+                )}
 
-                {/* URL preview box */}
-                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 mb-4 font-mono text-[11px] text-slate-700 break-all select-all max-h-24 overflow-y-auto">
-                  {result.googleMapsUrl}
-                </div>
+                <iframe
+                  key={`${activeTab}-${result.searchQuery}-${result.searchLocation}-${result.countryCode}`}
+                  src={activeEmbedUrl}
+                  title="Localized Search Results"
+                  className="w-full h-full border-0"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+                  loading="lazy"
+                />
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <a
-                  href={result.googleMapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-secondary text-xs py-2.5 px-3 flex items-center justify-center gap-1.5 bg-slate-900 text-white hover:bg-black border-slate-900"
-                >
-                  <span>Open Maps ↗</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(result.googleMapsUrl, 'maps')}
-                  className="btn btn-secondary text-xs py-2.5 px-3 flex items-center justify-center gap-1.5"
-                >
-                  {copiedType === 'maps' ? (
-                    <span className="text-emerald-700 font-bold">✓ Copied!</span>
-                  ) : (
-                    <span>📋 Copy Link</span>
-                  )}
-                </button>
-              </div>
+            {/* Frame Helper Bar */}
+            <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 flex flex-wrap items-center justify-between text-[11px] text-slate-500 gap-2">
+              <span className="truncate max-w-xl">
+                Active Source: <code className="bg-white px-1 py-0.5 rounded border border-slate-200">{activeEmbedUrl}</code>
+              </span>
+              <span>
+                Tip: If your browser blocks 3rd-party cookies/frames for Google, click <strong>Open Full Tab ↗</strong>
+              </span>
             </div>
           </div>
 
@@ -446,7 +496,7 @@ export default function LocalSearchTool() {
               <span>ℹ️</span> SEO Accuracy &amp; Location Targeting Transparency
             </div>
             <p>
-              This tool formulates direct Google Search and Google Maps URLs using standard geographic parameters (<code className="text-xs">uule</code>, <code className="text-xs">gl</code>, <code className="text-xs">hl</code>, <code className="text-xs">pws=0</code>). It is designed for manual SERP inspection and ranking appearance testing. It does <strong>not</strong> claim to simulate a physical GPS device, intercept device telemetry, or display fabricated rank positions. Real results may also be influenced by your active Google Account state and network provider IP.
+              This tool formulates direct Google Search and Google Maps URLs using standard geographic parameters (<code className="text-xs">uule</code>, <code className="text-xs">gl</code>, <code className="text-xs">hl</code>, <code className="text-xs">pws=0</code>). The embedded browser pane displays the localized results directly inside the tool pane for convenient side-by-side inspection. It does <strong>not</strong> claim to simulate a physical GPS device or display fabricated rank positions. Real results may also be influenced by your active Google Account state and network provider IP.
             </p>
           </div>
         </div>

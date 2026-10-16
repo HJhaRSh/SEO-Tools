@@ -121,6 +121,8 @@ async function runLocalSearchTests() {
   assert(fullResult.uuleStatus === 'encoded', 'Status is encoded');
   assert(fullResult.countryCode === 'gb', 'Country code is gb');
   assert(fullResult.reducePersonalization === true, 'Personalization reduction is true');
+  assert(fullResult.googleSearchEmbedUrl.includes('igu=1'), 'Search embed URL includes igu=1 for inline browser pane');
+  assert(fullResult.googleMapsEmbedUrl.includes('output=embed'), 'Maps embed URL includes output=embed for inline browser pane');
 
   // Blank query error handling
   let threwError = false;
