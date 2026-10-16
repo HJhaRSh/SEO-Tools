@@ -24,7 +24,7 @@ export default function LocalSearchTool() {
   // Active Embedded Viewer View
   const [activeTab, setActiveTab] = useState<'search' | 'maps'>('search');
   const [deviceViewport, setDeviceViewport] = useState<'desktop' | 'mobile'>('desktop');
-  const [queryMode, setQueryMode] = useState<'location_intent' | 'strict_uule'>('location_intent');
+  const [queryMode, setQueryMode] = useState<'strict_uule' | 'location_intent'>('strict_uule');
 
   // Execution & Feedback State
   const [error, setError] = useState<string | null>(null);
