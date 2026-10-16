@@ -760,7 +760,11 @@ export default function MobileFriendlyTest() {
             <div className="flex justify-center p-2 bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`data:image/png;base64,${screenshotModalUrl.screenshot.base64Data}`}
+                src={
+                  screenshotModalUrl.screenshot.base64Data!.startsWith('data:')
+                    ? screenshotModalUrl.screenshot.base64Data!
+                    : `data:image/png;base64,${screenshotModalUrl.screenshot.base64Data}`
+                }
                 alt="Mobile Rendered Screenshot"
                 className="max-h-[60vh] object-contain rounded-xl shadow-md"
               />
@@ -775,7 +779,9 @@ export default function MobileFriendlyTest() {
                 className="btn btn-primary text-xs py-2 px-4"
                 onClick={() => {
                   try {
-                    const base64 = screenshotModalUrl.screenshot!.base64Data!;
+                    const raw = screenshotModalUrl.screenshot!.base64Data!;
+                    // base64Data may be stored as a full data URL — strip prefix if present
+                    const base64 = raw.startsWith('data:') ? raw.split(',')[1] : raw;
                     const byteCharacters = atob(base64);
                     const byteNumbers = new Uint8Array(byteCharacters.length);
                     for (let i = 0; i < byteCharacters.length; i++) {
@@ -789,10 +795,9 @@ export default function MobileFriendlyTest() {
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch {
-                    // fallback: open in new tab
-                    window.open(`data:image/png;base64,${screenshotModalUrl.screenshot!.base64Data}`, '_blank');
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                  } catch (e) {
+                    console.error('Screenshot download failed:', e);
                   }
                 }}
               >
