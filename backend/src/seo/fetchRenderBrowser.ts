@@ -22,7 +22,21 @@ const renderQueue: (() => void)[] = [];
 let sharedBrowser: Browser | null = null;
 let browserInitPromise: Promise<Browser> | null = null;
 
-async function getSharedBrowser(): Promise<Browser> {
+let sharedRemoteBrowser: Browser | null = null;
+
+async function getSharedBrowser(wsEndpoint?: string): Promise<Browser> {
+  if (wsEndpoint) {
+    if (sharedRemoteBrowser && sharedRemoteBrowser.isConnected()) {
+      return sharedRemoteBrowser;
+    }
+    const remote = await chromium.connect(wsEndpoint);
+    remote.on('disconnected', () => {
+      sharedRemoteBrowser = null;
+    });
+    sharedRemoteBrowser = remote;
+    return remote;
+  }
+
   if (sharedBrowser && sharedBrowser.isConnected()) {
     return sharedBrowser;
   }
@@ -136,6 +150,7 @@ export interface ExecuteBrowserRenderOptions {
     deviceScaleFactor?: number;
     isMobile?: boolean;
   };
+  wsEndpoint?: string;
 }
 
 export async function executeBrowserRender(
@@ -184,7 +199,7 @@ export async function executeBrowserRender(
     );
 
     // 3. Obtain Chromium browser instance
-    const browser = await getSharedBrowser();
+    const browser = await getSharedBrowser(options.wsEndpoint);
 
     // 4. Create isolated browser context routed through SSRF validating proxy
     const effectiveViewport = options.customViewport || {
@@ -210,7 +225,7 @@ export async function executeBrowserRender(
       proxy: {
         server: proxyInstance.proxyUrl
       },
-      ignoreHTTPSErrors: true
+      ignoreHTTPSErrors: false
     });
 
     page = await context.newPage();

@@ -20,6 +20,7 @@ export interface ExecuteBrowserRenderOptions {
     deviceScaleFactor?: number;
     isMobile?: boolean;
   };
+  wsEndpoint?: string;
 }
 
 export interface BrowserRenderProvider {
@@ -88,7 +89,10 @@ export class RemoteBrowserProvider implements BrowserRenderProvider {
     }
     // Remote browser execution implementation hooks into WebSocket endpoint when configured
     const { executeBrowserRender } = await import('./fetchRenderBrowser.js');
-    return executeBrowserRender(options);
+    return executeBrowserRender({
+      ...options,
+      wsEndpoint: this.wsEndpoint
+    });
   }
 }
 
