@@ -24,6 +24,7 @@ export default function LocalSearchTool() {
   // Active Embedded Viewer View
   const [activeTab, setActiveTab] = useState<'search' | 'maps'>('search');
   const [deviceViewport, setDeviceViewport] = useState<'desktop' | 'mobile'>('desktop');
+  const [queryMode, setQueryMode] = useState<'location_intent' | 'strict_uule'>('location_intent');
 
   // Execution & Feedback State
   const [error, setError] = useState<string | null>(null);
@@ -82,13 +83,17 @@ export default function LocalSearchTool() {
 
   const activeEmbedUrl = result
     ? activeTab === 'search'
-      ? result.googleSearchEmbedUrl
+      ? queryMode === 'location_intent' && result.searchLocation
+        ? `${result.googleSearchEmbedUrl}&q=${encodeURIComponent(result.searchQuery + ' in ' + result.searchLocation.split(',')[0].trim())}`
+        : result.googleSearchEmbedUrl
       : result.googleMapsEmbedUrl
     : '';
 
   const activeExternalUrl = result
     ? activeTab === 'search'
-      ? result.googleSearchUrl
+      ? queryMode === 'location_intent' && result.searchLocation
+        ? `${result.googleSearchUrl}&q=${encodeURIComponent(result.searchQuery + ' in ' + result.searchLocation.split(',')[0].trim())}`
+        : result.googleSearchUrl
       : result.googleMapsUrl
     : '';
 
@@ -401,6 +406,37 @@ export default function LocalSearchTool() {
                   <span>📍</span> Google Maps
                 </button>
               </div>
+
+              {/* Location Targeting Mode Toggle (when on search tab) */}
+              {activeTab === 'search' && result.searchLocation && (
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-xs">
+                  <span className="text-[10px] text-slate-400 uppercase px-1.5">Strategy:</span>
+                  <button
+                    type="button"
+                    onClick={() => setQueryMode('location_intent')}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      queryMode === 'location_intent'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Forces local map pack for the target city by pairing canonical UULE with explicit local query intent"
+                  >
+                    📍 Force Local Pack ({result.searchLocation.split(',')[0].trim()})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQueryMode('strict_uule')}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      queryMode === 'strict_uule'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Sends pure keyword with UULE parameter only"
+                  >
+                    🏷️ Pure UULE Only
+                  </button>
+                </div>
+              )}
 
               {/* Viewport Dimension Toggle: Desktop vs Mobile */}
               <div className="flex items-center gap-2">
