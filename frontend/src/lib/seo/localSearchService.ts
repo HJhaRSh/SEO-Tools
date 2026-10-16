@@ -269,14 +269,14 @@ export function generateLocalSearchResults(options: LocalSearchOptions): LocalSe
     uule
   });
 
-  // Embed URL with igu=1 (as used by TechnicalSEO reference) to permit iframe rendering in browser
+  // Embed URL with igu=1 and adtest=off (matching TechnicalSEO reference) to permit iframe rendering and suppress physical IP override
   const googleSearchEmbedUrl = buildGoogleSearchUrl({
     query: sanitizedQuery,
     countryCode: countryCode || undefined,
     languageCode: languageCode || undefined,
     reducePersonalization,
     uule
-  }) + '&igu=1';
+  }) + '&igu=1&adtest=off';
 
   const mapsResult = buildGoogleMapsSearchUrl(sanitizedQuery, sanitizedLocation);
   const googleMapsEmbedUrl = `https://www.google.com/maps?output=embed&q=${encodeURIComponent(mapsResult.mapsQuery)}`;
