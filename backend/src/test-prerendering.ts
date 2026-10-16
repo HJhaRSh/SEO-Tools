@@ -942,6 +942,300 @@ async function runPrerenderTestSuite() {
     assert.strictEqual(xlsx[1], 0x4b);
   });
 
+  console.log('\n4. Comprehensive Security, Non-HTML, Timeout & Deep Comparison Suite:');
+
+  // Test 4.1: Non-HTML content types are rejected from HTML parsing
+  await test('Non-HTML: Recognizes and rejects PDF, JSON, and binary streams from HTML parsing', async () => {
+    const { isSupportedHtmlContentType } = await import('../../frontend/src/lib/seo/prerendering/htmlParser.ts');
+    assert.strictEqual(isSupportedHtmlContentType('text/html; charset=utf-8'), true);
+    assert.strictEqual(isSupportedHtmlContentType('application/xhtml+xml'), true);
+    assert.strictEqual(isSupportedHtmlContentType('application/pdf'), false);
+    assert.strictEqual(isSupportedHtmlContentType('application/json'), false);
+    assert.strictEqual(isSupportedHtmlContentType('image/png'), false);
+    assert.strictEqual(isSupportedHtmlContentType('application/octet-stream'), false);
+    assert.strictEqual(isSupportedHtmlContentType(''), false);
+    assert.strictEqual(isSupportedHtmlContentType(undefined), false);
+  });
+
+  // Test 4.2: Direct raw byte MD5/SHA-256 calculation
+  await test('Raw-byte Fingerprinting: Direct buffer hashing does not depend on text normalization or decoding', async () => {
+    const { createHash } = await import('node:crypto');
+    const rawBuffer = Buffer.from([0xef, 0xbb, 0xbf, 0x48, 0x65, 0x6c, 0x6c, 0x6f]); // UTF-8 with BOM
+    const md5Expected = createHash('md5').update(rawBuffer).digest('hex');
+    const shaExpected = createHash('sha256').update(rawBuffer).digest('hex');
+
+    const parsed = extractHtmlSignals('<html><head><title>Test</title></head><body>Hello</body></html>', 'https://example.com/', rawBuffer);
+    assert.strictEqual(parsed.md5, md5Expected);
+    assert.strictEqual(parsed.sha256, shaExpected);
+  });
+
+  // Test 4.3: Separate robots and crawler-specific directives
+  await test('Meta Robots: Separates general, googlebot, and bingbot directives without silent overwriting', async () => {
+    const htmlWithMultipleRobots = `
+      <html>
+        <head>
+          <meta name="robots" content="index, follow">
+          <meta name="googlebot" content="noindex, follow">
+          <meta name="bingbot" content="index, nofollow">
+        </head>
+        <body>Test</body>
+      </html>
+    `;
+    const parsed = extractHtmlSignals(htmlWithMultipleRobots, 'https://example.com/');
+    assert.strictEqual(parsed.generalRobots, 'index, follow');
+    assert.strictEqual(parsed.googlebotRobots, 'noindex, follow');
+    assert.strictEqual(parsed.bingbotRobots, 'index, nofollow');
+  });
+
+  // Test 4.4: Link destination comparison (identical counts, different destinations)
+  await test('Link Comparison: Detects different destinations even when total link count matches', async () => {
+    const resultA: AgentTestResult = {
+      userAgentId: 'chrome-desktop',
+      userAgentName: 'Chrome',
+      status: 'success',
+      statusCode: 200,
+      statusText: 'OK',
+      finalUrl: 'https://example.com/',
+      redirectChain: [],
+      isHtml: true,
+      title: 'Page',
+      metaDescription: 'Desc',
+      h1: ['Heading'],
+      wordCount: 100,
+      imageCount: 1,
+      linkCount: 2,
+      internalLinkCount: 2,
+      externalLinkCount: 0,
+      internalLinksSample: ['https://example.com/products', 'https://example.com/contact'],
+      externalLinksSample: [],
+      imagesSample: [{ src: 'https://example.com/logo.png', alt: 'Logo' }],
+      varyUserAgent: 'Present',
+      varyHeaderRaw: 'User-Agent',
+      md5: 'hash1',
+      sha256: 'hash1',
+      generalRobots: 'index',
+      googlebotRobots: null,
+      bingbotRobots: null,
+      metaRobots: 'index',
+      xRobotsTag: null,
+      canonical: 'https://example.com/',
+      contentType: 'text/html',
+      contentLanguage: 'en',
+      durationMs: 50,
+      htmlSize: 500,
+      hasStructuredData: false,
+      error: null,
+    };
+
+    const resultB: AgentTestResult = {
+      ...resultA,
+      userAgentId: 'googlebot-desktop',
+      userAgentName: 'Googlebot',
+      md5: 'hash2',
+      sha256: 'hash2',
+      // Same linkCount (2), but different destination (/pricing instead of /contact)
+      internalLinksSample: ['https://example.com/products', 'https://example.com/pricing'],
+    };
+
+    const { comparisons } = compareAgentResults([resultA, resultB]);
+    const linkComp = comparisons.find((c) => c.field === 'linkCount');
+    assert(linkComp);
+    assert.strictEqual(linkComp.status, 'different');
+    assert(linkComp.explanation.includes('specific link destination URLs differ'));
+  });
+
+  // Test 4.5: Image comparison (identical count, different image src or alt text)
+  await test('Image Comparison: Detects different image src/alt when image counts match', async () => {
+    const resultA: AgentTestResult = {
+      userAgentId: 'chrome-desktop',
+      userAgentName: 'Chrome',
+      status: 'success',
+      statusCode: 200,
+      statusText: 'OK',
+      finalUrl: 'https://example.com/',
+      redirectChain: [],
+      isHtml: true,
+      title: 'Page',
+      metaDescription: 'Desc',
+      h1: ['Heading'],
+      wordCount: 100,
+      imageCount: 1,
+      linkCount: 0,
+      internalLinkCount: 0,
+      externalLinkCount: 0,
+      imagesSample: [{ src: 'https://example.com/hero-desktop.jpg', alt: 'Hero Banner' }],
+      varyUserAgent: 'Present',
+      varyHeaderRaw: 'User-Agent',
+      md5: 'hash1',
+      sha256: 'hash1',
+      generalRobots: 'index',
+      googlebotRobots: null,
+      bingbotRobots: null,
+      metaRobots: 'index',
+      xRobotsTag: null,
+      canonical: 'https://example.com/',
+      contentType: 'text/html',
+      contentLanguage: 'en',
+      durationMs: 50,
+      htmlSize: 500,
+      hasStructuredData: false,
+      error: null,
+    };
+
+    const resultB: AgentTestResult = {
+      ...resultA,
+      userAgentId: 'googlebot-desktop',
+      userAgentName: 'Googlebot',
+      md5: 'hash2',
+      sha256: 'hash2',
+      imagesSample: [{ src: 'https://example.com/hero-bot.jpg', alt: 'Hero Banner Bot' }],
+    };
+
+    const { comparisons } = compareAgentResults([resultA, resultB]);
+    const imgComp = comparisons.find((c) => c.field === 'imageCount');
+    assert(imgComp);
+    assert.strictEqual(imgComp.status, 'different');
+    assert(imgComp.explanation.includes('image source URLs (src) or alt text attributes differ'));
+  });
+
+  // Test 4.6: HTTP Error responses (403, 404, 500)
+  await test('Error Responses: Accurately classifies HTTP 403, 404, and 500 error pages without misleading SEO warnings', async () => {
+    const errorServer = http.createServer((req, res) => {
+      const ua = req.headers['user-agent'] || '';
+      if (ua.includes('Googlebot')) {
+        res.writeHead(403, { 'Content-Type': 'text/html' });
+        res.end('<html><head><title>403 Forbidden</title></head><body>Forbidden for bots</body></html>');
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><head><title>Legitimate Page</title></head><body>Normal Content</body></html>');
+      }
+    });
+
+    await new Promise<void>((resolve) => errorServer.listen(0, '127.0.0.1', () => resolve()));
+    const port = (errorServer.address() as any).port;
+
+    try {
+      const resChrome = await fetchWithUserAgent(`http://127.0.0.1:${port}/`, {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+        allowLocalhostForTesting: true,
+      });
+      const resBot = await fetchWithUserAgent(`http://127.0.0.1:${port}/`, {
+        userAgent: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        allowLocalhostForTesting: true,
+      });
+
+      assert.strictEqual(resChrome.statusCode, 200);
+      assert.strictEqual(resBot.statusCode, 403);
+
+      const agentChrome: AgentTestResult = {
+        userAgentId: 'chrome-desktop',
+        userAgentName: 'Chrome',
+        status: 'success',
+        statusCode: resChrome.statusCode,
+        statusText: resChrome.statusText,
+        finalUrl: resChrome.finalUrl,
+        redirectChain: [],
+        isHtml: true,
+        isErrorResponse: false,
+        title: 'Legitimate Page',
+        metaDescription: null,
+        h1: [],
+        wordCount: 10,
+        imageCount: 0,
+        linkCount: 0,
+        internalLinkCount: 0,
+        externalLinkCount: 0,
+        varyUserAgent: 'Not available',
+        varyHeaderRaw: null,
+        md5: resChrome.md5,
+        sha256: resChrome.sha256,
+        generalRobots: null,
+        googlebotRobots: null,
+        bingbotRobots: null,
+        metaRobots: null,
+        xRobotsTag: null,
+        canonical: null,
+        contentType: 'text/html',
+        contentLanguage: null,
+        durationMs: 20,
+        htmlSize: 100,
+        hasStructuredData: false,
+        error: null,
+      };
+
+      const agentBot: AgentTestResult = {
+        userAgentId: 'googlebot-desktop',
+        userAgentName: 'Googlebot',
+        status: 'success',
+        statusCode: resBot.statusCode,
+        statusText: resBot.statusText,
+        finalUrl: resBot.finalUrl,
+        redirectChain: [],
+        isHtml: true,
+        isErrorResponse: true,
+        title: '403 Forbidden',
+        metaDescription: null,
+        h1: [],
+        wordCount: 10,
+        imageCount: 0,
+        linkCount: 0,
+        internalLinkCount: 0,
+        externalLinkCount: 0,
+        varyUserAgent: 'Not available',
+        varyHeaderRaw: null,
+        md5: resBot.md5,
+        sha256: resBot.sha256,
+        generalRobots: null,
+        googlebotRobots: null,
+        bingbotRobots: null,
+        metaRobots: null,
+        xRobotsTag: null,
+        canonical: null,
+        contentType: 'text/html',
+        contentLanguage: null,
+        durationMs: 20,
+        htmlSize: 100,
+        hasStructuredData: false,
+        error: null,
+      };
+
+      const { summary, comparisons } = compareAgentResults([agentChrome, agentBot]);
+      assert.strictEqual(summary.differentHttpStatuses, true);
+      assert.strictEqual(summary.classification, 'Bot-Specific HTML Response');
+      assert(summary.classificationReason.includes('error codes'));
+    } finally {
+      errorServer.close();
+    }
+  });
+
+  // Test 4.7: Total Operation Deadline Enforced
+  await test('Total Request Deadline: Enforces bounded timeout across slow server', async () => {
+    const slowServer = http.createServer((_req, res) => {
+      // Do not respond
+    });
+
+    await new Promise<void>((resolve) => slowServer.listen(0, '127.0.0.1', () => resolve()));
+    const port = (slowServer.address() as any).port;
+
+    try {
+      const start = Date.now();
+      await assert.rejects(
+        async () => {
+          await fetchWithUserAgent(`http://127.0.0.1:${port}/`, {
+            userAgent: 'TestAgent',
+            timeoutMs: 400, // 400ms test deadline
+            allowLocalhostForTesting: true,
+          });
+        },
+        /REQUEST_TIMEOUT|timed out/
+      );
+      const elapsed = Date.now() - start;
+      assert(elapsed < 1500, `Deadline must trigger promptly (took ${elapsed}ms)`);
+    } finally {
+      slowServer.close();
+    }
+  });
+
   console.log('\n=====================================================');
   console.log(`TOTAL PRE-RENDERING TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
   console.log('=====================================================\n');

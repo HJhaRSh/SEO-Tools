@@ -12,6 +12,9 @@ export interface AgentTestResult {
   statusText: string | null;
   finalUrl: string | null;
   redirectChain: RedirectHop[];
+  isHtml: boolean;
+  unsupportedContentType?: boolean;
+  isErrorResponse?: boolean;
   title: string | null;
   metaDescription: string | null;
   h1: string[];
@@ -20,10 +23,16 @@ export interface AgentTestResult {
   linkCount: number | null;
   internalLinkCount: number | null;
   externalLinkCount: number | null;
+  internalLinksSample?: string[];
+  externalLinksSample?: string[];
+  imagesSample?: { src: string; alt: string }[];
   varyUserAgent: 'Present' | 'Absent' | 'Not available';
   varyHeaderRaw: string | null;
   md5: string | null;
   sha256: string | null;
+  generalRobots: string | null;
+  googlebotRobots: string | null;
+  bingbotRobots: string | null;
   metaRobots: string | null;
   xRobotsTag: string | null;
   canonical: string | null;
@@ -33,7 +42,10 @@ export interface AgentTestResult {
   htmlSize: number | null;
   hasStructuredData: boolean;
   rawHtml?: string;
+  rawHtmlExcerpt?: string;
+  isTruncatedSource?: boolean;
   error: string | null;
+  errorCode?: string | null;
 }
 
 export type FieldComparisonStatus = 'matched' | 'different' | 'missing' | 'not-tested';

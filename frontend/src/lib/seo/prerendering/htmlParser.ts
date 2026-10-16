@@ -1,21 +1,43 @@
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 
+export interface ExtractedImageDetail {
+  src: string;
+  alt: string;
+  loading?: string;
+}
+
 export interface ExtractedHtmlSignals {
   title: string | null;
   metaDescription: string | null;
   h1: string[];
   wordCount: number;
+  bodyTextNormalized: string;
   imageCount: number;
+  imagesSample: ExtractedImageDetail[];
   linkCount: number;
   internalLinkCount: number;
   externalLinkCount: number;
+  internalLinksSample: string[];
+  externalLinksSample: string[];
+  generalRobots: string | null;
+  googlebotRobots: string | null;
+  bingbotRobots: string | null;
   metaRobots: string | null;
   canonical: string | null;
   contentLanguage: string | null;
   hasStructuredData: boolean;
   md5: string;
   sha256: string;
+}
+
+/**
+ * Validates whether an HTTP Content-Type indicates a parsable HTML document.
+ */
+export function isSupportedHtmlContentType(contentType: string | undefined): boolean {
+  if (!contentType) return false;
+  const mime = contentType.split(';')[0].trim().toLowerCase();
+  return mime === 'text/html' || mime === 'application/xhtml+xml';
 }
 
 /**
@@ -47,10 +69,17 @@ export function calculateWordCount(text: string, lang = 'en'): number {
 
 /**
  * Extracts comprehensive SEO signals from raw HTML using Cheerio parser.
+ * Computes MD5 and SHA-256 fingerprints on raw bytes buffer directly if provided, or UTF-8 buffer.
+ * Extracts general robots, googlebot-specific, and bingbot-specific directives separately.
+ * Extracts normalized link destinations and image URLs/alt-texts for deep comparison.
  */
-export function extractHtmlSignals(html: string, baseUrl: string): ExtractedHtmlSignals {
-  // Fingerprints computed strictly on raw bytes
-  const buffer = Buffer.from(html, 'utf-8');
+export function extractHtmlSignals(
+  html: string,
+  baseUrl: string,
+  rawBuffer?: Buffer
+): ExtractedHtmlSignals {
+  // Fingerprints computed strictly on raw binary bytes
+  const buffer = rawBuffer || Buffer.from(html, 'utf-8');
   const md5 = crypto.createHash('md5').update(buffer).digest('hex');
   const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
 
@@ -86,11 +115,22 @@ export function extractHtmlSignals(html: string, baseUrl: string): ExtractedHtml
     }
   }
 
-  // 5. Meta robots (look for <meta name="robots"> and bot-specific tags)
-  const metaRobotsTag = $('meta[name="robots" i]').attr('content') ||
-    $('meta[name="googlebot" i]').attr('content') ||
-    null;
-  const metaRobots = metaRobotsTag ? metaRobotsTag.replace(/\s+/g, ' ').trim() : null;
+  // 5. Meta robots — Separate general and crawler-specific directives
+  const genRobots = $('meta[name="robots" i]').attr('content') || null;
+  const gBotRobots = $('meta[name="googlebot" i]').attr('content') || null;
+  const bBotRobots = $('meta[name="bingbot" i]').attr('content') || null;
+
+  const generalRobots = genRobots ? genRobots.replace(/\s+/g, ' ').trim() : null;
+  const googlebotRobots = gBotRobots ? gBotRobots.replace(/\s+/g, ' ').trim() : null;
+  const bingbotRobots = bBotRobots ? bBotRobots.replace(/\s+/g, ' ').trim() : null;
+
+  // Aggregate active metaRobots string for backwards compatibility
+  const metaRobotsParts = [
+    generalRobots ? `robots: ${generalRobots}` : '',
+    googlebotRobots ? `googlebot: ${googlebotRobots}` : '',
+    bingbotRobots ? `bingbot: ${bingbotRobots}` : '',
+  ].filter(Boolean);
+  const metaRobots = metaRobotsParts.length > 0 ? metaRobotsParts.join(' | ') : generalRobots || googlebotRobots || null;
 
   // 6. Content language
   const htmlLang = $('html').attr('lang') ||
@@ -107,10 +147,33 @@ export function extractHtmlSignals(html: string, baseUrl: string): ExtractedHtml
     }
   });
 
-  // 8. Images count
-  const imageCount = $('img').length;
+  // 8. Images extraction (src, alt, loading)
+  const imagesSample: ExtractedImageDetail[] = [];
+  let totalImagesCount = 0;
 
-  // 9. Links count (internal vs external)
+  $('img').each((_, el) => {
+    totalImagesCount++;
+    const src = $(el).attr('src') || $(el).attr('data-src') || '';
+    const alt = $(el).attr('alt') || '';
+    const loading = $(el).attr('loading') || undefined;
+    if (imagesSample.length < 50) {
+      let resolvedSrc = src.trim();
+      if (resolvedSrc && !resolvedSrc.startsWith('data:')) {
+        try {
+          resolvedSrc = new URL(resolvedSrc, baseUrl).toString();
+        } catch {
+          // keep original
+        }
+      }
+      imagesSample.push({
+        src: resolvedSrc,
+        alt: alt.replace(/\s+/g, ' ').trim(),
+        loading,
+      });
+    }
+  });
+
+  // 9. Links extraction (internal vs external destinations)
   let origin = '';
   try {
     origin = new URL(baseUrl).origin.toLowerCase();
@@ -121,6 +184,8 @@ export function extractHtmlSignals(html: string, baseUrl: string): ExtractedHtml
   let linkCount = 0;
   let internalLinkCount = 0;
   let externalLinkCount = 0;
+  const internalLinksSet = new Set<string>();
+  const externalLinksSet = new Set<string>();
 
   $('a[href]').each((_, el) => {
     const href = ($(el).attr('href') || '').trim();
@@ -129,58 +194,59 @@ export function extractHtmlSignals(html: string, baseUrl: string): ExtractedHtml
     }
     linkCount++;
     try {
-      const resolved = new URL(href, baseUrl);
-      if (origin && resolved.origin.toLowerCase() === origin) {
+      const resolved = new URL(href, baseUrl).toString();
+      const resolvedOrigin = new URL(resolved).origin.toLowerCase();
+      if (origin && resolvedOrigin === origin) {
         internalLinkCount++;
+        if (internalLinksSet.size < 100) {
+          internalLinksSet.add(resolved);
+        }
       } else {
         externalLinkCount++;
+        if (externalLinksSet.size < 100) {
+          externalLinksSet.add(resolved);
+        }
       }
     } catch {
       // Relative or malformed
       internalLinkCount++;
+      if (internalLinksSet.size < 100) {
+        internalLinksSet.add(href);
+      }
     }
   });
 
-  // 10. Meaningful body text word count
-  // Clone body and remove non-content elements
+  // 10. Meaningful body text extraction & normalization
   const bodyClone = $('body').clone();
+  let bodyText = '';
   if (bodyClone.length > 0) {
     bodyClone.find('script, style, noscript, svg, template, iframe, object, embed').remove();
-    const bodyText = bodyClone.text();
-    const wordCount = calculateWordCount(bodyText, contentLanguage || 'en');
-    return {
-      title,
-      metaDescription,
-      h1,
-      wordCount,
-      imageCount,
-      linkCount,
-      internalLinkCount,
-      externalLinkCount,
-      metaRobots,
-      canonical,
-      contentLanguage,
-      hasStructuredData,
-      md5,
-      sha256,
-    };
+    bodyText = bodyClone.text();
+  } else {
+    const cloneAll = $('*').clone();
+    cloneAll.find('script, style, noscript, svg, template, iframe, object, embed').remove();
+    bodyText = cloneAll.text();
   }
 
-  // Fallback if no body tag
-  const cloneAll = $('*').clone();
-  cloneAll.find('script, style, noscript, svg, template, iframe, object, embed').remove();
-  const allText = cloneAll.text();
-  const wordCount = calculateWordCount(allText, contentLanguage || 'en');
+  const normalizedBodyText = bodyText.replace(/\s+/g, ' ').trim();
+  const wordCount = calculateWordCount(normalizedBodyText, contentLanguage || 'en');
 
   return {
     title,
     metaDescription,
     h1,
     wordCount,
-    imageCount,
+    bodyTextNormalized: normalizedBodyText.slice(0, 1000), // First 1000 chars for deterministic sample comparison
+    imageCount: totalImagesCount,
+    imagesSample,
     linkCount,
     internalLinkCount,
     externalLinkCount,
+    internalLinksSample: Array.from(internalLinksSet),
+    externalLinksSample: Array.from(externalLinksSet),
+    generalRobots,
+    googlebotRobots,
+    bingbotRobots,
     metaRobots,
     canonical,
     contentLanguage,

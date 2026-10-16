@@ -1,15 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserAgentById, MAX_SELECTED_AGENTS, USER_AGENTS } from '@/lib/seo/prerendering/userAgents';
-import { fetchWithUserAgent } from '@/lib/seo/prerendering/safeFetcher';
-import { extractHtmlSignals, extractCanonicalFromHeaders, checkVaryUserAgent } from '@/lib/seo/prerendering/htmlParser';
+import { getUserAgentById, MAX_SELECTED_AGENTS } from '@/lib/seo/prerendering/userAgents';
+import { fetchWithUserAgent, DEFAULT_TIMEOUT_MS } from '@/lib/seo/prerendering/safeFetcher';
+import {
+  extractHtmlSignals,
+  extractCanonicalFromHeaders,
+  checkVaryUserAgent,
+  isSupportedHtmlContentType,
+} from '@/lib/seo/prerendering/htmlParser';
 import { compareAgentResults } from '@/lib/seo/prerendering/comparisonEngine';
 import { AgentTestResult, PrerenderApiResponse } from '@/lib/seo/prerendering/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const PER_REQUEST_TIMEOUT_MS = 10000;
 const CONCURRENT_REQUESTS = 3;
+const MAX_RAW_HTML_EXCERPT_CHARS = 100 * 1024; // 100 KB excerpt for safe Vercel JSON payload response size
+const MAX_URL_LENGTH = 2048;
+
+/**
+ * Maps internal or network error messages to safe user-facing error codes.
+ */
+function mapSanitizedError(err: any): { message: string; code: string } {
+  const msg = String(err?.message || err || '');
+  if (msg.includes('REQUEST_TIMEOUT') || msg.includes('timed out')) {
+    return { message: 'The request timed out before the server completed its response.', code: 'REQUEST_TIMEOUT' };
+  }
+  if (msg.includes('RESPONSE_TOO_LARGE')) {
+    return { message: 'The response payload exceeded the 2MB safety threshold.', code: 'RESPONSE_TOO_LARGE' };
+  }
+  if (msg.includes('TOO_MANY_REDIRECTS') || msg.includes('Redirect loop')) {
+    return { message: 'The destination encountered a redirect loop or exceeded redirect hop limits.', code: 'TOO_MANY_REDIRECTS' };
+  }
+  if (msg.includes('forbidden') || msg.includes('blocked') || msg.includes('private')) {
+    return { message: 'Access to internal, private, or loopback network addresses is prohibited.', code: 'BLOCKED_DESTINATION' };
+  }
+  if (msg.includes('ENOTFOUND') || msg.includes('DNS lookup error') || msg.includes('getaddrinfo')) {
+    return { message: 'DNS resolution failed. The domain name could not be resolved.', code: 'DNS_FAILURE' };
+  }
+  if (msg.includes('ECONNREFUSED') || msg.includes('Connection refused')) {
+    return { message: 'Connection refused by the destination host.', code: 'CONNECTION_REFUSED' };
+  }
+  return { message: 'Unable to complete HTTP request to the target destination.', code: 'NETWORK_ERROR' };
+}
 
 /**
  * Executes async tasks with bounded concurrency limit.
@@ -43,7 +75,7 @@ async function asyncPool<T, R>(
 export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiResponse>> {
   try {
     const body = await req.json().catch(() => ({}));
-    const { url, userAgents, allowLocalhostForTesting } = body;
+    const { url, userAgents, allowLocalhostForTesting, includeFullSource } = body;
 
     // Validate URL input
     if (!url || typeof url !== 'string' || !url.trim()) {
@@ -54,6 +86,12 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
     }
 
     const cleanUrl = url.trim();
+    if (cleanUrl.length > MAX_URL_LENGTH) {
+      return NextResponse.json(
+        { success: false, error: `URL length exceeds maximum limit of ${MAX_URL_LENGTH} characters.` },
+        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
+    }
 
     // Validate userAgents array
     if (!Array.isArray(userAgents) || userAgents.length === 0) {
@@ -63,7 +101,17 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
       );
     }
 
-    if (userAgents.length > MAX_SELECTED_AGENTS) {
+    // Deduplicate user agent IDs safely
+    const uniqueAgentIds = Array.from(new Set(userAgents.filter((id): id is string => typeof id === 'string')));
+
+    if (uniqueAgentIds.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Please select at least one valid User-Agent identifier.' },
+        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
+    }
+
+    if (uniqueAgentIds.length > MAX_SELECTED_AGENTS) {
       return NextResponse.json(
         { success: false, error: `Maximum allowed user agents per test is ${MAX_SELECTED_AGENTS}.` },
         { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
@@ -72,8 +120,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
 
     // Resolve user agents against allowlist strictly
     const resolvedAgents: { id: string; name: string; userAgent: string }[] = [];
-    for (const rawId of userAgents) {
-      if (typeof rawId !== 'string') continue;
+    for (const rawId of uniqueAgentIds) {
       const def = getUserAgentById(rawId);
       if (def) {
         resolvedAgents.push({
@@ -101,18 +148,74 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
         try {
           const fetchRes = await fetchWithUserAgent(cleanUrl, {
             userAgent: agentDef.userAgent,
-            timeoutMs: PER_REQUEST_TIMEOUT_MS,
+            timeoutMs: DEFAULT_TIMEOUT_MS,
             maxBytes: 2 * 1024 * 1024,
             allowLocalhostForTesting: isLocalhostAllowed,
           });
 
-          // Check if response is HTML
           const contentType = fetchRes.headers['content-type'] || '';
           const varyRaw = fetchRes.headers['vary'] || undefined;
           const varyStatus = checkVaryUserAgent(varyRaw);
           const xRobotsTag = fetchRes.headers['x-robots-tag'] || null;
 
-          const parsed = extractHtmlSignals(fetchRes.body, fetchRes.finalUrl);
+          const isHtml = isSupportedHtmlContentType(contentType);
+          const isErrorResponse = fetchRes.statusCode >= 400;
+
+          // Prepare bounded source representation
+          const bodyString = fetchRes.body;
+          const isTruncatedSource = bodyString.length > MAX_RAW_HTML_EXCERPT_CHARS;
+          const boundedSource = isTruncatedSource
+            ? bodyString.slice(0, MAX_RAW_HTML_EXCERPT_CHARS)
+            : bodyString;
+
+          // Only parse SEO signals if response is HTML
+          if (!isHtml) {
+            return {
+              userAgentId: agentDef.id,
+              userAgentName: agentDef.name,
+              status: 'success',
+              statusCode: fetchRes.statusCode,
+              statusText: fetchRes.statusText,
+              finalUrl: fetchRes.finalUrl,
+              redirectChain: fetchRes.redirectHistory,
+              isHtml: false,
+              unsupportedContentType: true,
+              isErrorResponse,
+              title: null,
+              metaDescription: null,
+              h1: [],
+              wordCount: null,
+              imageCount: null,
+              linkCount: null,
+              internalLinkCount: null,
+              externalLinkCount: null,
+              internalLinksSample: [],
+              externalLinksSample: [],
+              imagesSample: [],
+              varyUserAgent: varyStatus,
+              varyHeaderRaw: varyRaw || null,
+              md5: fetchRes.md5,
+              sha256: fetchRes.sha256,
+              generalRobots: null,
+              googlebotRobots: null,
+              bingbotRobots: null,
+              metaRobots: null,
+              xRobotsTag,
+              canonical: null,
+              contentType,
+              contentLanguage: null,
+              durationMs: fetchRes.durationMs,
+              htmlSize: fetchRes.rawBuffer.length,
+              hasStructuredData: false,
+              rawHtml: includeFullSource ? bodyString : boundedSource,
+              rawHtmlExcerpt: boundedSource,
+              isTruncatedSource,
+              error: null,
+            };
+          }
+
+          // Parse HTML signals
+          const parsed = extractHtmlSignals(bodyString, fetchRes.finalUrl, fetchRes.rawBuffer);
 
           // Header Link canonical fallback if not in HTML
           const headerCanonical = extractCanonicalFromHeaders(fetchRes.headers['link'], fetchRes.finalUrl);
@@ -126,6 +229,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
             statusText: fetchRes.statusText,
             finalUrl: fetchRes.finalUrl,
             redirectChain: fetchRes.redirectHistory,
+            isHtml: true,
+            unsupportedContentType: false,
+            isErrorResponse,
             title: parsed.title,
             metaDescription: parsed.metaDescription,
             h1: parsed.h1,
@@ -134,22 +240,31 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
             linkCount: parsed.linkCount,
             internalLinkCount: parsed.internalLinkCount,
             externalLinkCount: parsed.externalLinkCount,
+            internalLinksSample: parsed.internalLinksSample,
+            externalLinksSample: parsed.externalLinksSample,
+            imagesSample: parsed.imagesSample,
             varyUserAgent: varyStatus,
             varyHeaderRaw: varyRaw || null,
-            md5: parsed.md5,
-            sha256: parsed.sha256,
+            md5: fetchRes.md5,
+            sha256: fetchRes.sha256,
+            generalRobots: parsed.generalRobots,
+            googlebotRobots: parsed.googlebotRobots,
+            bingbotRobots: parsed.bingbotRobots,
             metaRobots: parsed.metaRobots,
             xRobotsTag,
             canonical,
             contentType,
             contentLanguage: parsed.contentLanguage,
             durationMs: fetchRes.durationMs,
-            htmlSize: Buffer.byteLength(fetchRes.body, 'utf-8'),
+            htmlSize: fetchRes.rawBuffer.length,
             hasStructuredData: parsed.hasStructuredData,
-            rawHtml: fetchRes.body,
+            rawHtml: includeFullSource ? bodyString : boundedSource,
+            rawHtmlExcerpt: boundedSource,
+            isTruncatedSource,
             error: null,
           };
         } catch (err: any) {
+          const { message, code } = mapSanitizedError(err);
           return {
             userAgentId: agentDef.id,
             userAgentName: agentDef.name,
@@ -158,6 +273,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
             statusText: null,
             finalUrl: null,
             redirectChain: [],
+            isHtml: false,
+            unsupportedContentType: false,
+            isErrorResponse: true,
             title: null,
             metaDescription: null,
             h1: [],
@@ -166,10 +284,16 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
             linkCount: null,
             internalLinkCount: null,
             externalLinkCount: null,
+            internalLinksSample: [],
+            externalLinksSample: [],
+            imagesSample: [],
             varyUserAgent: 'Not available',
             varyHeaderRaw: null,
             md5: null,
             sha256: null,
+            generalRobots: null,
+            googlebotRobots: null,
+            bingbotRobots: null,
             metaRobots: null,
             xRobotsTag: null,
             canonical: null,
@@ -178,7 +302,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
             durationMs: null,
             htmlSize: null,
             hasStructuredData: false,
-            error: err.message || 'Request failed.',
+            error: message,
+            errorCode: code,
           };
         }
       }
@@ -200,10 +325,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<PrerenderApiR
       }
     );
   } catch (err: any) {
+    const { message } = mapSanitizedError(err);
     return NextResponse.json(
       {
         success: false,
-        error: err.message || 'An error occurred during pre-rendering analysis.',
+        error: message,
       },
       {
         status: 400,

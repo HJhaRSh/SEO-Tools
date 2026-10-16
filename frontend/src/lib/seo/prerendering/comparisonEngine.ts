@@ -46,15 +46,36 @@ export function compareAgentResults(results: AgentTestResult[]): {
   const statusValues = getValues((r) => r.statusCode);
   const distinctStatuses = new Set(successfulResults.map((r) => r.statusCode));
   const differentHttpStatuses = distinctStatuses.size > 1;
+  const anyErrors = successfulResults.some((r) => r.isErrorResponse);
   comparisons.push({
     field: 'statusCode',
     label: 'HTTP Status',
-    status: differentHttpStatuses ? 'different' : 'matched',
-    severity: differentHttpStatuses ? 'warning' : 'info',
+    status: differentHttpStatuses ? 'different' : anyErrors ? 'different' : 'matched',
+    severity: differentHttpStatuses || anyErrors ? 'warning' : 'info',
     values: statusValues,
     explanation: differentHttpStatuses
-      ? `Different HTTP status codes returned across user agents (${Array.from(distinctStatuses).join(', ')}). Check for bot blocking or agent-specific redirects.`
+      ? `Different HTTP status codes returned across user agents (${Array.from(distinctStatuses).join(', ')}). Check for bot blocking, security challenges, or agent-specific redirects.`
+      : anyErrors
+      ? `All agents returned HTTP error status (${Array.from(distinctStatuses)[0]}).`
       : `Identical HTTP status (${Array.from(distinctStatuses)[0]}) returned to all tested agents.`,
+  });
+
+  // 1b. Content-Type & HTML Validity
+  const contentTypeValues = getValues((r) => r.contentType);
+  const distinctContentTypes = new Set(successfulResults.map((r) => (r.contentType || '').split(';')[0].trim().toLowerCase()));
+  const anyUnsupportedContent = successfulResults.some((r) => r.unsupportedContentType);
+  const differentContentTypes = distinctContentTypes.size > 1;
+  comparisons.push({
+    field: 'contentType',
+    label: 'Content-Type & Document Format',
+    status: anyUnsupportedContent || differentContentTypes ? 'different' : 'matched',
+    severity: anyUnsupportedContent ? 'error' : differentContentTypes ? 'warning' : 'info',
+    values: contentTypeValues,
+    explanation: anyUnsupportedContent
+      ? `One or more user-agent responses returned a non-HTML document type (e.g. JSON, PDF, or binary stream). Non-HTML content is not parsed for SEO signals.`
+      : differentContentTypes
+      ? `Different MIME types returned across user agents (${Array.from(distinctContentTypes).join(', ')}).`
+      : `All user agents received valid HTML document format (${Array.from(distinctContentTypes)[0] || 'text/html'}).`,
   });
 
   // 2. Final URL / Redirects
@@ -176,34 +197,58 @@ export function compareAgentResults(results: AgentTestResult[]): {
       : `Body text word counts are substantially equivalent across user agents.`,
   });
 
-  // 7. Image Count
+  // 7. Image Count & Destination/Alt-text comparison
   const imageValues = getValues((r) => r.imageCount);
   const distinctImages = new Set(successfulResults.map((r) => r.imageCount));
-  const differentImages = distinctImages.size > 1;
+  const countDifferentImages = distinctImages.size > 1;
+
+  // Check image src & alt discrepancies across agents
+  const imageFingerprints = successfulResults.map((r) => {
+    return (r.imagesSample || []).map((img) => `${img.src}::${img.alt}`).sort().join(' | ');
+  });
+  const distinctImageFingerprints = new Set(imageFingerprints);
+  const differentImageDestinations = distinctImageFingerprints.size > 1;
+  const differentImages = countDifferentImages || differentImageDestinations;
+
   comparisons.push({
     field: 'imageCount',
     label: 'Image Elements (<img>)',
     status: differentImages ? 'different' : 'matched',
     severity: differentImages ? 'warning' : 'info',
     values: imageValues,
-    explanation: differentImages
+    explanation: countDifferentImages
       ? `Different numbers of <img> elements detected across user agents (${Array.from(distinctImages).join(', ')}).`
-      : `Image element counts match across all agents.`,
+      : differentImageDestinations
+      ? `Image counts match, but referenced image source URLs (src) or alt text attributes differ across user agents.`
+      : `Image element counts and source URLs match across all agents.`,
   });
 
-  // 8. Link Count
+  // 8. Link Count & URL Destination Comparison
   const linkValues = getValues((r) => r.linkCount);
   const distinctLinks = new Set(successfulResults.map((r) => r.linkCount));
-  const differentLinks = distinctLinks.size > 1;
+  const countDifferentLinks = distinctLinks.size > 1;
+
+  // Check link destination discrepancies across agents
+  const linkFingerprints = successfulResults.map((r) => {
+    const internal = (r.internalLinksSample || []).slice(0, 50).sort().join(';');
+    const external = (r.externalLinksSample || []).slice(0, 50).sort().join(';');
+    return `${internal}||${external}`;
+  });
+  const distinctLinkFingerprints = new Set(linkFingerprints);
+  const differentLinkDestinations = distinctLinkFingerprints.size > 1;
+  const differentLinks = countDifferentLinks || differentLinkDestinations;
+
   comparisons.push({
     field: 'linkCount',
     label: 'Anchor Links (<a href>)',
     status: differentLinks ? 'different' : 'matched',
     severity: differentLinks ? 'warning' : 'info',
     values: linkValues,
-    explanation: differentLinks
+    explanation: countDifferentLinks
       ? `Number of hyperlink anchors differs across user agents (${Array.from(distinctLinks).join(', ')}).`
-      : `Total hyperlink counts match across all agents.`,
+      : differentLinkDestinations
+      ? `Hyperlink counts match, but specific link destination URLs differ across user agents.`
+      : `Total hyperlink counts and destinations match across all agents.`,
   });
 
   // 9. Vary: User-Agent Header
@@ -298,7 +343,20 @@ export function compareAgentResults(results: AgentTestResult[]): {
   const browserResults = successfulResults.filter((r) => r.userAgentId.includes('chrome'));
   const crawlerResults = successfulResults.filter((r) => !r.userAgentId.includes('chrome'));
 
-  if (canonicalConflicts || robotsConflicts) {
+  const allErrors = successfulResults.every((r) => r.isErrorResponse);
+  const someErrors = successfulResults.some((r) => r.isErrorResponse) && !allErrors;
+  const anyUnsupported = successfulResults.some((r) => r.unsupportedContentType);
+
+  if (allErrors) {
+    classification = 'Unable to Determine';
+    classificationReason = `All tested user agents received HTTP error status codes (e.g. ${Array.from(distinctStatuses).join(', ')}). No valid page content could be evaluated.`;
+  } else if (someErrors) {
+    classification = 'Bot-Specific HTML Response';
+    classificationReason = `HTTP responses differed significantly: some user agents received error codes (${Array.from(distinctStatuses).join(', ')}), indicating potential bot filtering, firewall rules, or agent-specific access restrictions.`;
+  } else if (anyUnsupported) {
+    classification = 'Bot-Specific HTML Response';
+    classificationReason = 'One or more user agents received non-HTML payloads (e.g. JSON/PDF/binary) instead of standard web HTML markup.';
+  } else if (canonicalConflicts || robotsConflicts) {
     classification = 'Potential SEO Signal Conflict';
     classificationReason = 'Critical SEO signals (such as Canonical URL or Robots directives) differ across user agents.';
   } else if (browserResults.length > 0 && crawlerResults.length > 0) {

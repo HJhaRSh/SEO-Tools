@@ -36,14 +36,16 @@ export default function PrerenderingTester() {
   // Raw HTML viewer state
   const [viewingHtmlAgent, setViewingHtmlAgent] = useState<AgentTestResult | null>(null);
   const [copiedHtml, setCopiedHtml] = useState(false);
+  const [selectionWarning, setSelectionWarning] = useState<string | null>(null);
 
   // User-Agent Selection handlers
   const toggleAgent = (id: string) => {
+    setSelectionWarning(null);
     if (selectedAgentIds.includes(id)) {
       setSelectedAgentIds(selectedAgentIds.filter((item) => item !== id));
     } else {
       if (selectedAgentIds.length >= MAX_SELECTED_AGENTS) {
-        alert(`You can select up to ${MAX_SELECTED_AGENTS} user agents per test.`);
+        setSelectionWarning(`You can select up to ${MAX_SELECTED_AGENTS} user agents per test.`);
         return;
       }
       setSelectedAgentIds([...selectedAgentIds, id]);
@@ -234,6 +236,18 @@ export default function PrerenderingTester() {
 
               {/* USER AGENT SELECTOR */}
               <div className="mt-6 mb-4">
+                {selectionWarning && (
+                  <div className="mb-3 p-2.5 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center justify-between">
+                    <span>{selectionWarning}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectionWarning(null)}
+                      className="ml-2 text-amber-700 dark:text-amber-400 font-bold hover:underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
                   <label className="label m-0">
                     Select User Agents ({selectedAgentIds.length}/{MAX_SELECTED_AGENTS} selected){' '}
@@ -712,6 +726,12 @@ export default function PrerenderingTester() {
                         HTTP {viewingHtmlAgent.statusCode} | Byte size:{' '}
                         {((viewingHtmlAgent.htmlSize || 0) / 1024).toFixed(1)} KB | MD5:{' '}
                         <span className="font-mono">{viewingHtmlAgent.md5}</span>
+                        {viewingHtmlAgent.isTruncatedSource && (
+                          <span className="ml-2 text-amber-400 font-semibold">(Display truncated to first 100 KB)</span>
+                        )}
+                        {!viewingHtmlAgent.isHtml && (
+                          <span className="ml-2 text-rose-400 font-semibold">(Non-HTML Content: {viewingHtmlAgent.contentType})</span>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
