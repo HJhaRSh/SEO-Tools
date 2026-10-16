@@ -48,7 +48,13 @@
       }
     },
     {
-      "source": "/api/seo/mobile-friendly/(.*)",
+      "source": "/api/seo/mobile-friendly/render",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
+      "source": "/api/seo/mobile-friendly/test",
       "destination": {
         "service": "frontend"
       }

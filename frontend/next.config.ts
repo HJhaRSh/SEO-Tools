@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
 
     return [
       {
+        // Exclude Next.js-native mobile-friendly routes from backend proxy
+        source: '/api/seo/mobile-friendly/:path*',
+        destination: '/api/seo/mobile-friendly/:path*'
+      },
+      {
         source: '/api/:path*',
         destination: `${backendTarget.replace(/\/$/, '')}/api/:path*`
       }

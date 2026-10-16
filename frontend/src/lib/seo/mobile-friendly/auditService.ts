@@ -15,12 +15,19 @@ export interface AuditMobileUrlOptions {
 }
 
 /**
- * Checks whether backend browser rendering is available in current runtime.
+ * Returns the base URL for the mobile-friendly browser render endpoint.
+ * In Next.js server context (Vercel), we call our own /api/seo/mobile-friendly/render route
+ * which uses @sparticuz/chromium — no external backend needed.
  */
-function getBackendBaseUrl(): string {
-  if (process.env.BACKEND_URL) return process.env.BACKEND_URL;
-  if (process.env.NEXT_PUBLIC_BACKEND_URL) return process.env.NEXT_PUBLIC_BACKEND_URL;
-  return 'http://localhost:5000';
+function getRenderEndpointUrl(): string {
+  // When running inside a Next.js server action/route handler, use relative path.
+  // VERCEL_URL is always set on Vercel deployments.
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}/api/seo/mobile-friendly/render`;
+  }
+  // Local dev: call the same Next.js dev server
+  const port = process.env.PORT || 3000;
+  return `http://localhost:${port}/api/seo/mobile-friendly/render`;
 }
 
 /**
@@ -47,8 +54,8 @@ export async function auditSingleUrl(
   if (!process.env.FORCE_STATIC_AUDIT) {
     browserAttempted = true;
     try {
-      const backendUrl = getBackendBaseUrl();
-      const renderRes = await fetch(`${backendUrl}/api/seo/mobile-friendly/render`, {
+      const renderEndpoint = getRenderEndpointUrl();
+      const renderRes = await fetch(renderEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
