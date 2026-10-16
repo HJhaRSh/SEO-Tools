@@ -12,6 +12,7 @@ import {
   getUnicodeLength,
   measureTextWidth,
   truncateToPixelWidth,
+  calculateWrappedLines,
 } from '@/lib/seo/serp/measureText';
 import { parseDisplayUrl } from '@/lib/seo/serp/parseUrl';
 import { highlightQueryMatches } from '@/lib/seo/serp/highlightQuery';
@@ -107,18 +108,27 @@ export default function SerpSimulator() {
     return baseText;
   }, [description, showDate, formattedDate]);
 
-  // Description width and wrapping estimation
+  // Description width and wrapping estimation using line-aware word boundaries
   const descMetrics = useMemo(() => {
     // During SSR/initial hydration, provide an exact deterministic baseline (911px / 75.9%)
     const width = isMounted
       ? measureTextWidth(fullDescriptionText, fonts.description)
       : (description ? Math.round(getUnicodeLength(fullDescriptionText) * 6.3) : 911);
     const maxCapacityPx = limits.descriptionLineWidthPx * limits.descriptionLines;
-    const isOverLimit = width > maxCapacityPx;
+
+    let isOverLimit = width > maxCapacityPx;
+    let approxLines = Math.max(1, Math.ceil(width / limits.descriptionLineWidthPx));
+
+    if (isMounted) {
+      const wrapped = calculateWrappedLines(fullDescriptionText, limits.descriptionLineWidthPx, fonts.description);
+      isOverLimit = wrapped.isOverLimit;
+      approxLines = wrapped.totalLines;
+    }
+
     return {
       width,
       isOverLimit,
-      approxLines: Math.max(1, Math.ceil(width / limits.descriptionLineWidthPx)),
+      approxLines,
       maxCapacityPx,
     };
   }, [fullDescriptionText, limits, fonts.description, isMounted, description]);

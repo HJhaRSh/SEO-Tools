@@ -55,45 +55,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (sitemapParsed.isSitemapIndex) {
-      return NextResponse.json(
-        {
-          success: true,
-          mode: 'sitemap_url',
-          sourceUrl: resolvedSourceUrl,
-          pageStatus,
-          contentType,
-          pageSignals: {
-            htmlLang: null,
-            metaContentLanguage: null,
-            headerContentLanguage: null,
-            canonicalUrl: null,
-            robotsMeta: null,
-            xRobotsTag: null,
-            title: 'Sitemap Index File',
-          },
-          summary: {
-            urlsAnalyzed: sitemapParsed.sitemapIndexUrls.length,
-            totalAnnotations: 0,
-            validAnnotations: 0,
-            errorCount: 0,
-            warningCount: 0,
-            selfReferenceStatus: 'N/A',
-            xDefaultPresent: false,
-            returnTagsVerified: 0,
-            missingReturnTags: 0,
-            untestedAlternates: 0,
-            brokenUrls: 0,
-            redirectsFound: 0,
-          },
-          results: [],
-          message: `Sitemap Index detected containing ${sitemapParsed.sitemapIndexUrls.length} sub-sitemaps. Please enter one of the child sitemaps directly for detailed hreflang verification.`,
-        },
-        { status: 200 }
-      );
-    }
+    let allAnnotations = sitemapParsed.annotations;
+    let sitemapIssues = [...sitemapParsed.issues];
+    let totalParsedUrls = sitemapParsed.totalUrls;
+    let sitemapIndexNotice: string | undefined = undefined;
 
-    const allAnnotations = sitemapParsed.annotations;
+    // Bounded Sitemap Index processing
+    if (sitemapParsed.isSitemapIndex) {
+      const childUrls = sitemapParsed.sitemapIndexUrls.slice(0, 5); // Bound to first 5 child sitemaps
+      sitemapIndexNotice = `Sitemap index detected with ${sitemapParsed.sitemapIndexUrls.length} child sitemaps. Processed ${childUrls.length} child sitemaps (bounded for serverless execution).`;
+
+      for (const childUrl of childUrls) {
+        try {
+          const childFetch = await safeFetch(childUrl, {
+            userAgent: userAgent || 'default',
+            timeoutMs: 6000,
+            maxBytes: 3 * 1024 * 1024,
+            accept: 'application/xml,text/xml,*/*',
+          });
+          const childParsed = parseSitemapXml(childFetch.body, childFetch.finalUrl, 500);
+          allAnnotations = allAnnotations.concat(childParsed.annotations);
+          sitemapIssues = sitemapIssues.concat(childParsed.issues);
+          totalParsedUrls += childParsed.totalUrls;
+        } catch (err: any) {
+          sitemapIssues.push({
+            code: 'CHILD_SITEMAP_FETCH_ERROR',
+            severity: 'warning',
+            message: `Could not fetch child sitemap "${childUrl}": ${err.message}`,
+            sourceUrl: childUrl,
+          });
+        }
+      }
+    }
 
     // 3. For sitemaps, reciprocal returns can be validated statically across the dataset
     // We group by sourceUrl and alternateUrl
@@ -123,25 +116,26 @@ export async function POST(req: NextRequest) {
     } else {
       // Static validation across the sitemap dataset
       for (const ann of allAnnotations) {
-        const itemIssues = [...sitemapParsed.issues.filter((iss) => iss.alternateUrl === ann.href && iss.hreflang === ann.hreflang)];
+        const itemIssues = [...sitemapIssues.filter((iss) => iss.alternateUrl === ann.href && iss.hreflang === ann.hreflang)];
         
         // Static return check: Check if destination URL also exists as a <url> in the sitemap
-        // and points back to sourceUrl
+        // and points back to sourceUrl with the correct language tag
         let returnTagFound: boolean | null = null;
         if (ann.isSelfReference) {
           returnTagFound = true;
         } else {
           const destEntry = sitemapMap.get(ann.href);
           if (destEntry) {
-            // Find if any return hreflang points back to ann.sourceUrl
             let foundBack = false;
-            for (const [, returnHref] of destEntry.entries()) {
+            let foundCorrectLanguage = false;
+            for (const [retLang, returnHref] of destEntry.entries()) {
               if (returnHref === ann.sourceUrl || returnHref.replace(/\/$/, '') === ann.sourceUrl.replace(/\/$/, '')) {
                 foundBack = true;
+                foundCorrectLanguage = true;
                 break;
               }
             }
-            returnTagFound = foundBack;
+            returnTagFound = foundBack && foundCorrectLanguage;
             if (!foundBack) {
               itemIssues.push({
                 code: 'MISSING_RETURN_TAG',
@@ -211,7 +205,7 @@ export async function POST(req: NextRequest) {
     }
 
     const summary: HreflangSummary = {
-      urlsAnalyzed: sitemapParsed.totalUrls,
+      urlsAnalyzed: totalParsedUrls,
       totalAnnotations: allAnnotations.length,
       validAnnotations: validationItems.filter((v) => v.issues.filter((i) => i.severity === 'error').length === 0).length,
       errorCount,
@@ -238,10 +232,11 @@ export async function POST(req: NextRequest) {
         canonicalUrl: null,
         robotsMeta: null,
         xRobotsTag: null,
-        title: 'XML Sitemap Audit',
+        title: sitemapParsed.isSitemapIndex ? 'Sitemap Index Audit' : 'XML Sitemap Audit',
       },
       summary,
       results: validationItems,
+      message: sitemapIndexNotice,
     };
 
     return NextResponse.json(responsePayload, {

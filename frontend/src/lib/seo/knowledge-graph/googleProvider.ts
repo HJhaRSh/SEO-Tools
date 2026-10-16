@@ -108,7 +108,7 @@ export async function searchKnowledgeGraphProvider(params: {
       return {
         success: false,
         code,
-        error: userFriendlyError,
+        error: userFriendlyError.replace(/[A-Za-z0-9_-]{25,}/g, '[REDACTED_KEY]'),
       };
     }
 
@@ -136,7 +136,7 @@ export async function searchKnowledgeGraphProvider(params: {
     return {
       success: false,
       code: 'UPSTREAM_ERROR',
-      error: err.message || 'Failed to connect to Google Knowledge Graph Search API.',
+      error: 'Failed to connect to Google Knowledge Graph Search API. Please check server network connectivity.',
     };
   }
 }

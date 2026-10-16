@@ -127,12 +127,16 @@ export default function SchemaGenerator() {
       },
     }));
 
-    setImportNotice(`Successfully imported ${result.detectedType} schema data!`);
+    setImportNotice(
+      result.warning
+        ? `Imported ${result.detectedType} schema data. ${result.warning}`
+        : `Successfully imported ${result.detectedType} schema data!`
+    );
     setTimeout(() => {
       setShowImportModal(false);
       setImportInput('');
       setImportNotice(null);
-    }, 1200);
+    }, result.warning ? 2400 : 1200);
   };
 
   // External validator openers

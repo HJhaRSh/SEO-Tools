@@ -5,6 +5,7 @@ export interface ImportResult {
   success: boolean;
   detectedType?: SupportedSchemaType;
   parsedData?: Record<string, unknown>;
+  warning?: string;
   error?: string;
 }
 
@@ -194,9 +195,19 @@ export function importExistingJsonLd(input: string): ImportResult {
     data.url = entity.url || '';
   }
 
+  // Detect unmapped properties
+  const standardIgnored = new Set(['@context', '@type', '@id', '@graph']);
+  const entityKeys = Object.keys(entity).filter((k) => !standardIgnored.has(k));
+  const mappedKeys = new Set(Object.keys(data));
+  const unmapped = entityKeys.filter((k) => !mappedKeys.has(k));
+  const warning = unmapped.length > 0
+    ? `Notice: Some custom or unmapped properties were omitted from form fields: ${unmapped.join(', ')}.`
+    : undefined;
+
   return {
     success: true,
     detectedType,
     parsedData: data,
+    warning,
   };
 }

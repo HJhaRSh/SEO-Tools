@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSafeUrl } from '@/lib/seo/serp/fetchMetadata';
+import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ interface ExtractedSignals {
   internalLinksCount: number;
   canonical: string | null;
   robotsMeta: string | null;
-  hasSchema: boolean;
+  schemaTypes: string[];
   statusCode: number;
 }
 
@@ -41,8 +41,32 @@ function extractSignalsFromHtml(html: string, baseUrl: string, statusCode: numbe
     html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']robots["']/i);
   const robotsMeta = robotsMatch ? robotsMatch[1].trim() : null;
 
-  // Schema
-  const hasSchema = /<script[^>]*type=["']application\/ld\+json["']/i.test(html);
+  // Schema types parsing
+  const schemaTypes: string[] = [];
+  const scriptRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let scriptMatch: RegExpExecArray | null;
+  while ((scriptMatch = scriptRegex.exec(html)) !== null) {
+    try {
+      const parsed = JSON.parse(scriptMatch[1].trim());
+      const scanType = (obj: any) => {
+        if (!obj || typeof obj !== 'object') return;
+        if (obj['@type']) {
+          const t = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
+          for (const item of t) {
+            if (typeof item === 'string' && !schemaTypes.includes(item)) {
+              schemaTypes.push(item);
+            }
+          }
+        }
+        if (Array.isArray(obj['@graph'])) {
+          for (const g of obj['@graph']) scanType(g);
+        }
+      };
+      scanType(parsed);
+    } catch {
+      // Ignored if json-ld is malformed
+    }
+  }
 
   // Images count
   const images = html.match(/<img[^>]*>/gi) || [];
@@ -92,7 +116,7 @@ function extractSignalsFromHtml(html: string, baseUrl: string, statusCode: numbe
     internalLinksCount,
     canonical,
     robotsMeta,
-    hasSchema,
+    schemaTypes,
     statusCode,
   };
 }
@@ -109,71 +133,65 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const validatedUrl = await validateSafeUrl(url.trim());
-
     const desktopUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
     const mobileUa = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 
     const fetchVersion = async (ua: string) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 9000);
-
-      try {
-        const response = await fetch(validatedUrl.toString(), {
-          method: 'GET',
-          headers: {
-            'User-Agent': ua,
-            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
-          redirect: 'follow',
-          signal: controller.signal,
-          cache: 'no-store',
-        });
-        clearTimeout(timeoutId);
-
-        if (response.url && response.url !== validatedUrl.toString()) {
-          await validateSafeUrl(response.url);
-        }
-
-        const html = await response.text();
-        return extractSignalsFromHtml(html, response.url || validatedUrl.toString(), response.status);
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        throw err;
-      }
+      const fetchResult = await safeFetch(url.trim(), {
+        userAgent: ua,
+        timeoutMs: 9000,
+        maxBytes: 2 * 1024 * 1024,
+        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      });
+      return {
+        signals: extractSignalsFromHtml(fetchResult.body, fetchResult.finalUrl, fetchResult.status),
+        finalUrl: fetchResult.finalUrl,
+      };
     };
 
-    const [desktop, mobile] = await Promise.all([
+    const [desktopData, mobileData] = await Promise.all([
       fetchVersion(desktopUa),
       fetchVersion(mobileUa),
     ]);
+
+    const desktop = desktopData.signals;
+    const mobile = mobileData.signals;
+
+    // Helper for missing vs match vs difference
+    const compareValues = (d: string | null, m: string | null) => {
+      if (!d && !m) return { status: 'Both Missing', desktop: '(Not declared)', mobile: '(Not declared)' };
+      if (d === m) return { status: 'Match', desktop: d || '(Not declared)', mobile: m || '(Not declared)' };
+      return { status: 'Difference', desktop: d || '(Not declared)', mobile: m || '(Not declared)' };
+    };
+
+    // Helper for schema comparison
+    const desktopSchemas = desktop.schemaTypes.sort().join(', ');
+    const mobileSchemas = mobile.schemaTypes.sort().join(', ');
+    let schemaStatus = 'Difference';
+    if (!desktopSchemas && !mobileSchemas) {
+      schemaStatus = 'Both Missing';
+    } else if (desktopSchemas === mobileSchemas) {
+      schemaStatus = 'Match';
+    }
 
     // Build comparison rows
     const comparison = [
       {
         name: 'Title Tag',
-        desktop: desktop.title || 'Missing',
-        mobile: mobile.title || 'Missing',
-        status: desktop.title === mobile.title ? 'Match' : 'Difference',
+        ...compareValues(desktop.title, mobile.title),
       },
       {
         name: 'Meta Description',
-        desktop: desktop.description || 'Missing',
-        mobile: mobile.description || 'Missing',
-        status: desktop.description === mobile.description ? 'Match' : 'Difference',
+        ...compareValues(desktop.description, mobile.description),
       },
       {
         name: 'H1 Heading',
-        desktop: desktop.h1 || 'Missing',
-        mobile: mobile.h1 || 'Missing',
-        status: desktop.h1 === mobile.h1 ? 'Match' : 'Difference',
+        ...compareValues(desktop.h1, mobile.h1),
       },
       {
         name: 'Main Content Word Count',
         desktop: `${desktop.wordCount.toLocaleString()} words`,
         mobile: `${mobile.wordCount.toLocaleString()} words`,
-        // Flag difference if word counts deviate by more than 15%
         status:
           desktop.wordCount > 0 && Math.abs(desktop.wordCount - mobile.wordCount) / Math.max(desktop.wordCount, mobile.wordCount) > 0.15
             ? 'Difference'
@@ -193,21 +211,19 @@ export async function POST(req: NextRequest) {
       },
       {
         name: 'Canonical Tag',
-        desktop: desktop.canonical || 'Not declared',
-        mobile: mobile.canonical || 'Not declared',
-        status: desktop.canonical === mobile.canonical ? 'Match' : 'Difference',
+        ...compareValues(desktop.canonical, mobile.canonical),
       },
       {
         name: 'Schema Markup (JSON-LD)',
-        desktop: desktop.hasSchema ? 'Present' : 'Missing',
-        mobile: mobile.hasSchema ? 'Present' : 'Missing',
-        status: desktop.hasSchema === mobile.hasSchema ? 'Match' : 'Difference',
+        desktop: desktopSchemas || '(None detected)',
+        mobile: mobileSchemas || '(None detected)',
+        status: schemaStatus,
       },
       {
         name: 'Robots Directives',
         desktop: desktop.robotsMeta || 'index, follow (default)',
         mobile: mobile.robotsMeta || 'index, follow (default)',
-        status: desktop.robotsMeta === mobile.robotsMeta ? 'Match' : 'Difference',
+        status: (desktop.robotsMeta || 'index, follow') === (mobile.robotsMeta || 'index, follow') ? 'Match' : 'Difference',
       },
     ];
 
@@ -216,7 +232,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        url: validatedUrl.toString(),
+        url: url.trim(),
+        finalUrl: mobileData.finalUrl,
         desktopStatus: desktop.statusCode,
         mobileStatus: mobile.statusCode,
         parityVerdict: hasDifferences ? 'Potential parity issue' : 'Parity check passed',

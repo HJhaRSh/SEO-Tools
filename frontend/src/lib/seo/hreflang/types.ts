@@ -79,6 +79,7 @@ export interface HreflangTestUrlResponse {
   };
   summary: HreflangSummary;
   results: HreflangValidationItem[];
+  message?: string;
   error?: string;
 }
 

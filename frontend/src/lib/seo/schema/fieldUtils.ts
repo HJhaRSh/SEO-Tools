@@ -150,8 +150,13 @@ export function parseStringList(text: string): string[] {
 
 /**
  * Safely format script tag wrapping for HTML output.
- * Escapes closing script tags </script> to avoid breaking the surrounding HTML document parser.
+ * Escapes closing script tags </script>, <script>, <!--, and --> to avoid
+ * breaking the surrounding HTML document parser or causing XSS (per OWASP guidelines).
  */
 export function escapeJsonForHtmlScript(jsonString: string): string {
-  return jsonString.replace(/<\/script/gi, '<\\/script');
+  return jsonString
+    .replace(/<\/script/gi, '<\\/script')
+    .replace(/<script/gi, '<\\/script')
+    .replace(/<!--/g, '<\\!--')
+    .replace(/-->/g, '--\\>');
 }

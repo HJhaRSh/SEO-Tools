@@ -36,16 +36,16 @@ export default function LocalSearchTool() {
       description="Simulate local search queries and inspect localized search engine results for specific locations."
       category="Local SEO"
       breadcrumbs={[{ label: 'Local Search Tool' }]}
-      aboutText="Search engine results pages (SERPs) are highly localized. What you see in New York is completely different from what a user sees in Mumbai. This tool generates verified localized search targets to help you simulate and verify your local presence without paid ranking proxies."
+      aboutText="This tool formulates direct location-targeted search queries to inspect how Google serves results when a specific geographic modifier is appended. Note: This tool generates targeted search links and location-biased queries; it does NOT simulate client-side GPS coordinates, retrieve automated rank-tracking positions, or scrape Google Maps in violation of access restrictions."
       howItWorks={[
         "Enter your target search query (e.g. 'best dental clinic').",
-        "Specify a geographic location (City, Area, or Zip Code).",
-        "Click 'Simulate Local Search'.",
-        "Launch the live localized Google SERP or Google Maps direct search query in 1 click."
+        "Specify a geographic location (City, Area, or Postal Code).",
+        "Click 'Generate Local Search Links'.",
+        "Open live Google Search or Google Maps localized queries in your browser to inspect actual ranking appearance."
       ]}
       faq={[
-        { question: "Why is tracking local search important?", answer: "Over 46% of all Google searches have local intent. If you have a physical storefront, ranking in the local 'Map Pack' is crucial for foot traffic." },
-        { question: "Does this require Google Places API credentials?", answer: "No paid credentials are required. This tool generates direct location-biased query simulations. For automated enterprise ranking scrapes, dedicated Google Places API credentials would be required." }
+        { question: "Does this simulate exact searcher GPS location?", answer: "No. This tool generates location-biased search queries. Google combines GPS, Wi-Fi data, IP address, and query intent to determine local results. Appending a specific location modifier allows you to test localized queries without fabricated ranking data." },
+        { question: "Does this perform automated rank tracking?", answer: "No. This tool is a localized query launcher and simulator. Automated SERP tracking requires specialized proxies or paid APIs (e.g. Google Places API with billing enabled)." }
       ]}
     >
       <div className="card" style={{ marginBottom: '32px' }}>
@@ -103,7 +103,7 @@ export default function LocalSearchTool() {
               <span>📍</span> Local Simulation Information
             </div>
             <p className="leading-relaxed">
-              Google dynamically personalizes the Map Pack based on client IP, geolocation, and search history. To protect data authenticity without violating Google Terms of Service or requiring paid API mandates, use the verified localized targets below to inspect genuine Google results in real time.
+              This tool formulates search links with location parameters and opens external Google Search and Google Maps queries. It does not simulate exact searcher GPS location, track automated local rankings, or guarantee the exact layout seen by a user physically situated in that city.
             </p>
           </div>
 

@@ -60,12 +60,12 @@ export async function POST(req: NextRequest) {
         'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
       },
     });
-  } catch (err: any) {
+  } catch {
     return NextResponse.json(
       {
         success: false,
         code: 'INTERNAL_SERVER_ERROR',
-        error: err.message || 'An unexpected error occurred while querying the Knowledge Graph.',
+        error: 'An unexpected error occurred while processing the Knowledge Graph query.',
       },
       {
         status: 500,

@@ -104,3 +104,45 @@ export function truncateToPixelWidth(
     measuredWidth,
   };
 }
+
+/**
+ * Accurately simulates multiline text wrapping by word boundaries
+ * rather than simple linear width division.
+ */
+export function calculateWrappedLines(
+  text: string,
+  lineWidthPx: number,
+  font: string
+): { lines: string[]; isOverLimit: boolean; totalLines: number } {
+  if (!text || !text.trim()) {
+    return { lines: [], isOverLimit: false, totalLines: 0 };
+  }
+
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const testWidth = measureTextWidth(testLine, font);
+
+    if (testWidth <= lineWidthPx) {
+      currentLine = testLine;
+    } else {
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      currentLine = word;
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return {
+    lines,
+    isOverLimit: lines.length > 2,
+    totalLines: lines.length,
+  };
+}

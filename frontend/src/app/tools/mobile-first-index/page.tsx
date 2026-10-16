@@ -93,10 +93,14 @@ export default function MobileFirstIndex() {
       {status === 'success' && resultData && (
         <div className="card space-y-6">
           <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 800 }}>CONTENT PARITY AUDIT</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 800 }}>DESKTOP / MOBILE HTTP HTML PARITY AUDIT</h2>
             <p className="text-xs text-slate-500 mt-1">
               Tested: <strong className="font-mono text-slate-800 dark:text-slate-200">{resultData.url}</strong> (Desktop: HTTP {resultData.desktopStatus} / Mobile: HTTP {resultData.mobileStatus})
             </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+            <strong>HTTP HTML Analysis Scope:</strong> This audit compares server-returned HTML markup delivered to Googlebot Desktop versus Googlebot Smartphone. It audits observable markup differences without inferring internal Google indexing decisions.
           </div>
           
           <div
@@ -135,7 +139,15 @@ export default function MobileFirstIndex() {
                     <td className="text-xs font-mono">{item.desktop}</td>
                     <td className="text-xs font-mono">{item.mobile}</td>
                     <td>
-                      <span className={`badge ${item.status === 'Match' ? 'badge-success' : 'badge-warning'}`}>
+                      <span
+                        className={`badge ${
+                          item.status === 'Match'
+                            ? 'badge-success'
+                            : item.status === 'Both Missing'
+                            ? 'badge-neutral'
+                            : 'badge-warning'
+                        }`}
+                      >
                         {item.status}
                       </span>
                     </td>

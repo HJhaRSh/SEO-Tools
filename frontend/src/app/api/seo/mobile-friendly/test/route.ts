@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSafeUrl } from '@/lib/seo/serp/fetchMetadata';
+import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,30 +35,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const validatedUrl = await validateSafeUrl(url.trim());
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
-
-    const response = await fetch(validatedUrl.toString(), {
-      method: 'GET',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-      cache: 'no-store',
+    const fetchResult = await safeFetch(url.trim(), {
+      userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+      timeoutMs: 9000,
+      maxBytes: 2 * 1024 * 1024,
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     });
 
-    clearTimeout(timeoutId);
-
-    if (response.url && response.url !== validatedUrl.toString()) {
-      await validateSafeUrl(response.url);
-    }
-
-    const html = await response.text();
+    const html = fetchResult.body;
     const tests: MobileAuditSignal[] = [];
 
     // 1. Viewport Meta Tag check
@@ -209,9 +193,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        url: validatedUrl.toString(),
-        finalUrl: response.url || validatedUrl.toString(),
-        statusCode: response.status,
+        url: fetchResult.requestedUrl,
+        finalUrl: fetchResult.finalUrl,
+        statusCode: fetchResult.status,
         viewportTag: viewportContent,
         tests,
         renderingNote:

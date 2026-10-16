@@ -109,7 +109,7 @@ export function validateSchema(
     case 'FAQPage': {
       const state = data as unknown as FaqFormState;
       issues.push({
-        message: 'Notice: Google discontinued general FAQ rich snippets in May 2026. This Schema.org markup is valid for semantic search and semantic entity graphs.',
+        message: 'Notice: Google restricted FAQ rich results in August 2023 to authoritative government and health sites. This Schema.org markup remains valid for semantic search and knowledge graphs.',
         severity: 'info',
       });
 

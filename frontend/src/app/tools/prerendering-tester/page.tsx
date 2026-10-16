@@ -64,7 +64,7 @@ export default function PrerenderingTester() {
         "The tool compares critical SEO tags (Title, Meta Description, Canonical, Headings, Schema) and reveals elements added or modified by JavaScript."
       ]}
       faq={[
-        { question: "Why is it important to have SEO elements in the Source HTML?", answer: "While Google can render JavaScript, it is a secondary, queued process that consumes crawl budget. Providing critical elements (like Title, Canonical, and Schema) in the raw server HTML ensures immediate, deterministic indexing." },
+        { question: "Why is it helpful to have SEO elements in the initial HTML?", answer: "Server-rendered content is available in the initial HTML response, reducing reliance on client-side JavaScript execution for content discovery. While Google does execute JavaScript, initial server markup is processed immediately without queuing." },
         { question: "What does 'Changed' or 'Added' mean?", answer: "'Added' means the element was missing from the initial server HTML and injected client-side by JavaScript. 'Changed' means client-side scripts modified the value after initial page load." }
       ]}
     >

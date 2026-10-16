@@ -1,5 +1,6 @@
 import dns from 'dns';
 import { promisify } from 'util';
+import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -208,66 +209,23 @@ function extractLinkHref(html: string, relValue: string): string | null {
  * Fetches HTML from a validated URL with SSRF checks, timeout, and response size capping.
  */
 export async function fetchPageMetadata(targetUrl: string): Promise<ExtractedMetadata> {
-  const validatedUrl = await validateSafeUrl(targetUrl);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 9000); // 9 second timeout
+  const fetchResult = await safeFetch(targetUrl, {
+    userAgent: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+    timeoutMs: 9000,
+    maxBytes: 1.5 * 1024 * 1024,
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  });
 
-  try {
-    const response = await fetch(validatedUrl.toString(), {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-      cache: 'no-store',
-    });
+  const contentType = fetchResult.headers.get('content-type') || '';
+  if (
+    !contentType.includes('text/html') &&
+    !contentType.includes('application/xhtml+xml') &&
+    !contentType.includes('text/plain')
+  ) {
+    throw new Error(`The URL returned an unsupported content type (${contentType.split(';')[0] || 'binary'}). Only HTML pages can be inspected.`);
+  }
 
-    clearTimeout(timeoutId);
-
-    // Verify final URL if redirected
-    if (response.url && response.url !== validatedUrl.toString()) {
-      await validateSafeUrl(response.url);
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (
-      !contentType.includes('text/html') &&
-      !contentType.includes('application/xhtml+xml') &&
-      !contentType.includes('text/plain')
-    ) {
-      throw new Error(`The URL returned an unsupported content type (${contentType.split(';')[0] || 'binary'}). Only HTML pages can be inspected.`);
-    }
-
-    // Protect against huge responses (limit to 1.5MB)
-    const MAX_BYTES = 1.5 * 1024 * 1024;
-    const contentLength = response.headers.get('content-length');
-    if (contentLength && parseInt(contentLength, 10) > 4 * 1024 * 1024) {
-      throw new Error('The target page is too large to inspect.');
-    }
-
-    // Read response stream safely with size cap
-    const reader = response.body?.getReader();
-    let html = '';
-    if (reader) {
-      let receivedBytes = 0;
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        receivedBytes += value.length;
-        html += decoder.decode(value, { stream: true });
-        // Stop once we have reached max bytes or found </head>
-        if (receivedBytes > MAX_BYTES || html.includes('</head>')) {
-          await reader.cancel();
-          break;
-        }
-      }
-    } else {
-      html = await response.text();
-    }
+  const html = fetchResult.body;
 
     // Title extraction with priority: <title> then og:title then twitter:title
     let title = cleanText(extractHtmlTagContent(html, 'title'));
@@ -298,7 +256,7 @@ export async function fetchPageMetadata(targetUrl: string): Promise<ExtractedMet
     const faviconHref = extractLinkHref(html, 'icon') || extractLinkHref(html, 'shortcut icon') || extractLinkHref(html, 'apple-touch-icon');
     if (faviconHref) {
       try {
-        favicon = new URL(faviconHref, response.url || validatedUrl.toString()).toString();
+        favicon = new URL(faviconHref, fetchResult.finalUrl).toString();
       } catch {
         favicon = null;
       }
@@ -306,19 +264,12 @@ export async function fetchPageMetadata(targetUrl: string): Promise<ExtractedMet
 
     return {
       requestedUrl: targetUrl,
-      finalUrl: response.url || validatedUrl.toString(),
+      finalUrl: fetchResult.finalUrl,
       title,
       description,
       canonical,
       siteName,
       favicon,
-      status: response.status,
+      status: fetchResult.status,
     };
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      throw new Error('The request timed out after 9 seconds. The website may be slow or blocking automated requests.');
-    }
-    throw err;
-  }
 }

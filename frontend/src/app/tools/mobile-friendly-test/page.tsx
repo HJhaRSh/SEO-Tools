@@ -93,10 +93,14 @@ export default function MobileFriendlyTest() {
       {status === 'success' && resultsData && (
         <div className="card space-y-6">
           <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 800 }}>USABILITY RESULTS</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 800 }}>STATIC MOBILE SIGNALS AUDIT</h2>
             <p className="text-xs text-slate-500 mt-1">
               Tested: <strong className="font-mono text-slate-800 dark:text-slate-200">{resultsData.finalUrl}</strong> (HTTP {resultsData.statusCode})
             </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+            <strong>Static Markup Scope:</strong> This inspection assesses observable viewport configuration, responsive stylesheet hints, and fixed-width constraints in server-returned HTML. Rendered layout metrics (e.g. tap target spacing, dynamic clipping) require visual browser execution.
           </div>
 
           <div style={{ display: 'grid', gap: '16px' }}>
