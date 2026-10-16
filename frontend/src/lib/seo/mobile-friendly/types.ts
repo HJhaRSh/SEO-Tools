@@ -94,6 +94,8 @@ export interface SingleUrlMobileAuditResult {
   assessmentLabel?: string;
   errorMessage?: string;
   errorCode?: 'INVALID_URL' | 'BLOCKED_DESTINATION' | 'REQUEST_TIMEOUT' | 'FETCH_FAILED' | 'RENDER_FAILED' | 'UNSUPPORTED_CONTENT' | 'HTTP_ERROR' | 'INTERNAL_ERROR';
+  browserAttempted?: boolean;
+  browserFailureReason?: string;
 }
 
 export interface BulkUrlProgress {

@@ -277,6 +277,74 @@ export function buildBrowserRenderedAuditResult(
   options: BrowserAuditAssemblyOptions
 ): SingleUrlMobileAuditResult {
   const vp = options.viewport || DEFAULT_VIEWPORT_PRESET;
+
+  // Handle HTTP error responses (4xx, 5xx) returned during browser navigation
+  if (options.statusCode >= 400) {
+    const errorText = options.statusText || `HTTP ${options.statusCode}`;
+    return {
+      url: options.url,
+      finalUrl: options.finalUrl,
+      statusCode: options.statusCode,
+      statusText: errorText,
+      durationMs: options.durationMs,
+      testedAt: new Date().toISOString(),
+      isCompleted: true,
+      overallStatus: 'ERROR',
+      overallSummary: `Server returned HTTP ${options.statusCode} (${errorText}). Mobile usability evaluations cannot be performed on error documents.`,
+      executionMode: 'browser-rendered',
+      assessmentLabel: 'Browser-Rendered Mobile Usability Assessment',
+      errorCode: 'HTTP_ERROR',
+      browserAttempted: true,
+      viewport: {
+        width: vp.width,
+        height: vp.height,
+        deviceScaleFactor: vp.deviceScaleFactor,
+      },
+      viewportDeclaration: {
+        present: false,
+        rawContent: null,
+        hasDeviceWidth: false,
+        hasInitialScale: false,
+        userScalableNo: false,
+        maximumScaleRestricted: false,
+      },
+      tests: {
+        configureViewport: { status: 'NOT_TESTED', summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`, evidence: `HTTP ${options.statusCode}`, issues: [] },
+        fixedWidthViewport: { status: 'NOT_TESTED', summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`, evidence: `HTTP ${options.statusCode}`, issues: [] },
+        sizeContentToViewport: { status: 'NOT_TESTED', summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`, evidence: `HTTP ${options.statusCode}`, issues: [] },
+        legibleFontSizes: { status: 'NOT_TESTED', summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`, evidence: `HTTP ${options.statusCode}`, issues: [] },
+        tapTargets: { status: 'NOT_TESTED', summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`, evidence: `HTTP ${options.statusCode}`, issues: [] },
+        incompatiblePlugins: { status: 'NOT_TESTED', summary: `Skipped: Web server returned HTTP error status ${options.statusCode}.`, evidence: `HTTP ${options.statusCode}`, issues: [] },
+      },
+      screenshot: options.screenshotBase64
+        ? {
+            available: true,
+            base64Data: options.screenshotBase64,
+            format: 'png',
+            width: vp.width,
+            height: vp.height,
+          }
+        : {
+            available: false,
+            errorMessage: 'Screenshots require a successful webpage response.',
+            format: 'png',
+            width: vp.width,
+            height: vp.height,
+          },
+      issues: [
+        {
+          category: 'NETWORK',
+          title: `Server Responded With HTTP ${options.statusCode}`,
+          severity: 'CRITICAL',
+          description: `The browser encountered error status code ${options.statusCode} (${errorText}). Mobile usability evaluations cannot be run on error documents.`,
+          evidence: `Status: ${options.statusCode} ${errorText}`,
+          recommendedAction: 'Verify that the server serves an HTTP 200 OK webpage.',
+        },
+      ],
+      metrics: {},
+    };
+  }
+
   const m = options.metrics;
   const issues: MobileIssue[] = [];
 
@@ -519,6 +587,7 @@ export function buildBrowserRenderedAuditResult(
     overallSummary,
     executionMode: 'browser-rendered',
     assessmentLabel: 'Browser-Rendered Mobile Usability Assessment',
+    browserAttempted: true,
     viewport: {
       width: vp.width,
       height: vp.height,

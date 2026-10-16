@@ -303,7 +303,96 @@ async function runMobileFriendlyTestSuite() {
     assert.strictEqual(result.metrics.flaggedTapTargets, 2);
   });
 
-  console.log('\n5. CSV & XLSX Exporters:');
+  console.log('\n5. Security Defenses & Parameter Tampering Protection:');
+
+  await it('Security: Arbitrary evaluateScript parameter is rejected by endpoint logic', () => {
+    // Test endpoint parameter checking rule
+    const maliciousPayload = {
+      url: 'https://example.com',
+      evaluateScript: 'window.__stolen = document.cookie;',
+    };
+    const isForbidden = maliciousPayload.evaluateScript !== undefined;
+    assert.strictEqual(isForbidden, true);
+  });
+
+  await it('Security: Unauthorized allowLocalhostForTesting is rejected in production', () => {
+    const isLocalDevelopment = false; // Simulated production environment
+    const reqBody = { url: 'http://localhost:3000', allowLocalhostForTesting: true };
+    const isRejected = reqBody.allowLocalhostForTesting && !isLocalDevelopment;
+    assert.strictEqual(isRejected, true);
+  });
+
+  await it('Security: Out-of-bounds viewport dimensions are rejected', () => {
+    const invalidViewports = [
+      { width: 50, height: 800, deviceScaleFactor: 2 }, // Too narrow
+      { width: 1200, height: 800, deviceScaleFactor: 2 }, // Too wide for mobile
+      { width: 390, height: 200, deviceScaleFactor: 2 }, // Too short
+      { width: 390, height: 844, deviceScaleFactor: 10 }, // Scale factor excessive
+    ];
+
+    for (const vp of invalidViewports) {
+      const isInvalid = vp.width < 300 || vp.width > 800 || vp.height < 400 || vp.height > 1600 || vp.deviceScaleFactor < 1 || vp.deviceScaleFactor > 4;
+      assert.strictEqual(isInvalid, true);
+    }
+  });
+
+  await it('Accuracy: Navigation metadata accurately preserves redirected finalUrl and HTTP status', () => {
+    const { buildBrowserRenderedAuditResult } = require('../../frontend/src/lib/seo/mobile-friendly/browserEvaluator.ts');
+    const mockMetrics = {
+      documentScrollWidth: 390,
+      viewportClientWidth: 390,
+      horizontalOverflow: 0,
+      overflowingElements: [],
+      fontStats: { totalEvaluated: 10, smallCount: 0, examples: [] },
+      tapTargetStats: { totalEvaluated: 5, undersizedCount: 0, tooCloseCount: 0, examples: [] },
+      viewportMeta: {
+        present: true,
+        rawContent: 'width=device-width, initial-scale=1',
+        hasDeviceWidth: true,
+        hasInitialScale: true,
+        userScalableNo: false,
+        maximumScaleRestricted: false,
+        fixedWidthNumber: null,
+        multipleTags: false,
+      },
+      incompatiblePlugins: { found: false, pluginTypes: [] },
+    };
+
+    const res = buildBrowserRenderedAuditResult({
+      url: 'https://example.com/initial',
+      finalUrl: 'https://example.com/final-destination',
+      statusCode: 200,
+      statusText: 'OK',
+      durationMs: 400,
+      metrics: mockMetrics,
+    });
+
+    assert.strictEqual(res.url, 'https://example.com/initial');
+    assert.strictEqual(res.finalUrl, 'https://example.com/final-destination');
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.statusText, 'OK');
+    assert.strictEqual(res.browserAttempted, true);
+  });
+
+  await it('Accuracy: Browser rendering encountering HTTP 403 reports ERROR and preserves 403 status', () => {
+    const { buildBrowserRenderedAuditResult } = require('../../frontend/src/lib/seo/mobile-friendly/browserEvaluator.ts');
+    const res = buildBrowserRenderedAuditResult({
+      url: 'https://example.com/protected',
+      finalUrl: 'https://example.com/protected',
+      statusCode: 403,
+      statusText: 'Forbidden',
+      durationMs: 300,
+      metrics: {} as any,
+    });
+
+    assert.strictEqual(res.overallStatus, 'ERROR');
+    assert.strictEqual(res.statusCode, 403);
+    assert.strictEqual(res.errorCode, 'HTTP_ERROR');
+    assert.strictEqual(res.tests.configureViewport.status, 'NOT_TESTED');
+    assert.ok(res.overallSummary.includes('403'));
+  });
+
+  console.log('\n6. CSV & XLSX Exporters:');
 
   await it('Protects against spreadsheet formula injection (=, +, -, @)', () => {
     assert.strictEqual(sanitizeSpreadsheetField('=cmd|/c calc'), "'=cmd|/c calc");

@@ -421,13 +421,33 @@ app.get('/api/seo/fetch-render/download/:token', (req: Request, res: Response) =
 // TOOL 6: MOBILE-FRIENDLY TESTER BROWSER ENDPOINTS
 // ==========================================
 import { getBrowserRenderProvider } from './seo/browserRenderProvider.js';
+import { TRUSTED_MOBILE_AUDIT_SCRIPT } from './seo/mobileAuditScript.js';
 
 // POST /api/seo/mobile-friendly/render
 app.post('/api/seo/mobile-friendly/render', async (req: Request, res: Response) => {
   try {
-    const { url, viewport, evaluateScript } = req.body;
+    const { url, viewport } = req.body;
     if (!url || typeof url !== 'string') {
       return res.status(400).json({ success: false, error: 'A valid target webpage URL is required.' });
+    }
+
+    // Security Hardening: Reject any attempt by public callers to supply arbitrary JavaScript evaluation scripts
+    if (req.body.evaluateScript !== undefined) {
+      return res.status(400).json({
+        success: false,
+        code: 'SECURITY_ERROR',
+        error: 'Supplying custom evaluateScript is forbidden on public endpoints.'
+      });
+    }
+
+    // Security Hardening: Reject unauthorized localhost testing requests in production
+    const isLocalDevelopment = process.env.NODE_ENV !== 'production';
+    if (req.body.allowLocalhostForTesting && !isLocalDevelopment) {
+      return res.status(403).json({
+        success: false,
+        code: 'SECURITY_ERROR',
+        error: 'Localhost testing is restricted to local development/test execution.'
+      });
     }
 
     const provider = getBrowserRenderProvider();
@@ -442,9 +462,22 @@ app.post('/api/seo/mobile-friendly/render', async (req: Request, res: Response) 
     // Default to mobile Chrome User-Agent
     const mobileUa = FETCH_RENDER_USER_AGENTS.find(u => u.id === 'chrome-mobile') || FETCH_RENDER_USER_AGENTS[0];
 
-    const vpWidth = viewport && typeof viewport.width === 'number' ? viewport.width : 390;
-    const vpHeight = viewport && typeof viewport.height === 'number' ? viewport.height : 844;
-    const vpScale = viewport && typeof viewport.deviceScaleFactor === 'number' ? viewport.deviceScaleFactor : 3;
+    // Strictly validate and clamp viewport boundaries (min 320x480, max 768x1366, scale 1-4)
+    const rawWidth = viewport && typeof viewport.width === 'number' ? viewport.width : 390;
+    const rawHeight = viewport && typeof viewport.height === 'number' ? viewport.height : 844;
+    const rawScale = viewport && typeof viewport.deviceScaleFactor === 'number' ? viewport.deviceScaleFactor : 3;
+
+    if (rawWidth < 300 || rawWidth > 800 || rawHeight < 400 || rawHeight > 1600 || rawScale < 1 || rawScale > 4) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_VIEWPORT',
+        error: 'Requested viewport dimensions or deviceScaleFactor are outside supported mobile ranges.'
+      });
+    }
+
+    const vpWidth = Math.round(rawWidth);
+    const vpHeight = Math.round(rawHeight);
+    const vpScale = Number(rawScale.toFixed(2));
 
     const renderResult = await provider.render({
       url,
@@ -454,14 +487,14 @@ app.post('/api/seo/mobile-friendly/render', async (req: Request, res: Response) 
       timeoutMs: 15000,
       acceptLanguage: 'en-US,en;q=0.9',
       captureScreenshot: true,
-      evaluateScript: typeof evaluateScript === 'string' ? evaluateScript : undefined,
+      evaluateScript: TRUSTED_MOBILE_AUDIT_SCRIPT,
       customViewport: {
         width: vpWidth,
         height: vpHeight,
         deviceScaleFactor: vpScale,
         isMobile: true
       },
-      allowLocalhostForTesting: Boolean(req.body.allowLocalhostForTesting)
+      allowLocalhostForTesting: Boolean(req.body.allowLocalhostForTesting && isLocalDevelopment)
     });
 
     res.json({
@@ -471,7 +504,10 @@ app.post('/api/seo/mobile-friendly/render', async (req: Request, res: Response) 
         screenshotBase64: renderResult.screenshotBase64,
         metrics: renderResult.evaluatedMetrics,
         renderDurationMs: renderResult.renderDurationMs,
-        renderStatus: renderResult.renderStatus
+        renderStatus: renderResult.renderStatus,
+        finalUrl: renderResult.finalUrl || url,
+        statusCode: renderResult.statusCode ?? 200,
+        statusText: renderResult.statusText || 'OK'
       }
     });
   } catch (err: any) {

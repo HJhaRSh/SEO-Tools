@@ -40,9 +40,12 @@ export async function auditSingleUrl(
 
   // Determine whether to attempt real browser rendering
   // If FORCE_STATIC_AUDIT is set, skip browser rendering immediately
+  let browserAttempted = false;
+  let browserFailureReason: string | undefined = undefined;
   let browserResult: SingleUrlMobileAuditResult | null = null;
 
   if (!process.env.FORCE_STATIC_AUDIT) {
+    browserAttempted = true;
     try {
       const backendUrl = getBackendBaseUrl();
       const renderRes = await fetch(`${backendUrl}/api/seo/mobile-friendly/render`, {
@@ -55,11 +58,13 @@ export async function auditSingleUrl(
             height: preset.height,
             deviceScaleFactor: preset.deviceScaleFactor,
           },
-          evaluateScript: BROWSER_AUDIT_INJECTION_SCRIPT,
           allowLocalhostForTesting: Boolean(options.allowLocalhostForTesting),
         }),
         signal: AbortSignal.timeout(18000),
-      }).catch(() => null);
+      }).catch((fetchErr) => {
+        browserFailureReason = fetchErr?.name === 'TimeoutError' ? 'Browser render request timed out' : 'Backend browser service unreachable';
+        return null;
+      });
 
       if (renderRes && renderRes.ok) {
         const data = await renderRes.json().catch(() => null);
@@ -70,18 +75,28 @@ export async function auditSingleUrl(
 
           browserResult = buildBrowserRenderedAuditResult({
             url: options.url,
-            finalUrl: options.url,
-            statusCode: 200,
-            statusText: 'OK',
+            finalUrl: r.finalUrl || options.url,
+            statusCode: typeof r.statusCode === 'number' ? r.statusCode : 200,
+            statusText: r.statusText || 'OK',
             durationMs: Date.now() - startTime,
             viewport: preset,
             screenshotBase64: screenshot,
             metrics: liveMetrics,
           });
+        } else {
+          browserFailureReason = data?.error || 'Browser returned incomplete metrics';
+        }
+      } else if (renderRes) {
+        if (renderRes.status === 503) {
+          browserFailureReason = 'Chromium browser rendering unavailable in serverless environment';
+        } else if (renderRes.status === 403) {
+          browserFailureReason = 'Target destination blocked by browser SSRF guard';
+        } else {
+          browserFailureReason = `Browser rendering endpoint returned HTTP ${renderRes.status}`;
         }
       }
-    } catch {
-      // Backend browser render unavailable, errored, or 503; gracefully fallback to safe mobile fetch
+    } catch (err: any) {
+      browserFailureReason = err?.message || 'Unexpected browser rendering failure';
     }
   }
 
@@ -105,5 +120,7 @@ export async function auditSingleUrl(
     statusText: fetchRes.statusText,
     durationMs,
     viewport: preset,
+    browserAttempted,
+    browserFailureReason,
   });
 }

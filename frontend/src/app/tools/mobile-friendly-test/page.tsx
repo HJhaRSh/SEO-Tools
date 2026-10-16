@@ -97,28 +97,75 @@ export default function MobileFriendlyTest() {
           }),
         });
 
-        const data = await res.json().catch(() => null);
+        let data = await res.json().catch(() => null);
 
         if (!res.ok || !data || !data.success) {
-          throw new Error(data?.error || `Mobile test request failed with status ${res.status}.`);
-        }
-
-        if (Array.isArray(data.results)) {
-          accumulatedResults.push(...data.results);
-          setResults([...accumulatedResults]);
-
-          const completedCount = accumulatedResults.filter((r) => r.isCompleted).length;
-          const failedCount = accumulatedResults.filter((r) => !r.isCompleted || r.overallStatus === 'ERROR').length;
-
-          setProgress({
-            total: allUrls.length,
-            completed: completedCount,
-            failed: failedCount,
-            remaining: allUrls.length - accumulatedResults.length,
-            currentIndex: i + chunk.length,
-            activeUrl: chunk[chunk.length - 1],
+          // If a chunk completely failed at HTTP layer, convert those chunk URLs to error entries so other chunks still succeed
+          const fallbackChunkResults: SingleUrlMobileAuditResult[] = chunk.map((cUrl) => {
+            const defaultVp = MOBILE_VIEWPORT_PRESETS[viewportPreset] || DEFAULT_VIEWPORT_PRESET;
+            return {
+              url: cUrl,
+              finalUrl: cUrl,
+              durationMs: 0,
+              testedAt: new Date().toISOString(),
+              isCompleted: false,
+              overallStatus: 'ERROR',
+              overallSummary: data?.error || `Request failed with status ${res.status}`,
+              executionMode: 'static-dom-heuristics',
+              assessmentLabel: 'Static HTML Assessment — Browser rendering not performed',
+              errorCode: 'FETCH_FAILED',
+              viewport: {
+                width: defaultVp.width,
+                height: defaultVp.height,
+                deviceScaleFactor: defaultVp.deviceScaleFactor,
+              },
+              viewportDeclaration: {
+                present: false,
+                rawContent: null,
+                hasDeviceWidth: false,
+                hasInitialScale: false,
+                userScalableNo: false,
+                maximumScaleRestricted: false,
+              },
+              tests: {
+                configureViewport: { status: 'NOT_TESTED', summary: 'Skipped due to request failure.', issues: [] },
+                fixedWidthViewport: { status: 'NOT_TESTED', summary: 'Skipped due to request failure.', issues: [] },
+                sizeContentToViewport: { status: 'NOT_TESTED', summary: 'Skipped due to request failure.', issues: [] },
+                legibleFontSizes: { status: 'NOT_TESTED', summary: 'Skipped due to request failure.', issues: [] },
+                tapTargets: { status: 'NOT_TESTED', summary: 'Skipped due to request failure.', issues: [] },
+                incompatiblePlugins: { status: 'NOT_TESTED', summary: 'Skipped due to request failure.', issues: [] },
+              },
+              issues: [
+                {
+                  category: 'NETWORK',
+                  title: 'Request Failed',
+                  severity: 'CRITICAL',
+                  description: data?.error || `API returned status ${res.status}`,
+                  evidence: `URL: ${cUrl}`,
+                  recommendedAction: 'Retry test with smaller batch or verify network connectivity.',
+                },
+              ],
+              metrics: {},
+            };
           });
+          accumulatedResults.push(...fallbackChunkResults);
+        } else if (Array.isArray(data.results)) {
+          accumulatedResults.push(...data.results);
         }
+
+        setResults([...accumulatedResults]);
+
+        const completedCount = accumulatedResults.filter((r) => r.isCompleted).length;
+        const failedCount = accumulatedResults.filter((r) => !r.isCompleted || r.overallStatus === 'ERROR').length;
+
+        setProgress({
+          total: allUrls.length,
+          completed: completedCount,
+          failed: failedCount,
+          remaining: allUrls.length - accumulatedResults.length,
+          currentIndex: i + chunk.length,
+          activeUrl: chunk[chunk.length - 1],
+        });
       }
 
       setStatus('success');
@@ -510,9 +557,24 @@ export default function MobileFriendlyTest() {
                                     <div className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1.5">
                                       {r.overallSummary}
                                     </div>
-                                    <div className="text-xs text-slate-500 mt-1">
-                                      Tested at {r.viewport.width}x{r.viewport.height}px | Mode: {r.executionMode} | Duration: {r.durationMs}ms
+                                    <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                      <span>Tested at {r.viewport.width}x{r.viewport.height}px</span>
+                                      <span>•</span>
+                                      <span>Mode: {r.executionMode}</span>
+                                      <span>•</span>
+                                      <span>Duration: {r.durationMs}ms</span>
+                                      {r.finalUrl && r.finalUrl !== r.url && (
+                                        <>
+                                          <span>•</span>
+                                          <span className="text-amber-600 dark:text-amber-400 font-mono">Redirected to: {r.finalUrl}</span>
+                                        </>
+                                      )}
                                     </div>
+                                    {r.executionMode === 'static-dom-heuristics' && r.browserAttempted && r.browserFailureReason && (
+                                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded inline-block">
+                                        ℹ Browser notice: {r.browserFailureReason}. Fallback to static HTML assessment applied.
+                                      </div>
+                                    )}
                                   </div>
                                   {r.screenshot?.available && (
                                     <button

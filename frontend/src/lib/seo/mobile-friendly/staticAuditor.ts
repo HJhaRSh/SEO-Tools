@@ -16,6 +16,8 @@ export interface StaticAuditOptions {
   durationMs: number;
   viewport?: ViewportPreset;
   testedAt?: string;
+  browserAttempted?: boolean;
+  browserFailureReason?: string;
 }
 
 /**
@@ -570,6 +572,8 @@ export function auditStaticHtmlMobileFriendliness(
     overallSummary,
     executionMode: 'static-dom-heuristics',
     assessmentLabel: 'Static HTML Assessment — Browser rendering not performed',
+    browserAttempted: options.browserAttempted ?? false,
+    browserFailureReason: options.browserFailureReason,
     viewport: {
       width: vp.width,
       height: vp.height,

@@ -86,6 +86,10 @@ export interface RenderBrowserResult {
   renderStatus: 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'SKIPPED';
   errorMessage?: string;
   evaluatedMetrics?: any;
+  finalUrl?: string;
+  statusCode?: number;
+  statusText?: string;
+  redirectChain?: string[];
 }
 
 export interface ExtractedSeoSignals {

@@ -393,8 +393,9 @@ export async function executeBrowserRender(
 
     // 8. Navigate with bounded timeout and crash race
     const navTimeout = Math.min(options.timeoutMs, 20000);
+    let navResponse: any = null;
     try {
-      await Promise.race([
+      navResponse = await Promise.race([
         page.goto(options.url, {
           timeout: navTimeout,
           waitUntil: 'domcontentloaded'
@@ -476,6 +477,10 @@ export async function executeBrowserRender(
     const totalFailed = capturedResources.filter(r => r.loadStatus === 'FAILED').length;
     const totalBlocked = capturedResources.filter(r => r.loadStatus === 'BLOCKED_ROBOTS' || r.loadStatus === 'BLOCKED_SSRF').length;
 
+    const finalUrl = page.url() || options.url;
+    const statusCode = navResponse ? navResponse.status() : (capturedResources.find(r => r.type === 'Document')?.httpStatus ?? 200);
+    const statusText = navResponse ? navResponse.statusText() : 'OK';
+
     return {
       renderedHtml,
       byteSize,
@@ -488,7 +493,10 @@ export async function executeBrowserRender(
       totalResourcesBlocked: totalBlocked,
       isTruncated,
       renderStatus: 'COMPLETED',
-      evaluatedMetrics
+      evaluatedMetrics,
+      finalUrl,
+      statusCode,
+      statusText
     };
   } catch (err: any) {
     const renderDurationMs = Date.now() - startTime;
