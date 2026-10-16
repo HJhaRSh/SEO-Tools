@@ -1,221 +1,188 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
+import { parseAndValidateBulkUrls } from '@/lib/seo/mobile-friendly/urlValidator';
+import { auditSingleUrl } from '@/lib/seo/mobile-friendly/auditService';
+import {
+  SingleUrlMobileAuditResult,
+  MobileAuditApiResponse,
+} from '@/lib/seo/mobile-friendly/types';
+import { DEFAULT_VIEWPORT_PRESET, MOBILE_VIEWPORT_PRESETS } from '@/lib/seo/mobile-friendly/constants';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export interface MobileAuditSignal {
-  name: string;
-  status: 'Passed' | 'Warning' | 'Failed' | 'Notice';
-  details: string;
-  badge: 'badge-success' | 'badge-warning' | 'badge-error' | 'badge-neutral';
-}
+const CONCURRENT_REQUESTS = 3;
 
-export interface MobileAuditResponse {
-  success: boolean;
-  url?: string;
-  finalUrl?: string;
-  statusCode?: number;
-  viewportTag?: string | null;
-  tests?: MobileAuditSignal[];
-  hasHorizontalOverflowRisk?: boolean;
-  renderingNote?: string;
-  error?: string;
+/**
+ * Concurrency runner with bounded limit.
+ */
+async function asyncPool<T, R>(
+  items: T[],
+  limit: number,
+  iteratorFn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const ret: Promise<R>[] = [];
+  const executing: Promise<void>[] = [];
+
+  for (const item of items) {
+    const p = Promise.resolve().then(() => iteratorFn(item));
+    ret.push(p);
+
+    if (limit <= items.length) {
+      const e: Promise<void> = p.then(() => {
+        executing.splice(executing.indexOf(e), 1);
+      });
+      executing.push(e);
+      if (executing.length >= limit) {
+        await Promise.race(executing);
+      }
+    }
+  }
+
+  return Promise.all(ret);
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { url } = body;
+    const { url, urls, viewportPreset } = body;
 
-    if (!url || typeof url !== 'string' || !url.trim()) {
+    // Determine target URLs
+    let targetUrls: string[] = [];
+    if (Array.isArray(urls) && urls.length > 0) {
+      const parsed = parseAndValidateBulkUrls(urls.join('\n'));
+      targetUrls = parsed.validUrls;
+    } else if (typeof url === 'string' && url.trim()) {
+      const parsed = parseAndValidateBulkUrls(url.trim());
+      targetUrls = parsed.validUrls;
+    }
+
+    if (targetUrls.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'Please provide a valid website URL to test.' },
+        {
+          success: false,
+          error: 'Please provide at least one valid HTTP or HTTPS webpage URL to test.',
+        },
         { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
       );
     }
 
-    const fetchResult = await safeFetch(url.trim(), {
-      userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
-      timeoutMs: 9000,
-      maxBytes: 2 * 1024 * 1024,
-      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    });
+    const presetId = typeof viewportPreset === 'string' && MOBILE_VIEWPORT_PRESETS[viewportPreset]
+      ? viewportPreset
+      : 'standard';
 
-    const html = fetchResult.body;
-    const tests: MobileAuditSignal[] = [];
-
-    // 1. Viewport Meta Tag check
-    const viewportMatch = html.match(/<meta[^>]*name=["']viewport["'][^>]*content=["']([^"']*)["']/i) ||
-      html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']viewport["']/i);
-    const viewportContent = viewportMatch ? viewportMatch[1].trim() : null;
-
-    if (!viewportContent) {
-      tests.push({
-        name: 'Viewport Meta Tag',
-        status: 'Failed',
-        details: 'Missing viewport meta tag. Mobile browsers will render the desktop version zoomed out.',
-        badge: 'badge-error',
-      });
-    } else {
-      const hasWidthDevice = /width\s*=\s*device-width/i.test(viewportContent);
-      const hasInitialScale = /initial-scale\s*=\s*1/i.test(viewportContent);
-      const hasUserScalableNo = /user-scalable\s*=\s*(no|0)/i.test(viewportContent);
-
-      if (hasWidthDevice && hasInitialScale) {
-        tests.push({
-          name: 'Viewport Meta Tag',
-          status: 'Passed',
-          details: `Configured correctly: content="${viewportContent}".`,
-          badge: 'badge-success',
-        });
-      } else {
-        tests.push({
-          name: 'Viewport Meta Tag',
-          status: 'Warning',
-          details: `Viewport tag present ("${viewportContent}"), but recommended "width=device-width, initial-scale=1" was not fully matched.`,
-          badge: 'badge-warning',
-        });
-      }
-
-      if (hasUserScalableNo) {
-        tests.push({
-          name: 'Pinch-to-Zoom Accessibility',
-          status: 'Warning',
-          details: 'user-scalable=no or maximum-scale=1 was detected, which restricts user pinch-to-zoom accessibility.',
-          badge: 'badge-warning',
-        });
-      }
-    }
-
-    // 2. Fixed Width Container / Table / Pre tags causing Horizontal Overflow
-    const fixedWidthMatch = html.match(/width:\s*([6-9]\d{2,}|[1-9]\d{3,})px/i) ||
-      html.match(/width=["']([6-9]\d{2,}|[1-9]\d{3,})["']/i);
-    const hasLargePreTag = /<pre[^>]*>/i.test(html);
-    const hasUnresponsiveTable = /<table[^>]*>/i.test(html) && !/overflow-(x-auto|scroll)|responsive-table/i.test(html);
-
-    if (fixedWidthMatch) {
-      tests.push({
-        name: 'Content Width & Overflow',
-        status: 'Warning',
-        details: `Detected inline fixed width of ${fixedWidthMatch[1]}px which may exceed mobile screen width (~390px).`,
-        badge: 'badge-warning',
-      });
-    } else if (hasUnresponsiveTable) {
-      tests.push({
-        name: 'Content Width & Overflow',
-        status: 'Notice',
-        details: 'Table elements detected without wrapper overflow container; verify horizontal scrolling on mobile.',
-        badge: 'badge-neutral',
-      });
-    } else {
-      tests.push({
-        name: 'Content Width & Overflow',
-        status: 'Passed',
-        details: 'No rigid, wide fixed-width containers detected in initial HTML markup.',
-        badge: 'badge-success',
-      });
-    }
-
-    // 3. Responsive Breakpoints & Media Queries
-    const hasMediaQueries = /@media[^{]+(max-width|min-width)/i.test(html) ||
-      /class=["'][^"']*(sm:|md:|lg:|flex-col|grid-cols|hidden sm:)[^"']*["']/i.test(html) ||
-      /link[^>]*media=["'][^"']*(max-width|min-width)[^"']*["']/i.test(html);
-
-    if (hasMediaQueries) {
-      tests.push({
-        name: 'Responsive CSS Breakpoints',
-        status: 'Passed',
-        details: 'Responsive media queries or adaptive utility classes detected in HTML stylesheets.',
-        badge: 'badge-success',
-      });
-    } else {
-      tests.push({
-        name: 'Responsive CSS Breakpoints',
-        status: 'Notice',
-        details: 'External CSS stylesheets handle responsive breakpoints. Static analysis verified viewport adaptation.',
-        badge: 'badge-neutral',
-      });
-    }
-
-    // 4. Mobile Text Legibility (Small font declarations in inline styles)
-    const smallFontMatch = html.match(/font-size:\s*([1-9]|1[01])px/i);
-    if (smallFontMatch) {
-      tests.push({
-        name: 'Text Readability',
-        status: 'Warning',
-        details: `Inline font size under 12px detected (${smallFontMatch[0]}). Google recommends body text >= 16px.`,
-        badge: 'badge-warning',
-      });
-    } else {
-      tests.push({
-        name: 'Text Readability',
-        status: 'Passed',
-        details: 'No illegibly small inline font-sizes (< 12px) detected in initial markup.',
-        badge: 'badge-success',
-      });
-    }
-
-    // 5. Obsolete Plugins / Flash
-    const hasFlashOrApplet = /<object[^>]*type=["']application\/x-shockwave-flash["']/i.test(html) ||
-      /<embed[^>]*type=["']application\/x-shockwave-flash["']/i.test(html) ||
-      /<applet[^>]*>/i.test(html);
-
-    if (hasFlashOrApplet) {
-      tests.push({
-        name: 'Mobile Incompatible Plugins',
-        status: 'Failed',
-        details: 'Unsupported mobile plugins (such as Flash or Java Applets) detected.',
-        badge: 'badge-error',
-      });
-    } else {
-      tests.push({
-        name: 'Mobile Incompatible Plugins',
-        status: 'Passed',
-        details: 'No obsolete plugins (Flash, Silverlight, Applets) detected.',
-        badge: 'badge-success',
-      });
-    }
-
-    // 6. Mobile Web App & Theme Color
-    const themeColorMatch = html.match(/<meta[^>]*name=["']theme-color["'][^>]*content=["']([^"']*)["']/i);
-    const appleTouchIconMatch = html.match(/<link[^>]*rel=["']apple-touch-icon["'][^>]*href=["']([^"']*)["']/i);
-
-    if (themeColorMatch || appleTouchIconMatch) {
-      tests.push({
-        name: 'Mobile Web App Polish',
-        status: 'Passed',
-        details: 'Declared mobile enhancements (theme-color or apple-touch-icon) present.',
-        badge: 'badge-success',
-      });
-    }
-
-    return NextResponse.json(
-      {
-        success: true,
-        url: fetchResult.requestedUrl,
-        finalUrl: fetchResult.finalUrl,
-        statusCode: fetchResult.status,
-        viewportTag: viewportContent,
-        tests,
-        renderingNote:
-          'Audited via live mobile user-agent HTTP fetch. Note: Google retired the legacy standalone Mobile-Friendly API in December 2023 in favor of Core Web Vitals and Lighthouse metrics.',
-      },
-      {
-        status: 200,
-        headers: { 'Cache-Control': 'no-store, max-age=0' },
+    // Execute audit across requested URLs with bounded concurrency
+    const results: SingleUrlMobileAuditResult[] = await asyncPool(
+      targetUrls,
+      CONCURRENT_REQUESTS,
+      async (targetUrl): Promise<SingleUrlMobileAuditResult> => {
+        try {
+          return await auditSingleUrl({
+            url: targetUrl,
+            viewportPresetId: presetId,
+          });
+        } catch (err: any) {
+          const defaultVp = MOBILE_VIEWPORT_PRESETS[presetId] || DEFAULT_VIEWPORT_PRESET;
+          return {
+            url: targetUrl,
+            finalUrl: targetUrl,
+            durationMs: 0,
+            testedAt: new Date().toISOString(),
+            isCompleted: false,
+            overallStatus: 'ERROR',
+            overallSummary: 'Audit incomplete because the target URL could not be fetched or rendered.',
+            executionMode: 'static-dom-heuristics',
+            viewport: {
+              width: defaultVp.width,
+              height: defaultVp.height,
+              deviceScaleFactor: defaultVp.deviceScaleFactor,
+            },
+            viewportDeclaration: {
+              present: false,
+              rawContent: null,
+              hasDeviceWidth: false,
+              hasInitialScale: false,
+              userScalableNo: false,
+              maximumScaleRestricted: false,
+            },
+            tests: {
+              configureViewport: {
+                status: 'NOT_TESTED',
+                summary: 'Evaluation aborted due to network or access failure.',
+                issues: [],
+              },
+              fixedWidthViewport: {
+                status: 'NOT_TESTED',
+                summary: 'Evaluation aborted due to network or access failure.',
+                issues: [],
+              },
+              sizeContentToViewport: {
+                status: 'NOT_TESTED',
+                summary: 'Evaluation aborted due to network or access failure.',
+                issues: [],
+              },
+              legibleFontSizes: {
+                status: 'NOT_TESTED',
+                summary: 'Evaluation aborted due to network or access failure.',
+                issues: [],
+              },
+              tapTargets: {
+                status: 'NOT_TESTED',
+                summary: 'Evaluation aborted due to network or access failure.',
+                issues: [],
+              },
+              incompatiblePlugins: {
+                status: 'NOT_TESTED',
+                summary: 'Evaluation aborted due to network or access failure.',
+                issues: [],
+              },
+            },
+            issues: [
+              {
+                category: 'NETWORK',
+                title: 'Page Access Failed',
+                severity: 'CRITICAL',
+                description: err.message || 'Unable to fetch the requested webpage.',
+                evidence: `Target: ${targetUrl}`,
+                recommendedAction: 'Verify that the server is online and accessible without blocking automated audits.',
+              },
+            ],
+            metrics: {},
+            errorMessage: err.message || 'Page access failure',
+          };
+        }
       }
     );
+
+    const summary = {
+      totalTested: results.length,
+      passed: results.filter((r) => r.overallStatus === 'PASS').length,
+      warning: results.filter((r) => r.overallStatus === 'WARNING').length,
+      failed: results.filter((r) => r.overallStatus === 'FAIL').length,
+      error: results.filter((r) => r.overallStatus === 'ERROR').length,
+    };
+
+    const hasBrowserRendered = results.some((r) => r.executionMode === 'browser-rendered');
+
+    const responsePayload: MobileAuditApiResponse = {
+      success: true,
+      results,
+      summary,
+      executionMode: hasBrowserRendered ? 'browser-rendered' : 'static-dom-heuristics',
+      serverRuntimeNotice:
+        'Independent mobile-usability assessment. Note: Google retired the legacy standalone Mobile-Friendly Test API in December 2023.',
+    };
+
+    return NextResponse.json(responsePayload, {
+      status: 200,
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
   } catch (err: any) {
     return NextResponse.json(
       {
         success: false,
-        error: err.message || 'Failed to inspect webpage for mobile friendliness.',
+        error: err.message || 'An unexpected error occurred during mobile friendly testing.',
       },
-      {
-        status: 400,
-        headers: { 'Cache-Control': 'no-store, max-age=0' },
-      }
+      { status: 500, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }
 }
