@@ -29,8 +29,8 @@ export default function SchemaGenerator() {
   // Current active schema type selection
   const [schemaType, setSchemaType] = useState<SupportedSchemaType>('Organization');
 
-  // Master state holding form drafts for all schemas to preserve user work across tabs
-  const [schemasState, setSchemasState] = useState<AllSchemasState>(() => getDefaultSchemasState());
+  // Master state holding form drafts for all schemas to preserve user work across tabs (starts blank by default)
+  const [schemasState, setSchemasState] = useState<AllSchemasState>(() => getBlankSchemasState());
 
   // UI state controls
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('script');

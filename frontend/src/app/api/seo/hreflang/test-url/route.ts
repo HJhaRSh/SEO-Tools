@@ -109,8 +109,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Calculate true unique URLs analyzed (1 source URL + unique alternate URLs actually fetched/tested)
+    const uniqueAlternateUrls = new Set(validationItems.map((item) => item.annotation.href));
+    uniqueAlternateUrls.add(finalPageUrl);
+    const uniqueUrlsAnalyzedCount = uniqueAlternateUrls.size;
+
     const summary: HreflangSummary = {
-      urlsAnalyzed: 1 + validationItems.length,
+      urlsAnalyzed: uniqueUrlsAnalyzedCount,
       totalAnnotations,
       validAnnotations: validationItems.filter((v) => v.issues.filter((i) => i.severity === 'error').length === 0).length,
       errorCount,

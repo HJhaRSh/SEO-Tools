@@ -46,6 +46,18 @@
       }
     },
     {
+      "source": "/api/seo/mobile-friendly/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
+      "source": "/api/seo/mobile-first-index/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"

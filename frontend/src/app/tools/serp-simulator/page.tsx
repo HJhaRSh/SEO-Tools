@@ -74,15 +74,34 @@ export default function SerpSimulator() {
     };
   }, [title, limits.titlePx, fonts.title, isMounted]);
 
-  // Formatted date string for rich snippet simulation
+  // Dynamic publication date for rich snippet simulation (defaults to today's date formatted)
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+
   const formattedDate = useMemo(() => {
-    return 'Oct 14, 2026';
-  }, []);
+    if (!selectedDate) return '';
+    try {
+      const parts = selectedDate.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, monthIndex, day);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+      }
+    } catch {
+      // Fallback
+    }
+    return selectedDate;
+  }, [selectedDate]);
 
   // Description preview text (with optional date prepended)
   const fullDescriptionText = useMemo(() => {
     const baseText = description || 'This is an example of a meta description. It should be concise and compelling, summarizing the content of the page and encouraging users to click.';
-    if (showDate) {
+    if (showDate && formattedDate) {
       return `${formattedDate} — ${baseText}`;
     }
     return baseText;
@@ -403,18 +422,34 @@ export default function SerpSimulator() {
             
             <div className="space-y-4">
               {/* Date Option */}
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showDate}
-                  onChange={(e) => setShowDate(e.target.checked)}
-                  className="w-4 h-4 rounded text-green-600 focus:ring-green-500 cursor-pointer"
-                />
-                <div>
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Include publication date</span>
-                  <p className="text-xs text-slate-500">Prepends &quot;{formattedDate} —&quot; to the description snippet.</p>
-                </div>
-              </label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showDate}
+                    onChange={(e) => setShowDate(e.target.checked)}
+                    className="w-4 h-4 rounded text-green-600 focus:ring-green-500 cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Include publication date</span>
+                    <p className="text-xs text-slate-500">Prepends &quot;{formattedDate || 'Date'} —&quot; to the description snippet.</p>
+                  </div>
+                </label>
+                {showDate && (
+                  <div className="pl-7 pt-1">
+                    <label htmlFor="pub-date-input" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Publication Date
+                    </label>
+                    <input
+                      id="pub-date-input"
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="input py-1.5 px-3 text-xs w-auto max-w-[200px]"
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Review / Rating Option */}
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
