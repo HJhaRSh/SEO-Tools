@@ -81,21 +81,38 @@ export default function LocalSearchTool() {
     }
   };
 
-  const activeEmbedUrl = result
-    ? activeTab === 'search'
-      ? queryMode === 'location_intent' && result.searchLocation
-        ? `${result.googleSearchEmbedUrl}&q=${encodeURIComponent(result.searchQuery + ' in ' + result.searchLocation.split(',')[0].trim())}`
-        : result.googleSearchEmbedUrl
-      : result.googleMapsEmbedUrl
-    : '';
+  // Compute active target URLs safely using WHATWG URL without duplicate q parameters
+  const activeEmbedUrl = React.useMemo(() => {
+    if (!result) return '';
+    if (activeTab === 'maps') return result.googleMapsEmbedUrl;
+    if (queryMode === 'location_intent' && result.searchLocation) {
+      try {
+        const u = new URL(result.googleSearchEmbedUrl);
+        const cityPart = result.searchLocation.split(',')[0].trim();
+        u.searchParams.set('q', `${result.searchQuery} in ${cityPart}`);
+        return u.toString();
+      } catch {
+        return result.googleSearchEmbedUrl;
+      }
+    }
+    return result.googleSearchEmbedUrl;
+  }, [result, activeTab, queryMode]);
 
-  const activeExternalUrl = result
-    ? activeTab === 'search'
-      ? queryMode === 'location_intent' && result.searchLocation
-        ? `${result.googleSearchUrl}&q=${encodeURIComponent(result.searchQuery + ' in ' + result.searchLocation.split(',')[0].trim())}`
-        : result.googleSearchUrl
-      : result.googleMapsUrl
-    : '';
+  const activeExternalUrl = React.useMemo(() => {
+    if (!result) return '';
+    if (activeTab === 'maps') return result.googleMapsUrl;
+    if (queryMode === 'location_intent' && result.searchLocation) {
+      try {
+        const u = new URL(result.googleSearchUrl);
+        const cityPart = result.searchLocation.split(',')[0].trim();
+        u.searchParams.set('q', `${result.searchQuery} in ${cityPart}`);
+        return u.toString();
+      } catch {
+        return result.googleSearchUrl;
+      }
+    }
+    return result.googleSearchUrl;
+  }, [result, activeTab, queryMode]);
 
   return (
     <ToolLayout

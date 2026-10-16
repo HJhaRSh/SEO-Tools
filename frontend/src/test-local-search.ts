@@ -134,6 +134,19 @@ async function runLocalSearchTests() {
   }
   assert(threwError, 'Throws validation error when query is empty');
 
+  // 6. Zero Duplicate q Parameter & Accented Unicode Locations:
+  console.log('\n6. Duplicate Parameter Protection & Accented Canonical Locations:');
+  const saoPauloEncoded = encodeUule('São Paulo, State of São Paulo, Brazil');
+  assert(saoPauloEncoded.uule !== null, 'Accented location São Paulo encodes without error');
+  assert(saoPauloEncoded.uule?.startsWith('w+CAIQICI') === true, 'São Paulo has canonical prefix');
+
+  // Verify URL replacement produces exactly one q parameter without duplicate keys
+  const testUrl = new URL(fullResult.googleSearchUrl);
+  const cityIntent = 'London';
+  testUrl.searchParams.set('q', `${fullResult.searchQuery} in ${cityIntent}`);
+  assert(testUrl.searchParams.getAll('q').length === 1, 'URL has exactly 1 q parameter');
+  assert(testUrl.searchParams.get('q') === 'SEO agency in London', 'Query string replaced correctly with city intent');
+
   console.log(`\nResults: ${passed} passed, ${failed} failed.`);
   if (failed > 0) {
     process.exit(1);
