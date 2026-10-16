@@ -24,7 +24,7 @@ export default function LocalSearchTool() {
   // Active Embedded Viewer View
   const [activeTab, setActiveTab] = useState<'search' | 'maps'>('search');
   const [deviceViewport, setDeviceViewport] = useState<'desktop' | 'mobile'>('desktop');
-  const [queryMode, setQueryMode] = useState<'strict_uule' | 'location_intent'>('strict_uule');
+  const [queryMode, setQueryMode] = useState<'location_intent' | 'strict_uule'>('location_intent');
 
   // Execution & Feedback State
   const [error, setError] = useState<string | null>(null);
@@ -525,7 +525,7 @@ export default function LocalSearchTool() {
                 )}
 
                 <iframe
-                  key={`${activeTab}-${result.searchQuery}-${result.searchLocation}-${result.countryCode}`}
+                  key={`${activeTab}-${queryMode}-${result.searchQuery}-${result.searchLocation}-${result.countryCode}`}
                   src={activeEmbedUrl}
                   title="Localized Search Results"
                   className="w-full h-full border-0"
