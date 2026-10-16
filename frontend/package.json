@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "cheerio": "^1.2.0",
+    "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.11.2",
     "next": "16.4.0",
     "postcss": "^8.5.29",
