@@ -33,24 +33,24 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
   }).filter(cat => cat.tools.length > 0);
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 select-none">
+    <div className="flex flex-col h-full bg-[var(--im-surface)] border-r border-[var(--im-border)] text-[var(--im-text)] select-none">
       
       {/* Brand & All Tools header */}
-      <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <div className="p-5 border-b border-[var(--im-border)] flex items-center justify-between">
         <Link href="/tools" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-xl bg-green-500/10 text-green-600 flex items-center justify-center font-bold text-base group-hover:bg-green-600 group-hover:text-white transition-colors">
+          <div className="w-10 h-10 rounded-[var(--im-radius-sm)] bg-[var(--im-accent-tint)] text-[var(--im-secondary)] flex items-center justify-center font-bold text-base transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
           </div>
           <div>
-            <span className="font-black text-base text-slate-900 dark:text-white block tracking-tight leading-tight">All SEO Tools</span>
-            <span className="text-xs text-slate-500 font-bold">14 Tools Suite</span>
+            <span className="font-bold text-base text-[var(--im-heading)] block tracking-tight leading-tight">All SEO Tools</span>
+            <span className="text-xs text-[var(--im-text-muted)] font-medium">14 Tools Suite</span>
           </div>
         </Link>
 
         {onCloseMobile && (
           <button
             onClick={onCloseMobile}
-            className="lg:hidden p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            className="lg:hidden p-2 rounded-[var(--im-radius-sm)] text-[var(--im-text-muted)] hover:text-[var(--im-heading)] hover:bg-[var(--im-bg-soft)] transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
@@ -58,20 +58,20 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
       </div>
 
       {/* Filter Quick Search */}
-      <div className="p-4 border-b border-slate-100 dark:border-slate-800/60">
+      <div className="p-4 border-b border-[var(--im-border)]">
         <div className="relative">
           <input
             type="text"
             placeholder="Search tools..."
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
-            className="w-full text-sm pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 font-medium"
+            className="w-full text-sm pl-9 pr-3 py-2.5 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-[var(--im-radius-sm)] focus:outline-none focus:ring-2 focus:ring-[var(--im-accent-tint)] focus:border-[var(--im-primary-deep)] text-[var(--im-text)] placeholder:text-[var(--im-text-muted)] font-medium"
           />
-          <svg className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <svg className="w-4 h-4 text-[var(--im-text-muted)] absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
           {filterQuery && (
             <button
               onClick={() => setFilterQuery('')}
-              className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-sm font-bold"
+              className="absolute right-3 top-2.5 text-[var(--im-text-muted)] hover:text-[var(--im-heading)] text-sm font-bold"
             >
               &times;
             </button>
@@ -80,7 +80,7 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
       </div>
 
       {/* Tools List by Category */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 font-sans">
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {filteredCategories.map((group) => {
           const isCollapsed = Boolean(collapsedCategories[group.category]);
 
@@ -88,7 +88,7 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
             <div key={group.category} className="space-y-1.5">
               <button
                 onClick={() => toggleCategory(group.category)}
-                className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-extrabold uppercase tracking-wider text-xs transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-2.5 py-2 rounded-[var(--im-radius-sm)] text-[var(--im-text-muted)] hover:text-[var(--im-heading)] hover:bg-[var(--im-bg-soft)] font-semibold uppercase tracking-wider text-xs transition-colors cursor-pointer"
               >
                 <span>{group.category}</span>
                 <svg
@@ -111,22 +111,22 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
                         key={tool.name}
                         href={tool.href}
                         onClick={onCloseMobile}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all group ${
+                        className={`flex items-center justify-between px-3 py-2.5 rounded-[var(--im-radius-sm)] font-medium transition-all group ${
                           isActive
-                            ? 'bg-green-500/15 text-green-800 dark:text-green-300 font-extrabold shadow-xs'
-                            : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/70'
+                            ? 'bg-[var(--im-accent-tint)] text-[var(--im-secondary)] font-semibold shadow-xs'
+                            : 'text-[var(--im-text)] hover:text-[var(--im-heading)] hover:bg-[var(--im-bg-soft)]'
                         }`}
                       >
                         <div className="flex items-center gap-2.5 truncate">
                           <span
                             className={`w-2 h-2 rounded-full ${
-                              isActive ? 'bg-green-600 ring-2 ring-green-300' : 'bg-slate-400 dark:bg-slate-600 group-hover:bg-slate-600'
+                              isActive ? 'bg-[var(--im-primary-deep)] ring-2 ring-[var(--im-accent-tint)]' : 'bg-[var(--im-border)] group-hover:bg-[var(--im-text-muted)]'
                             }`}
                           ></span>
                           <span className="truncate text-sm">{tool.name}</span>
                         </div>
                         {isActive && (
-                          <span className="w-2 h-2 rounded-full bg-green-600"></span>
+                          <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
                         )}
                       </Link>
                     );
@@ -139,9 +139,9 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
       </div>
 
       {/* Footer shortcut */}
-      <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-xs font-semibold text-slate-600 flex items-center justify-between">
+      <div className="p-4 border-t border-[var(--im-border)] bg-[var(--im-bg-soft)] text-xs font-medium text-[var(--im-text-muted)] flex items-center justify-between">
         <span>Indian Marketers Suite</span>
-        <Link href="/tools" className="font-bold text-green-700 hover:underline">
+        <Link href="/tools" className="font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] hover:underline">
           View All &rarr;
         </Link>
       </div>
@@ -152,7 +152,7 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
   return (
     <>
       {/* Desktop Sticky Sidebar */}
-      <aside className="hidden lg:block w-80 flex-shrink-0 sticky top-20 h-[calc(100vh-5rem)] shadow-sm z-30">
+      <aside className="hidden lg:block w-80 flex-shrink-0 sticky top-20 h-[calc(100vh-5rem)] shadow-[var(--im-shadow-sm)] z-30">
         {sidebarContent}
       </aside>
 
@@ -160,13 +160,13 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
       {isOpenMobile && (
         <div
           onClick={onCloseMobile}
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 lg:hidden transition-opacity"
+          className="fixed inset-0 bg-[var(--im-secondary)]/50 backdrop-blur-xs z-50 lg:hidden transition-opacity"
         />
       )}
 
       {/* Mobile Offcanvas Drawer */}
       <div
-        className={`fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white z-50 transform transition-transform duration-300 ease-in-out lg:hidden shadow-2xl ${
+        className={`fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-[var(--im-surface)] z-50 transform transition-transform duration-300 ease-in-out lg:hidden shadow-[var(--im-shadow-lg)] ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

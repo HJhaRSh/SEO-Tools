@@ -91,25 +91,24 @@ export default function ToolsClient() {
     <div className="w-full pt-2 pb-10">
       
       {/* Hero Section */}
-      <div className="text-center max-w-4xl mx-auto mb-10 relative">
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-900 dark:text-white mb-4 leading-tight">
-          Professional <span className="text-green-600 relative inline-block">
+      <div className="text-center max-w-4xl mx-auto mb-10 relative bg-[var(--im-secondary)] text-[var(--im-on-dark)] p-8 sm:p-12 rounded-[var(--im-radius-lg)] shadow-[var(--im-shadow-md)]">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-[var(--im-on-dark)] mb-4 leading-tight">
+          Professional <span className="text-[var(--im-primary)] relative inline-block">
             SEO Tools
-            <span className="absolute bottom-1 left-0 w-full h-2 bg-green-500/30 -z-10 rounded"></span>
           </span>
         </h1>
-        <p className="text-xl sm:text-2xl text-slate-700 dark:text-slate-300 mb-8 leading-relaxed font-normal">
+        <p className="text-base sm:text-lg text-[var(--im-on-dark)]/85 mb-8 leading-relaxed font-normal max-w-2xl mx-auto">
           The ultimate suite of production-grade SEO tools to test crawlability, debug technical indexing issues, and boost search performance.
         </p>
 
         {/* Search Bar */}
         <div className="relative max-w-2xl mx-auto group">
-          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-green-600 transition-colors">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-[var(--im-text-muted)] group-focus-within:text-[var(--im-primary-deep)] transition-colors">
+            <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
           </div>
           <input
             type="text"
-            className="w-full pl-14 pr-5 py-4 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 focus:border-green-600 focus:ring-4 focus:ring-green-500/20 shadow-md text-lg text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+            className="w-full pl-14 pr-5 py-3.5 rounded-[var(--im-radius-md)] bg-[var(--im-surface)] border border-[var(--im-border)] focus:border-[var(--im-primary-deep)] focus:ring-4 focus:ring-[var(--im-accent-tint)] shadow-[var(--im-shadow-sm)] text-base text-[var(--im-text)] font-medium transition-all placeholder:text-[var(--im-text-muted)] focus:outline-none"
             placeholder="Search for an SEO tool (e.g. robots.txt, sitemap, hreflang)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -123,10 +122,10 @@ export default function ToolsClient() {
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`px-6 py-3 rounded-full text-base font-bold transition-all duration-300 cursor-pointer ${
+            className={`px-5 py-2.5 rounded-[var(--im-radius-pill)] text-sm font-medium transition-all duration-200 cursor-pointer ${
               activeCategory === cat 
-                ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20 dark:bg-green-600 dark:text-white ring-2 ring-slate-900' 
-                : 'bg-white text-slate-700 border border-slate-300 hover:border-green-500 hover:text-green-700 hover:bg-green-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'
+                ? 'bg-[var(--im-secondary)] text-[var(--im-on-dark)] shadow-[var(--im-shadow-sm)] ring-1 ring-[var(--im-secondary)]' 
+                : 'bg-[var(--im-surface)] text-[var(--im-text)] border border-[var(--im-border)] hover:border-[var(--im-primary-deep)] hover:bg-[var(--im-bg-soft)]'
             }`}
           >
             {cat}
@@ -136,46 +135,46 @@ export default function ToolsClient() {
 
       {/* Tools Grid */}
       {filteredData.length === 0 ? (
-        <div className="text-center py-20 px-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm max-w-2xl mx-auto">
-          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-5">
-             <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div className="text-center py-16 px-6 bg-[var(--im-surface)] rounded-[var(--im-radius-md)] border border-[var(--im-border)] shadow-[var(--im-shadow-sm)] max-w-2xl mx-auto">
+          <div className="w-16 h-16 bg-[var(--im-bg-soft)] rounded-full flex items-center justify-center mx-auto mb-4 border border-[var(--im-border)]">
+             <svg className="w-8 h-8 text-[var(--im-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
-          <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">No tools found</h3>
-          <p className="text-slate-600 dark:text-slate-400 text-base">We couldn&apos;t find anything matching &quot;{searchQuery}&quot;. Try a different search term.</p>
+          <h3 className="text-xl font-semibold text-[var(--im-heading)] mb-2">No tools found</h3>
+          <p className="text-[var(--im-text-muted)] text-base">We couldn&apos;t find anything matching &quot;{searchQuery}&quot;. Try a different search term.</p>
         </div>
       ) : (
         <div className="space-y-16">
           {filteredData.map((categoryData) => (
             <div key={categoryData.category} className="space-y-6">
               
-              <div className="flex items-center gap-4 border-b border-slate-200 pb-4">
-                <div className="p-3 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 rounded-2xl">
+              <div className="flex items-center gap-4 border-b border-[var(--im-border)] pb-4">
+                <div className="p-3 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-md)]">
                   {categoryData.icon}
                 </div>
                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">{categoryData.category}</h2>
-                  <p className="text-slate-600 dark:text-slate-400 text-base mt-1">{categoryData.description}</p>
+                  <h2 className="text-xl sm:text-2xl font-semibold text-[var(--im-heading)] tracking-tight">{categoryData.category}</h2>
+                  <p className="text-[var(--im-text-muted)] text-sm mt-1">{categoryData.description}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {categoryData.tools.map(tool => (
                   <Link href={tool.href} key={tool.name} className="group block h-full">
-                    <div className="h-full bg-white dark:bg-slate-800 rounded-3xl border border-slate-300 dark:border-slate-700 p-7 sm:p-8 shadow-sm hover:shadow-xl hover:border-green-500 hover:-translate-y-1 transition-all duration-300 flex flex-col relative overflow-hidden">
+                    <div className="h-full bg-[var(--im-surface)] rounded-[var(--im-radius-md)] border border-[var(--im-border)] p-6 sm:p-7 shadow-[var(--im-shadow-sm)] hover:shadow-[var(--im-shadow-md)] hover:border-[var(--im-primary-deep)] hover:-translate-y-0.5 transition-all duration-200 flex flex-col relative overflow-hidden">
                       
                       <div className="flex items-center justify-between gap-3 mb-3">
-                        <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors">
+                        <h3 className="text-lg font-semibold text-[var(--im-heading)] group-hover:text-[var(--im-primary-deep)] transition-colors">
                           {tool.name}
                         </h3>
                       </div>
 
-                      <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg flex-1 mb-6 leading-relaxed font-normal">
+                      <p className="text-[var(--im-text)] text-sm leading-relaxed flex-1 mb-5 font-normal">
                         {tool.description}
                       </p>
                       
-                      <div className="mt-auto pt-4 border-t border-slate-100 flex items-center text-base font-bold text-green-700 dark:text-green-400 group-hover:gap-2.5 transition-all">
+                      <div className="mt-auto pt-4 border-t border-[var(--im-border)] flex items-center text-sm font-semibold text-[var(--im-heading)] group-hover:text-[var(--im-primary-deep)] group-hover:gap-2 transition-all">
                         Launch Tool
-                        <svg className="w-5 h-5 ml-1 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        <svg className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1 text-[var(--im-primary-deep)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                       </div>
                     </div>
                   </Link>

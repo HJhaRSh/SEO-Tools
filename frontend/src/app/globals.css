@@ -2,30 +2,89 @@
 @config "../../tailwind.config.ts";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* Brand colour */
+  --im-primary:        #94D459;  /* lime green: brand, links, key accents */
+  --im-primary-deep:   #67C258;  /* deeper green: hover/pressed, secondary accent */
+  --im-accent-tint:    #DBF4C4;  /* pale green tint: subtle highlights, badges, selected states */
+
+  /* Neutrals */
+  --im-secondary:      #0B0B0B;  /* near-black: dark sections, header/hero backgrounds */
+  --im-heading:        #111111;  /* headings on light backgrounds */
+  --im-text:           #202020;  /* body text */
+  --im-text-muted:     #747474;  /* secondary text */
+  --im-bg:             #FFFFFF;  /* page background */
+  --im-bg-soft:        #F8F8FA;  /* alternate section / subtle panel background */
+  --im-surface:        #FDFDFD;  /* card background */
+  --im-border:         #DFDFDF;  /* borders and dividers */
+  --im-on-dark:        #FFFFFF;  /* text on dark/hero sections */
+
+  /* Typography */
+  --im-font-heading:   var(--im-font-body, "IBM Plex Sans", sans-serif);
+  --im-font-body:      "IBM Plex Sans", sans-serif;
+  --im-font-alt:       "Nunito", sans-serif;
+
+  /* Shape */
+  --im-radius-sm:      10px;     /* inputs, small cards (most common) */
+  --im-radius-md:      16px;     /* cards, panels */
+  --im-radius-lg:      40px;     /* large feature containers */
+  --im-radius-pill:    999px;    /* badges, pills */
+
+  /* Shadows (all very soft) */
+  --im-shadow-sm:      0 4px 20px 0 rgba(0,0,0,0.05);
+  --im-shadow-md:      0 8px 30px 0 rgba(0,0,0,0.08);
+  --im-shadow-lg:      0 11px 63px 1px rgba(0,0,0,0.10);
+
+  /* Fallback aliases for background & foreground */
+  --background:        var(--im-bg);
+  --foreground:        var(--im-text);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--im-text);
+  background-color: var(--im-bg);
+  font-family: var(--im-font-body), "IBM Plex Sans", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--im-font-heading);
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center px-6 py-3 rounded-xl font-bold text-base transition-all duration-200 border border-transparent shadow-sm hover:shadow-md active:scale-95 cursor-pointer;
+    @apply inline-flex items-center justify-center px-6 py-3 font-semibold text-base transition-all duration-200 border border-transparent cursor-pointer active:scale-98;
+    border-radius: var(--im-radius-sm);
+    box-shadow: var(--im-shadow-sm);
+  }
+  .btn:hover {
+    box-shadow: var(--im-shadow-md);
   }
   .btn-primary {
-    @apply bg-green-600 text-white hover:bg-green-700 hover:shadow-green-600/30;
+    background-color: var(--im-primary);
+    color: var(--im-secondary);
+  }
+  .btn-primary:hover {
+    background-color: var(--im-primary-deep);
   }
   .btn-secondary {
-    @apply bg-white text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-slate-400;
+    background-color: var(--im-bg);
+    color: var(--im-heading);
+    border: 1px solid var(--im-border);
+  }
+  .btn-secondary:hover {
+    background-color: var(--im-bg-soft);
+    border-color: var(--im-border);
   }
   
   .card {
-    @apply bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow duration-300;
+    background-color: var(--im-surface);
+    border: 1px solid var(--im-border);
+    border-radius: var(--im-radius-md);
+    box-shadow: var(--im-shadow-sm);
+    @apply p-6 sm:p-8 transition-shadow duration-300;
+  }
+  .card:hover {
+    box-shadow: var(--im-shadow-md);
   }
   
   .input-group {
@@ -33,26 +92,44 @@ body {
   }
   
   .label {
-    @apply block mb-2 font-bold text-base text-slate-800;
+    @apply block mb-2 font-medium text-base;
+    color: var(--im-heading);
   }
   
   .input, .textarea, .select {
-    @apply w-full px-4 py-3.5 bg-slate-50 border border-slate-300 rounded-xl text-base text-slate-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-600 focus:bg-white placeholder:text-slate-400;
+    @apply w-full px-4 py-3.5 text-base transition-all duration-200 focus:outline-none;
+    background-color: var(--im-surface);
+    border: 1px solid var(--im-border);
+    border-radius: var(--im-radius-sm);
+    color: var(--im-text);
+  }
+  .input:focus, .textarea:focus, .select:focus {
+    border-color: var(--im-primary-deep);
+    box-shadow: 0 0 0 3px var(--im-accent-tint);
+    background-color: var(--im-bg);
+  }
+  .input::placeholder, .textarea::placeholder {
+    color: var(--im-text-muted);
   }
   
   .badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-extrabold tracking-wide;
+    @apply inline-flex items-center px-3 py-1 text-sm font-semibold tracking-wide;
+    border-radius: var(--im-radius-pill);
   }
   .badge-success {
-    @apply bg-emerald-100 text-emerald-800 border border-emerald-300;
+    background-color: var(--im-accent-tint);
+    color: var(--im-secondary);
+    border: 1px solid var(--im-primary);
   }
   .badge-warning {
-    @apply bg-amber-100 text-amber-800 border border-amber-300;
+    @apply bg-amber-100 text-amber-900 border border-amber-300;
   }
   .badge-error {
-    @apply bg-rose-100 text-rose-800 border border-rose-300;
+    @apply bg-rose-100 text-rose-900 border border-rose-300;
   }
   .badge-neutral {
-    @apply bg-slate-100 text-slate-800 border border-slate-300;
+    background-color: var(--im-bg-soft);
+    color: var(--im-text);
+    border: 1px solid var(--im-border);
   }
 }

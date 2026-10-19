@@ -10,21 +10,46 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        background: "var(--im-bg)",
+        foreground: "var(--im-text)",
+        im: {
+          primary: "var(--im-primary)",
+          "primary-deep": "var(--im-primary-deep)",
+          "accent-tint": "var(--im-accent-tint)",
+          secondary: "var(--im-secondary)",
+          heading: "var(--im-heading)",
+          text: "var(--im-text)",
+          "text-muted": "var(--im-text-muted)",
+          bg: "var(--im-bg)",
+          "bg-soft": "var(--im-bg-soft)",
+          surface: "var(--im-surface)",
+          border: "var(--im-border)",
+          "on-dark": "var(--im-on-dark)",
+        },
         primary: {
-          DEFAULT: "#4ADE80", // Vibrant green matching "Revenue" and the button
-          hover: "#22C55E",
-          dark: "#16A34A"
+          DEFAULT: "var(--im-primary)",
+          hover: "var(--im-primary-deep)",
+          dark: "var(--im-primary-deep)"
         },
         accent: {
-          DEFAULT: "#F59E0B", // Vibrant accent
-          hover: "#D97706"
+          DEFAULT: "var(--im-primary)",
+          hover: "var(--im-primary-deep)"
         }
       },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'hero-pattern': 'linear-gradient(to right bottom, #1e3a8a, #3b82f6, #60a5fa)',
+      borderRadius: {
+        'im-sm': 'var(--im-radius-sm)',
+        'im-md': 'var(--im-radius-md)',
+        'im-lg': 'var(--im-radius-lg)',
+        'im-pill': 'var(--im-radius-pill)',
+      },
+      boxShadow: {
+        'im-sm': 'var(--im-shadow-sm)',
+        'im-md': 'var(--im-shadow-md)',
+        'im-lg': 'var(--im-shadow-lg)',
+      },
+      fontFamily: {
+        sans: ['var(--im-font-body)', '"IBM Plex Sans"', 'sans-serif'],
+        heading: ['var(--im-font-heading)', '"IBM Plex Sans"', 'sans-serif'],
       }
     },
   },
