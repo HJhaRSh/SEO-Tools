@@ -1,6 +1,6 @@
 import dns from 'dns';
 import { promisify } from 'util';
-import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
+import { safeFetch } from '../hreflang/safeFetch';
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -117,8 +117,8 @@ export async function validateSafeUrl(rawUrl: string): Promise<URL> {
         throw new Error('The domain resolves to a private or restricted IPv6 address.');
       }
     }
-  } catch (err: any) {
-    if (err.message && err.message.includes('resolves to a private')) {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes('resolves to a private')) {
       throw err;
     }
     throw new Error(`Unable to resolve domain "${hostname}". Please check that the URL is accessible.`);

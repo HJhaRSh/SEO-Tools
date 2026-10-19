@@ -1,12 +1,13 @@
 import { SingleUrlMobileAuditResult } from './types';
 import { DEFAULT_VIEWPORT_PRESET, MOBILE_VIEWPORT_PRESETS } from './constants';
-import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
+import { safeFetch } from '../hreflang/safeFetch';
 import { auditStaticHtmlMobileFriendliness } from './staticAuditor';
 import {
   BROWSER_AUDIT_INJECTION_SCRIPT,
   buildBrowserRenderedAuditResult,
   RenderAuditDomMetrics,
 } from './browserEvaluator';
+import { validateTargetUrlForBrowser, setupBrowserSecurityContext } from './browserSecurity';
 
 export interface AuditMobileUrlOptions {
   url: string;
@@ -26,6 +27,9 @@ async function runBrowserAudit(options: {
   vpScale: number;
 }): Promise<{ metrics: RenderAuditDomMetrics; screenshotBase64: string | null; finalUrl: string; statusCode: number; statusText: string }> {
   const { url, vpWidth, vpHeight, vpScale } = options;
+
+  // Pre-validate target URL against SSRF threats before launch
+  await validateTargetUrlForBrowser(url);
 
   const isVercel = Boolean(
     process.env.VERCEL || process.env.VERCEL_ENV || process.env.NOW_REGION
@@ -60,6 +64,9 @@ async function runBrowserAudit(options: {
         'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
       acceptDownloads: false,
     });
+
+    // Attach strict browser network isolation
+    await setupBrowserSecurityContext(context);
 
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(20000);

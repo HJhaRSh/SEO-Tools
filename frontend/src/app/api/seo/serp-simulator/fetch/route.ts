@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchPageMetadata } from '@/lib/seo/serp/fetchMetadata';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
+          code: 'INVALID_URL',
           error: 'Please provide a valid webpage URL to fetch metadata.',
         },
         {
@@ -35,15 +37,16 @@ export async function POST(req: NextRequest) {
       }
     );
   } catch (err: any) {
-    const userMessage = err instanceof Error ? err.message : 'Unable to fetch metadata from this URL.';
+    const sanitized = classifyAndSanitizeError(err, 'Unable to fetch metadata from this URL.');
 
     return NextResponse.json(
       {
         success: false,
-        error: userMessage,
+        code: sanitized.code,
+        error: sanitized.message,
       },
       {
-        status: 400,
+        status: sanitized.status,
         headers: { 'Cache-Control': 'no-store, max-age=0' },
       }
     );

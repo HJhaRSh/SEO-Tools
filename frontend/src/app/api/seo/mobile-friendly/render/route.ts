@@ -1,69 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BROWSER_AUDIT_INJECTION_SCRIPT } from '@/lib/seo/mobile-friendly/browserEvaluator';
+import {
+  validateTargetUrlForBrowser,
+  setupBrowserSecurityContext,
+  classifyBrowserRenderError,
+} from '@/lib/seo/mobile-friendly/browserSecurity';
+import { redactSensitiveDetails } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-const BLOCKED_HOST_PATTERNS = [
-  /^localhost$/i,
-  /^127\.\d+\.\d+\.\d+$/,
-  /^10\.\d+\.\d+\.\d+$/,
-  /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
-  /^192\.168\.\d+\.\d+$/,
-  /^::1$/,
-  /^fd[0-9a-f]{2}:/i,
-  /^0\.0\.0\.0$/,
-  /^169\.254\.\d+\.\d+$/,
-];
-
-function isBlockedHost(hostname: string): boolean {
-  return BLOCKED_HOST_PATTERNS.some((p) => p.test(hostname));
-}
-
 export async function POST(req: NextRequest) {
   let browser: import('playwright-core').Browser | null = null;
+  let securityViolation: string | null = null;
+
   try {
     const body = await req.json().catch(() => ({}));
     const { url, viewport } = body;
 
     if (!url || typeof url !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'A valid target URL is required.' },
-        { status: 400 }
+        { success: false, code: 'INVALID_URL', error: 'A valid target URL is required.' },
+        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
       );
     }
 
     if (body.evaluateScript !== undefined) {
       return NextResponse.json(
         { success: false, code: 'SECURITY_ERROR', error: 'Supplying custom evaluateScript is forbidden.' },
-        { status: 400 }
+        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
       );
     }
 
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-    } catch {
-      return NextResponse.json(
-        { success: false, error: 'Malformed URL.' },
-        { status: 400 }
-      );
-    }
-
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return NextResponse.json(
-        { success: false, error: 'Only HTTP and HTTPS URLs are supported.' },
-        { status: 400 }
-      );
-    }
-
-    if (isBlockedHost(parsedUrl.hostname)) {
-      return NextResponse.json(
-        { success: false, code: 'BLOCKED_DESTINATION', error: 'Target destination is blocked.' },
-        { status: 403 }
-      );
-    }
+    // 1. Connection-level pre-validation against SSRF, blocked hostnames, private IPs, and cloud metadata
+    const parsedTarget = await validateTargetUrlForBrowser(url);
 
     const rawWidth = viewport && typeof viewport.width === 'number' ? viewport.width : 390;
     const rawHeight = viewport && typeof viewport.height === 'number' ? viewport.height : 844;
@@ -72,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (rawWidth < 300 || rawWidth > 800 || rawHeight < 400 || rawHeight > 1600 || rawScale < 1 || rawScale > 4) {
       return NextResponse.json(
         { success: false, code: 'INVALID_VIEWPORT', error: 'Viewport dimensions are outside supported mobile ranges.' },
-        { status: 400 }
+        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
       );
     }
 
@@ -114,40 +85,62 @@ export async function POST(req: NextRequest) {
       acceptDownloads: false,
     });
 
+    // 2. Attach strict network isolation: intercepts all subresources, JS requests, and redirect hops
+    const securityIsolation = await setupBrowserSecurityContext(context);
+
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(20000);
     page.setDefaultTimeout(15000);
 
-    let finalUrl = url;
+    let finalUrl = parsedTarget.toString();
     let statusCode = 200;
     let statusText = 'OK';
 
     try {
-      const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      const response = await page.goto(finalUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
       if (response) {
         statusCode = response.status();
         statusText = response.statusText();
         finalUrl = response.url();
+
+        // If redirected, revalidate destination against SSRF
+        if (finalUrl !== url) {
+          await validateTargetUrlForBrowser(finalUrl);
+        }
+      } else {
+        // Missing HTTP navigation response
+        statusCode = 200;
+        statusText = 'OK';
       }
     } catch (navErr: any) {
-      if (navErr?.message?.includes('net::ERR_')) {
-        await browser.close();
-        browser = null;
-        return NextResponse.json(
-          { success: false, error: `Navigation failed: ${navErr.message}` },
-          { status: 502 }
-        );
-      }
-      // non-fatal nav errors (e.g. mixed content) — continue
+      securityViolation = securityIsolation.getSecurityViolation();
+      const classified = classifyBrowserRenderError(navErr, securityViolation);
+
+      await browser.close().catch(() => {});
+      browser = null;
+
+      return NextResponse.json(
+        { success: false, code: classified.code, error: classified.message },
+        { status: classified.status, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
     }
 
-    await page.waitForTimeout(1500).catch(() => {});
+    // Check if subresource security violations occurred during DOM building
+    securityViolation = securityIsolation.getSecurityViolation();
+    if (securityViolation) {
+      // Subresource was blocked by policy; continue audit with safe elements, but log security event
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('[Subresource Blocked by Security Policy]', redactSensitiveDetails(securityViolation));
+      }
+    }
+
+    await page.waitForTimeout(1000).catch(() => {});
 
     let metrics: Record<string, unknown> = {};
     try {
       metrics = await page.evaluate(BROWSER_AUDIT_INJECTION_SCRIPT as string);
     } catch {
-      // metrics unavailable — still return screenshot
+      // metrics unavailable — non-fatal
     }
 
     let screenshotBase64: string | null = null;
@@ -184,14 +177,16 @@ export async function POST(req: NextRequest) {
     if (browser) {
       try { await browser.close(); } catch { /* ignore */ }
     }
-    const message = err?.message || 'Browser rendering failed.';
-    console.error('[Mobile Render Route Error]', message);
-    let status = 500;
-    if (message.includes('Executable') || message.includes('Failed to launch')) status = 503;
-    else if (message.includes('timeout') || message.includes('Timeout')) status = 504;
+
+    if (process.env.NODE_ENV !== 'test') {
+      const sanitizedLog = redactSensitiveDetails(err?.message || String(err || ''));
+      console.error('[Mobile Render Route Error]', sanitizedLog);
+    }
+
+    const classified = classifyBrowserRenderError(err, securityViolation);
     return NextResponse.json(
-      { success: false, error: message },
-      { status, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      { success: false, code: classified.code, error: classified.message },
+      { status: classified.status, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }
 }

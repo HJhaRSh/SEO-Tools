@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeBulkBatch } from '@/lib/seo/reviewLinkService';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,21 +17,28 @@ export async function POST(req: NextRequest) {
           error: 'Please provide an array of rows to process.',
           code: 'EMPTY_BATCH'
         },
-        { status: 400 }
+        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
       );
     }
 
     const result = executeBulkBatch(rows);
 
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json(result, {
+      status: 200,
+      headers: { 'Cache-Control': 'no-store, max-age=0' }
+    });
   } catch (err: any) {
+    const sanitized = classifyAndSanitizeError(err, 'An unexpected error occurred during bulk processing.');
     return NextResponse.json(
       {
         success: false,
-        error: err.message || 'An unexpected error occurred during bulk processing.',
-        code: 'INTERNAL_SERVER_ERROR'
+        code: sanitized.code,
+        error: sanitized.message
       },
-      { status: 500 }
+      {
+        status: sanitized.status,
+        headers: { 'Cache-Control': 'no-store, max-age=0' }
+      }
     );
   }
 }
