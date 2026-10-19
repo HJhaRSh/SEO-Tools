@@ -1,5 +1,7 @@
 import assert from 'assert';
-import { validateUrl, validateAndResolveHost } from './lib/seo/safeFetch';
+import http from 'http';
+import net from 'net';
+import { validateUrl, validateAndResolveHost, safeFetch, acquireOutboundSlot } from './lib/seo/safeFetch';
 import { extractSeoSignals } from './lib/seo/mobile-first/extractor';
 import { compareDesktopAndMobile, calculateContentSimilarity, tokenizeText } from './lib/seo/mobile-first/comparator';
 import { checkHtmlEligibility } from './lib/seo/mobile-first/auditService';
@@ -8,7 +10,7 @@ import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability } from '.
 import { generateMobileFirstCsv, generateMobileFirstXlsx, sanitizeSpreadsheetField } from './lib/seo/mobile-first/exporter';
 import { AgentCrawlResult, MobileFirstAuditResponse } from './lib/seo/mobile-first/types';
 import { USER_AGENT_PROFILES } from './lib/seo/mobile-first/userAgents';
-import { sanitizeAuditError } from './lib/seo/mobile-first/errorSanitizer';
+import { sanitizeAuditError, redactSensitiveDetails } from './lib/seo/mobile-first/errorSanitizer';
 
 let passed = 0;
 let failed = 0;
@@ -1156,19 +1158,145 @@ Allow: /
     assert.strictEqual(sanitized.userMessage, 'The audit could not complete because of an internal processing error.');
   });
 
+  await test('Sanitization: redactSensitiveDetails scrubs URLs with credentials, query secrets, and auth headers', () => {
+    const sample = 'Error requesting https://admin:SuperSecretPass123@api.domain.com/data?token=secret-token-value&auth=pass999 with Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.t-ID';
+    const redacted = redactSensitiveDetails(sample);
+
+    assert.ok(!redacted.includes('SuperSecretPass123'), 'Must scrub URL credentials');
+    assert.ok(redacted.includes('[REDACTED_CREDENTIALS]'), 'Must replace with credential placeholder');
+    assert.ok(!redacted.includes('secret-token-value'), 'Must scrub token query param');
+    assert.ok(!redacted.includes('pass999'), 'Must scrub auth query param');
+    assert.ok(!redacted.includes('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'), 'Must scrub Bearer JWT token');
+  });
+
+  await test('Sanitization: redactSensitiveDetails scrubs AWS keys, Stripe keys, GitHub tokens, and server paths', () => {
+    const fakeStripe = ['sk', 'live', '51MockStripeKey1234567890abcdef'].join('_');
+    const fakeGithub = ['ghp', 'mockGithubToken1234567890abcdefghijklm'].join('_');
+    const sample = `Crash at C:\\inetpub\\wwwroot\\app\\config.json or /var/www/vhosts/secret/keys.env using AKIAIOSFODNN7EXAMPLE, ${fakeStripe}, and ${fakeGithub}`;
+    const redacted = redactSensitiveDetails(sample);
+
+    assert.ok(!redacted.includes('C:\\inetpub\\wwwroot\\app\\config.json'), 'Must scrub Windows path');
+    assert.ok(!redacted.includes('/var/www/vhosts/secret/keys.env'), 'Must scrub Unix path');
+    assert.ok(!redacted.includes('AKIAIOSFODNN7EXAMPLE'), 'Must scrub AWS API key');
+    assert.ok(!redacted.includes(fakeStripe), 'Must scrub Stripe secret key');
+    assert.ok(!redacted.includes(fakeGithub), 'Must scrub GitHub token');
+    assert.ok(redacted.includes('[REDACTED_PATH]'), 'Must contain path placeholder');
+    assert.ok(redacted.includes('[REDACTED_AWS_KEY]'), 'Must contain AWS key placeholder');
+    assert.ok(redacted.includes('[REDACTED_STRIPE_KEY]'), 'Must contain Stripe key placeholder');
+    assert.ok(redacted.includes('[REDACTED_GITHUB_TOKEN]'), 'Must contain GitHub token placeholder');
+  });
+
+  await test('Sanitization: redactSensitiveDetails scrubs internal, loopback, and cloud metadata IPs', () => {
+    const sample = 'Failed to connect to 127.0.0.1:8080, 10.0.1.5:443, 192.168.1.1:80, 172.16.5.2:3000, 169.254.169.254:80, and ::1';
+    const redacted = redactSensitiveDetails(sample);
+
+    assert.ok(!redacted.includes('127.0.0.1'), 'Must scrub 127.0.0.1');
+    assert.ok(!redacted.includes('10.0.1.5'), 'Must scrub 10.0.1.5');
+    assert.ok(!redacted.includes('192.168.1.1'), 'Must scrub 192.168.1.1');
+    assert.ok(!redacted.includes('172.16.5.2'), 'Must scrub 172.16.5.2');
+    assert.ok(!redacted.includes('169.254.169.254'), 'Must scrub cloud metadata IP');
+    assert.ok(!redacted.includes('::1'), 'Must scrub IPv6 loopback');
+    assert.ok(redacted.includes('[INTERNAL_IP]'), 'Must insert INTERNAL_IP placeholder');
+  });
+
   // =========================================================================
   // 12. Total-Operation Timeout Guarantee
   // =========================================================================
   console.log('\n12. Total-Operation Timeout Guarantee:');
 
-  await test('Timeout: safeFetch throws timeout error when destination does not respond within deadline', async () => {
-    // 192.0.2.1 is TEST-NET-1 (RFC 5737), which drops packets and will time out
-    // But safeFetch validates against private IPs, so let's verify validateAndResolveHost rejects private IPs
+  await test('Timeout Integration: safeFetch terminates stalled HTTP request within configured deadline (300ms)', async () => {
+    const server = http.createServer((_req, _res) => {
+      // Deliberately hold connection open without sending response
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const port = (server.address() as net.AddressInfo).port;
+    const targetUrl = `http://127.0.0.1:${port}/test-stall`;
+
     try {
-      await validateAndResolveHost('127.0.0.1');
-      assert.fail('Should reject localhost');
-    } catch (err: any) {
-      assert.ok(err.message.includes('blocked') || err.message.includes('private'));
+      const startTime = Date.now();
+      await assert.rejects(
+        async () => {
+          await safeFetch(targetUrl, { timeoutMs: 300, allowLocalhostForTesting: true });
+        },
+        (err: any) => {
+          return /timed out|deadline/i.test(err.message);
+        }
+      );
+      const elapsed = Date.now() - startTime;
+      assert.ok(elapsed >= 250, `Operation terminated too quickly: ${elapsed}ms`);
+      assert.ok(elapsed < 1500, `Operation exceeded acceptable deadline boundary: ${elapsed}ms`);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  await test('Timeout Integration: safeFetch terminates stalled body streaming within configured deadline (300ms)', async () => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.write('<html><body><h1>Stalled Stream</h1>');
+      // Intentionally do not call res.end() to simulate a stalled body stream
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const port = (server.address() as net.AddressInfo).port;
+    const targetUrl = `http://127.0.0.1:${port}/test-stream-stall`;
+
+    try {
+      const startTime = Date.now();
+      await assert.rejects(
+        async () => {
+          await safeFetch(targetUrl, { timeoutMs: 300, allowLocalhostForTesting: true });
+        },
+        (err: any) => {
+          return /timed out|deadline/i.test(err.message);
+        }
+      );
+      const elapsed = Date.now() - startTime;
+      assert.ok(elapsed >= 250, `Stream stall terminated too quickly: ${elapsed}ms`);
+      assert.ok(elapsed < 1500, `Stream stall exceeded deadline boundary: ${elapsed}ms`);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  await test('Timeout Integration: validateAndResolveHost terminates promptly within deadline on slow/delayed DNS', async () => {
+    const startTime = Date.now();
+    await assert.rejects(
+      async () => {
+        // 0ms timeout enforces immediate timeout check before lookup started
+        await validateAndResolveHost('example.com', 0);
+      },
+      (err: any) => {
+        return /timed out/i.test(err.message);
+      }
+    );
+    const elapsed = Date.now() - startTime;
+    assert.ok(elapsed < 200, `DNS timeout should terminate promptly (took ${elapsed}ms)`);
+  });
+
+  await test('Timeout Integration: acquireOutboundSlot terminates promptly when concurrency queue wait times out', async () => {
+    // Occupy 2 slots for a mock origin
+    const release1 = await acquireOutboundSlot('https://concurrency-test.local');
+    const release2 = await acquireOutboundSlot('https://concurrency-test.local');
+
+    try {
+      const startTime = Date.now();
+      await assert.rejects(
+        async () => {
+          // Attempting a 3rd slot with 100ms timeout
+          await acquireOutboundSlot('https://concurrency-test.local', 100);
+        },
+        (err: any) => {
+          return /timed out waiting/i.test(err.message);
+        }
+      );
+      const elapsed = Date.now() - startTime;
+      assert.ok(elapsed >= 80, `Queue wait terminated too quickly: ${elapsed}ms`);
+      assert.ok(elapsed < 600, `Queue wait exceeded deadline boundary: ${elapsed}ms`);
+    } finally {
+      release1();
+      release2();
     }
   });
 
