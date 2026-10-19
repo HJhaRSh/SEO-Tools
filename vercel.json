@@ -84,6 +84,18 @@
       }
     },
     {
+      "source": "/api/seo/ai-bot-access/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
+      "source": "/api/seo/htaccess/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"

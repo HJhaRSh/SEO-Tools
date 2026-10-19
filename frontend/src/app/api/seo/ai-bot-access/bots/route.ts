@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AI_BOT_REGISTRY } from '@/lib/seo/aiBotRegistry';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   return NextResponse.json(
     {

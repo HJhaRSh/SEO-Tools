@@ -107,9 +107,24 @@ export default function AiBotAccessTester() {
         })
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed testing AI bot access.');
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+      }
+
+      if (!res.ok || !data || !data.success) {
+        const rawText = !data ? await res.text().catch(() => '') : '';
+        const errorMessage =
+          data?.error ||
+          (rawText && !rawText.includes('<html') && rawText.trim().length > 0
+            ? rawText.trim()
+            : `Server returned HTTP ${res.status}`);
+        throw new Error(errorMessage || 'Failed testing AI bot access.');
       }
 
       setResultData(data);

@@ -37,6 +37,14 @@ const nextConfig: NextConfig = {
         destination: '/api/seo/sitemap/:path*'
       },
       {
+        source: '/api/seo/ai-bot-access/:path*',
+        destination: '/api/seo/ai-bot-access/:path*'
+      },
+      {
+        source: '/api/seo/htaccess/:path*',
+        destination: '/api/seo/htaccess/:path*'
+      },
+      {
         source: '/api/:path*',
         destination: `${backendTarget.replace(/\/$/, '')}/api/:path*`
       }
