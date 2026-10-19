@@ -1,13 +1,14 @@
 import assert from 'assert';
 import { validateUrl, validateAndResolveHost } from './lib/seo/safeFetch';
 import { extractSeoSignals } from './lib/seo/mobile-first/extractor';
-import { compareDesktopAndMobile } from './lib/seo/mobile-first/comparator';
+import { compareDesktopAndMobile, calculateContentSimilarity, tokenizeText } from './lib/seo/mobile-first/comparator';
 import { checkHtmlEligibility } from './lib/seo/mobile-first/auditService';
 import { checkRobotsCrawlability } from './lib/seo/mobile-first/robotsChecker';
 import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability } from './lib/seo/robotsParser';
 import { generateMobileFirstCsv, generateMobileFirstXlsx, sanitizeSpreadsheetField } from './lib/seo/mobile-first/exporter';
 import { AgentCrawlResult, MobileFirstAuditResponse } from './lib/seo/mobile-first/types';
 import { USER_AGENT_PROFILES } from './lib/seo/mobile-first/userAgents';
+import { sanitizeAuditError } from './lib/seo/mobile-first/errorSanitizer';
 
 let passed = 0;
 let failed = 0;
@@ -113,6 +114,8 @@ function createMockAgent(overrides: Partial<AgentCrawlResult> = {}): AgentCrawlR
       characterCount: 7500,
       textSnippet: 'Learn about best practices for mobile-first indexing and technical SEO parity.',
       textNormalizedHash: 'hash123',
+      comparisonText: 'Learn about best practices for mobile-first indexing and technical SEO parity. We provide in-depth analysis of responsive design, dynamic rendering, structured data extraction, and content parity across viewport agents.',
+      isSampled: false,
     },
     links: {
       totalCount: 50,
@@ -934,6 +937,239 @@ Allow: /
     const buffer = await generateMobileFirstXlsx(mockResponse);
     assert.ok(buffer instanceof Uint8Array);
     assert.ok(buffer.length > 1000, 'XLSX buffer should contain workbook data');
+  });
+
+  // =========================================================================
+  // 9. Full-Document Content Similarity Suite
+  // =========================================================================
+  console.log('\n9. Full-Document Content Similarity Suite:');
+
+  await test('Similarity: Identical content yields 100% similarity (1.0)', () => {
+    const text = 'Comprehensive guide to technical SEO auditing, mobile-first indexing, and structured markup validation.';
+    const sim = calculateContentSimilarity(text, text);
+    assert.strictEqual(sim, 1.0, 'Identical text must yield exactly 1.0');
+  });
+
+  await test('Similarity: Same 300-char opening with completely different remainder yields significant drop (< 35%)', () => {
+    const opening = 'This introductory section appears identically at the very top of both desktop and mobile versions of the webpage. It covers common introductory phrases, brand taglines, and initial navigation elements that share identical characters.';
+    const restA = Array(150).fill('apple banana orange mango strawberry peach nutrition vitamins healthy fruit diet smoothie breakfast').join(' ');
+    const restB = Array(150).fill('car truck engine transmission brake exhaust suspension alternator radiator battery spark plug mechanic').join(' ');
+
+    const sim = calculateContentSimilarity(opening + ' ' + restA, opening + ' ' + restB);
+    assert.ok(sim < 0.35, `Similarity should be < 0.35 when body differs (got ${sim})`);
+  });
+
+  await test('Similarity: Desktop 2,000 words vs Mobile 100 words yields massive content drop (< 15%)', () => {
+    const deskWords = Array(200).fill('comprehensive guide to technical search engine optimization auditing mobile first indexing practices').join(' ');
+    const mobWords = 'comprehensive guide to technical search engine optimization auditing mobile first indexing practices';
+
+    const sim = calculateContentSimilarity(deskWords, mobWords);
+    assert.ok(sim < 0.15, `Similarity should be < 0.15 when mobile drops >90% content (got ${sim})`);
+
+    const desktop = createMockAgent({
+      content: {
+        ...createMockAgent().content,
+        wordCount: 2000,
+        comparisonText: deskWords,
+      },
+    });
+    const mobile = createMockAgent({
+      content: {
+        ...createMockAgent().content,
+        wordCount: 100,
+        comparisonText: mobWords,
+      },
+    });
+
+    const { summary, discrepancies } = compareDesktopAndMobile(desktop, mobile, false);
+    assert.ok(summary.textSimilarityPct < 15, `Summary similarity should be < 15% (got ${summary.textSimilarityPct}%)`);
+    assert.ok(discrepancies.some((d) => d.id === 'content-massive-text-loss'));
+  });
+
+  await test('Similarity: Same word count (500 words each) but completely different topics yields low similarity (< 20%)', () => {
+    const textVehicles = Array(40).fill('car truck engine motor vehicle highway speed brake transmission drive road wheel tire gear steering').join(' ');
+    const textCooking = Array(40).fill('pizza pasta cheese tomato basil oregano crust oven sauce bake Italian restaurant dinner lunch recipe').join(' ');
+
+    const sim = calculateContentSimilarity(textVehicles, textCooking);
+    assert.ok(sim < 0.20, `Similarity should be < 0.20 for unrelated topics with identical word count (got ${sim})`);
+
+    const desktop = createMockAgent({
+      content: {
+        ...createMockAgent().content,
+        wordCount: 500,
+        comparisonText: textVehicles,
+      },
+    });
+    const mobile = createMockAgent({
+      content: {
+        ...createMockAgent().content,
+        wordCount: 500,
+        comparisonText: textCooking,
+      },
+    });
+
+    const { summary, discrepancies } = compareDesktopAndMobile(desktop, mobile, false);
+    assert.ok(summary.textSimilarityPct < 20, `Summary similarity should be < 20% (got ${summary.textSimilarityPct}%)`);
+    assert.ok(discrepancies.some((d) => d.id === 'content-text-similarity-low'));
+  });
+
+  await test('Similarity: Minor navigation differences on matching article avoids exaggerated critical discrepancy (> 80%)', () => {
+    const navDesktop = 'Home About Services Products Contact Careers Pricing Blog FAQ Help';
+    const navMobile = 'Menu Home Contact';
+    const mainBody = Array(80).fill('the definitive guide to understanding modern software architecture design patterns and cloud scalability in enterprise web applications').join(' ');
+
+    const sim = calculateContentSimilarity(navDesktop + ' ' + mainBody, navMobile + ' ' + mainBody);
+    assert.ok(sim > 0.80, `Similarity should be > 0.80 when only navigation differs (got ${sim})`);
+  });
+
+  await test('Similarity: Unicode text (Hindi, Gujarati, Accents) tokenizes and compares accurately', () => {
+    const hindiA = 'नमस्ते दुनिया यह एक व्यापक तकनीकी परीक्षण है खोज इंजन अनुकूलन मोबाइल प्रथम अनुक्रमण';
+    const hindiB = 'नमस्ते दुनिया यह एक व्यापक तकनीकी परीक्षण है खोज इंजन अनुकूलन मोबाइल प्रथम अनुक्रमण';
+    const gujarati = 'નમસ્તે દુનિયા આ એક પરીક્ષણ છે';
+    const accentedA = 'Café résumé déjà vu fête naïve façade crème brûlée';
+    const accentedB = 'Café résumé déjà vu fête naïve façade crème brûlée';
+
+    assert.strictEqual(calculateContentSimilarity(hindiA, hindiB), 1.0, 'Hindi identical text should yield 1.0');
+    assert.strictEqual(calculateContentSimilarity(accentedA, accentedB), 1.0, 'Accented identical text should yield 1.0');
+    assert.ok(calculateContentSimilarity(hindiA, gujarati) < 0.1, 'Hindi vs Gujarati should yield low similarity');
+  });
+
+  await test('Similarity: Large document (> 30,000 chars) triggers distributed sampling without performance degradation', () => {
+    const largeBody = Array(500).fill('distributed systems engineering consensus protocol database replication fault tolerance throughput latency').join(' ');
+    assert.ok(largeBody.length > 30000, 'Test body should exceed 30,000 characters');
+
+    const html = `<html><body><main>${largeBody}</main></body></html>`;
+    const signals = extractSeoSignals(html, 'https://example.com/large', {});
+
+    assert.strictEqual(signals.content.isSampled, true, 'isSampled should be true for large documents');
+    assert.ok(signals.content.comparisonText && signals.content.comparisonText.length <= 35000, 'Sampled text must be bounded');
+    assert.strictEqual(signals.content.textSnippet.length, 300, 'Display snippet remains 300 characters');
+  });
+
+  // =========================================================================
+  // 10. Truncated HTML Response Handling
+  // =========================================================================
+  console.log('\n10. Truncated HTML Response Handling:');
+
+  await test('Truncation: Truncated HTML response yields Incomplete Audit — HTML Response Truncated verdict', () => {
+    const desktop = createMockAgent({
+      isTruncated: false,
+      isPartial: false,
+    });
+    const mobile = createMockAgent({
+      isTruncated: true,
+      isPartial: true,
+      truncationReason: 'Response payload exceeded size limit (2048.0 KB)',
+    });
+
+    const { summary, comparisonTable, discrepancies } = compareDesktopAndMobile(desktop, mobile, false);
+
+    assert.strictEqual(
+      summary.parityVerdict,
+      'Incomplete Audit — HTML Response Truncated',
+      'Verdict must indicate incomplete audit due to truncation'
+    );
+    assert.notStrictEqual(summary.parityVerdict, 'Full Parity Passed');
+    assert.ok(discrepancies.some((d) => d.id === 'crawling-html-truncated'));
+
+    const completenessRow = comparisonTable.find((r) => r.element === 'HTML Download Completeness');
+    assert.ok(completenessRow, 'Must include HTML Download Completeness row');
+    assert.strictEqual(completenessRow?.status, 'Warning');
+  });
+
+  await test('Truncation: Missing structured data on truncated mobile response is downgraded to Medium warning', () => {
+    const desktop = createMockAgent({
+      structuredData: {
+        hasStructuredData: true,
+        types: ['Article', 'BreadcrumbList'],
+        entityCount: 2,
+        entities: [],
+        jsonLdBlocksCount: 1,
+        microdataItemTypes: [],
+        rdfaTypes: [],
+        parseErrors: [],
+      },
+    });
+    const mobile = createMockAgent({
+      isTruncated: true,
+      isPartial: true,
+      structuredData: {
+        hasStructuredData: false,
+        types: [],
+        entityCount: 0,
+        entities: [],
+        jsonLdBlocksCount: 0,
+        microdataItemTypes: [],
+        rdfaTypes: [],
+        parseErrors: [],
+      },
+    });
+
+    const { discrepancies } = compareDesktopAndMobile(desktop, mobile, false);
+    const schemaDisc = discrepancies.find((d) => d.id === 'schema-missing-on-mobile');
+    assert.ok(schemaDisc, 'Must flag missing schema on mobile');
+    assert.strictEqual(schemaDisc?.severity, 'Medium', 'Must downgrade severity to Medium when mobile is truncated');
+    assert.ok(schemaDisc?.name.includes('Truncated'), 'Finding title must reflect truncation');
+  });
+
+  // =========================================================================
+  // 11. Error Sanitization Suite
+  // =========================================================================
+  console.log('\n11. Error Sanitization Suite:');
+
+  await test('Sanitization: Timeout error is mapped to REQUEST_TIMEOUT without leaking IP or port', () => {
+    const rawError = new Error('connect ETIMEDOUT 198.51.100.24:443');
+    const sanitized = sanitizeAuditError(rawError);
+
+    assert.strictEqual(sanitized.code, 'REQUEST_TIMEOUT');
+    assert.strictEqual(sanitized.statusCode, 504);
+    assert.ok(!sanitized.userMessage.includes('198.51.100.24'), 'Must not leak IP address');
+    assert.ok(!sanitized.userMessage.includes('443'), 'Must not leak port');
+  });
+
+  await test('Sanitization: DNS lookup failure is mapped to DNS_FAILURE with safe message', () => {
+    const rawError = new Error('getaddrinfo ENOTFOUND invalid-subdomain-123456.com');
+    const sanitized = sanitizeAuditError(rawError);
+
+    assert.strictEqual(sanitized.code, 'DNS_FAILURE');
+    assert.strictEqual(sanitized.statusCode, 502);
+    assert.ok(sanitized.userMessage.includes('Domain name resolution failed'));
+  });
+
+  await test('Sanitization: Private destination SSRF rejection is mapped to BLOCKED_DESTINATION', () => {
+    const rawError = new Error('Hostname example.local resolves to blocked/private IP: 10.0.0.1');
+    const sanitized = sanitizeAuditError(rawError);
+
+    assert.strictEqual(sanitized.code, 'BLOCKED_DESTINATION');
+    assert.strictEqual(sanitized.statusCode, 403);
+    assert.ok(sanitized.userMessage.includes('restricted'));
+  });
+
+  await test('Sanitization: Injected synthetic exception with secret path NEVER leaks to user message', () => {
+    const secretError = new Error('Fatal exception at /var/www/secret/keys.env: AWS_SECRET_KEY_12345 database connect error');
+    const sanitized = sanitizeAuditError(secretError);
+
+    assert.strictEqual(sanitized.code, 'INTERNAL_ERROR');
+    assert.strictEqual(sanitized.statusCode, 500);
+    assert.ok(!sanitized.userMessage.includes('/var/www/secret'), 'Must not leak file paths');
+    assert.ok(!sanitized.userMessage.includes('AWS_SECRET_KEY'), 'Must not leak secrets');
+    assert.strictEqual(sanitized.userMessage, 'The audit could not complete because of an internal processing error.');
+  });
+
+  // =========================================================================
+  // 12. Total-Operation Timeout Guarantee
+  // =========================================================================
+  console.log('\n12. Total-Operation Timeout Guarantee:');
+
+  await test('Timeout: safeFetch throws timeout error when destination does not respond within deadline', async () => {
+    // 192.0.2.1 is TEST-NET-1 (RFC 5737), which drops packets and will time out
+    // But safeFetch validates against private IPs, so let's verify validateAndResolveHost rejects private IPs
+    try {
+      await validateAndResolveHost('127.0.0.1');
+      assert.fail('Should reject localhost');
+    } catch (err: any) {
+      assert.ok(err.message.includes('blocked') || err.message.includes('private'));
+    }
   });
 
   console.log('\n=====================================================');

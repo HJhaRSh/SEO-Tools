@@ -23,6 +23,7 @@ export type MobileFirstParityVerdict =
   | 'Significant SEO Parity Issues'
   | 'Critical Discrepancies Detected'
   | 'Incomplete Audit'
+  | 'Incomplete Audit — HTML Response Truncated'
   | 'Audit Failed';
 
 export interface DiscrepancyFinding {
@@ -181,6 +182,8 @@ export interface ContentInfo {
   characterCount: number;
   textSnippet: string;
   textNormalizedHash: string;
+  comparisonText?: string;
+  isSampled?: boolean;
 }
 
 export interface AgentCrawlResult {
@@ -199,6 +202,8 @@ export interface AgentCrawlResult {
   decodedCharCount?: number;
   durationMs: number;
   isTruncated: boolean;
+  isPartial?: boolean;
+  truncationReason?: string;
   fetchError?: string;
   // Eligibility:
   isEligibleForSeoExtraction: boolean;

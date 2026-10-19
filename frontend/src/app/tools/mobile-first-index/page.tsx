@@ -349,7 +349,7 @@ export default function MobileFirstIndexPage() {
             <div className={`mt-6 p-5 rounded-2xl border ${
               auditData.summary.parityVerdict === 'Audit Failed' || auditData.summary.criticalCount > 0
                 ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/60'
-                : auditData.summary.parityVerdict === 'Incomplete Audit' || auditData.summary.highCount > 0
+                : auditData.summary.parityVerdict.startsWith('Incomplete Audit') || auditData.summary.highCount > 0
                 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800/60'
                 : auditData.summary.hasDifferences
                 ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/60'
@@ -361,7 +361,7 @@ export default function MobileFirstIndexPage() {
                     <span className={`w-3 h-3 rounded-full ${
                       auditData.summary.parityVerdict === 'Audit Failed' || auditData.summary.criticalCount > 0
                         ? 'bg-rose-500 animate-pulse'
-                        : auditData.summary.parityVerdict === 'Incomplete Audit' || auditData.summary.highCount > 0
+                        : auditData.summary.parityVerdict.startsWith('Incomplete Audit') || auditData.summary.highCount > 0
                         ? 'bg-orange-500'
                         : auditData.summary.hasDifferences
                         ? 'bg-amber-500'

@@ -17,6 +17,7 @@ import { USER_AGENT_PROFILES } from './userAgents';
 import { extractSeoSignals } from './extractor';
 import { checkRobotsCrawlability } from './robotsChecker';
 import { compareDesktopAndMobile } from './comparator';
+import { sanitizeAuditError } from './errorSanitizer';
 
 export interface RunMobileFirstAuditOptions {
   desktopUrl: string;
@@ -171,6 +172,8 @@ function createEmptySignals(ineligibilityReason?: string): EmptySignals {
       characterCount: 0,
       textSnippet: '',
       textNormalizedHash: '',
+      comparisonText: '',
+      isSampled: false,
     },
     links: {
       totalCount: 0,
@@ -316,6 +319,10 @@ export async function runMobileFirstAudit(
         decodedCharCount: fetchRes.body ? fetchRes.body.length : 0,
         durationMs: fetchRes.durationMs,
         isTruncated: fetchRes.isTruncated,
+        isPartial: fetchRes.isTruncated,
+        truncationReason: fetchRes.isTruncated
+          ? `Response payload exceeded size limit (${(downloadedBytes / 1024).toFixed(1)} KB)`
+          : undefined,
         isEligibleForSeoExtraction: eligibility.isEligible,
         ineligibilityReason: eligibility.reason,
         robotsTxt,
@@ -332,7 +339,8 @@ export async function runMobileFirstAudit(
       };
     } catch (err: any) {
       // Preserve technical data when a fetch failure or timeout occurs on one agent
-      const empty = createEmptySignals(err.message || 'Fetch failed');
+      const sanitized = sanitizeAuditError(err);
+      const empty = createEmptySignals(sanitized.userMessage);
       return {
         agentName,
         agentToken,
@@ -340,7 +348,7 @@ export async function runMobileFirstAudit(
         requestedUrl: targetUrl,
         finalUrl: targetUrl,
         statusCode: 0,
-        statusText: err.message || 'Network Fetch Failed',
+        statusText: sanitized.userMessage,
         redirectChain: [],
         contentType: '',
         responseHeaders: {},
@@ -349,9 +357,9 @@ export async function runMobileFirstAudit(
         decodedCharCount: 0,
         durationMs: 0,
         isTruncated: false,
-        fetchError: err.message || 'Network Fetch Failed',
+        fetchError: sanitized.userMessage,
         isEligibleForSeoExtraction: false,
-        ineligibilityReason: `Network request failed: ${err.message || 'Error'}`,
+        ineligibilityReason: sanitized.userMessage,
         robotsTxt: empty.robotsTxt,
         metaRobots: empty.metaRobots,
         xRobotsTag: empty.xRobotsTag,

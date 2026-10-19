@@ -5,6 +5,7 @@ import {
   evaluateCrawlability,
 } from '../robotsParser';
 import { RobotsTxtCheckResult } from './types';
+import { sanitizeAuditError } from './errorSanitizer';
 
 /**
  * Evaluates robots.txt crawlability for a target URL and crawler token.
@@ -112,12 +113,13 @@ export async function checkRobotsCrawlability(
       explanation: `robots.txt returned unexpected HTTP ${statusCode}.`,
     };
   } catch (err: any) {
+    const sanitized = sanitizeAuditError(err);
     return {
       origin: parsedUrl.origin,
       fetched: false,
       status: 'UNKNOWN',
       matchedGroup: userAgentToken,
-      explanation: `Unable to retrieve robots.txt from ${robotsUrl}: ${err.message || 'Network error'}`,
+      explanation: `Unable to retrieve robots.txt: ${sanitized.userMessage}`,
     };
   }
 }

@@ -85,10 +85,12 @@ export function extractSeoSignals(
     if (text) h1Elements.push(text);
   });
 
-  // Visible text extraction: remove scripts, styles, noscript, svg, canvas
+  // Visible text extraction: remove scripts, styles, noscript, svg, canvas, hidden elements
   const bodyClone = $('body').clone();
-  bodyClone.find('script, style, noscript, svg, canvas, iframe, object, embed').remove();
-  const rawVisibleText = bodyClone.text().replace(/\s+/g, ' ').trim();
+  bodyClone
+    .find('script, style, noscript, svg, canvas, iframe, object, embed, template, [hidden], [aria-hidden="true"]')
+    .remove();
+  const rawVisibleText = bodyClone.text().normalize('NFC').replace(/\s+/g, ' ').trim();
   const words = rawVisibleText ? rawVisibleText.split(/\s+/).filter(Boolean) : [];
   const wordCount = words.length;
   const characterCount = rawVisibleText.length;
@@ -97,6 +99,26 @@ export function extractSeoSignals(
     .createHash('md5')
     .update(rawVisibleText.toLowerCase())
     .digest('hex');
+
+  // Full-document comparison representation: bounded to 30,000 characters.
+  // When documents exceed 30,000 chars, sample 5 distributed windows across the full document
+  // (beginning, 25%, 50%, 75%, end) to evaluate parity across the whole document.
+  let comparisonText = rawVisibleText;
+  let isSampled = false;
+  const MAX_COMPARISON_CHARS = 30000;
+  if (rawVisibleText.length > MAX_COMPARISON_CHARS) {
+    isSampled = true;
+    const totalLen = rawVisibleText.length;
+    const sliceLen = 6000;
+    const slices = [
+      rawVisibleText.slice(0, sliceLen),
+      rawVisibleText.slice(Math.floor(totalLen * 0.25), Math.floor(totalLen * 0.25) + sliceLen),
+      rawVisibleText.slice(Math.floor(totalLen * 0.50), Math.floor(totalLen * 0.50) + sliceLen),
+      rawVisibleText.slice(Math.floor(totalLen * 0.75), Math.floor(totalLen * 0.75) + sliceLen),
+      rawVisibleText.slice(Math.max(0, totalLen - sliceLen)),
+    ];
+    comparisonText = slices.join(' ');
+  }
 
   const content: ContentInfo = {
     title: titleTag || null,
@@ -112,6 +134,8 @@ export function extractSeoSignals(
     characterCount,
     textSnippet,
     textNormalizedHash,
+    comparisonText,
+    isSampled,
   };
 
   // 2. Links Extraction

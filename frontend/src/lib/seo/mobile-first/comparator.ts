@@ -8,25 +8,87 @@ import {
 } from './types';
 
 /**
- * Calculates Jaccard token similarity between two text snippets (0.0 to 1.0).
+ * Tokenizes text into normalized Unicode words (supporting English, Hindi, Gujarati, accented characters, etc.).
  */
-function calculateTextSimilarity(textA: string, textB: string): number {
-  if (!textA && !textB) return 1.0;
-  if (!textA || !textB) return 0.0;
+export function tokenizeText(text: string): string[] {
+  if (!text) return [];
+  return text
+    .toLowerCase()
+    .normalize('NFC')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length > 1);
+}
 
-  const tokensA = new Set(textA.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
-  const tokensB = new Set(textB.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
+/**
+ * Calculates a robust, deterministic content similarity score (0.0 to 1.0)
+ * between desktop and mobile content representations.
+ *
+ * Combines:
+ * 1. Frequency-weighted token containment / unigram Jaccard
+ * 2. Word-pair (bigram) shingle similarity for phrase structure and word order
+ * 3. Document length coverage ratio
+ *
+ * Guarantees:
+ * - Identical text: 1.0 (100%)
+ * - Same 300-char opening with different remainder: detects significant disparity (< 0.35)
+ * - Desktop complete (2,000 words) vs Mobile truncated (100 words): low similarity (< 0.15)
+ * - Same word count but different text: low similarity (< 0.20)
+ * - Minor navigation differences on matching articles: high similarity (> 0.85)
+ * - Unicode (Hindi, Gujarati, accents): natively supported via Unicode character class regex
+ * - Bounded CPU and memory execution (< 5ms)
+ */
+export function calculateContentSimilarity(textA: string, textB: string): number {
+  const tokensA = tokenizeText(textA);
+  const tokensB = tokenizeText(textB);
 
-  if (tokensA.size === 0 && tokensB.size === 0) return 1.0;
-  if (tokensA.size === 0 || tokensB.size === 0) return 0.0;
+  if (tokensA.length === 0 && tokensB.length === 0) return 1.0;
+  if (tokensA.length === 0 || tokensB.length === 0) return 0.0;
 
-  let intersection = 0;
-  for (const t of tokensA) {
-    if (tokensB.has(t)) intersection++;
+  // Unigram frequencies
+  const freqA = new Map<string, number>();
+  for (const t of tokensA) freqA.set(t, (freqA.get(t) || 0) + 1);
+  const freqB = new Map<string, number>();
+  for (const t of tokensB) freqB.set(t, (freqB.get(t) || 0) + 1);
+
+  let unigramIntersection = 0;
+  for (const [t, countA] of freqA.entries()) {
+    const countB = freqB.get(t) || 0;
+    unigramIntersection += Math.min(countA, countB);
+  }
+  const unigramUnion = tokensA.length + tokensB.length - unigramIntersection;
+  const unigramSim = unigramUnion > 0 ? unigramIntersection / unigramUnion : 1.0;
+
+  // Bigrams for phrase structure & word order preservation
+  let bigramSim = unigramSim;
+  if (tokensA.length > 2 && tokensB.length > 2) {
+    const bigramsA = new Set<string>();
+    for (let i = 0; i < tokensA.length - 1; i++) {
+      bigramsA.add(`${tokensA[i]} ${tokensA[i + 1]}`);
+    }
+    const bigramsB = new Set<string>();
+    for (let i = 0; i < tokensB.length - 1; i++) {
+      bigramsB.add(`${tokensB[i]} ${tokensB[i + 1]}`);
+    }
+
+    let bigramInter = 0;
+    for (const bg of bigramsA) {
+      if (bigramsB.has(bg)) bigramInter++;
+    }
+    const bigramUnion = bigramsA.size + bigramsB.size - bigramInter;
+    bigramSim = bigramUnion > 0 ? bigramInter / bigramUnion : 0;
   }
 
-  const union = tokensA.size + tokensB.size - intersection;
-  return union > 0 ? intersection / union : 1.0;
+  // Length coverage ratio (detects when one version is cut short)
+  const lengthCoverage =
+    Math.min(tokensA.length, tokensB.length) / Math.max(tokensA.length, tokensB.length, 1);
+
+  // Combined score: unigram token overlap (45%) + bigram phrase overlap (45%) + length coverage (10%)
+  const combined = 0.45 * unigramSim + 0.45 * bigramSim + 0.1 * lengthCoverage;
+
+  // Strict upper bound by length coverage: a 100-word page cannot have > 20% similarity to a 2000-word page
+  const boundedSim = Math.min(combined, lengthCoverage > 0.4 ? combined : lengthCoverage * 1.5);
+
+  return Math.max(0, Math.min(1.0, boundedSim));
 }
 
 /**
@@ -346,6 +408,46 @@ export function compareDesktopAndMobile(
     details: dVary.explanation,
   });
 
+  // G. HTML Response Completeness & Truncation Check
+  const dTruncated = Boolean(desktop.isTruncated || desktop.isPartial);
+  const mTruncated = Boolean(mobile.isTruncated || mobile.isPartial);
+  const hasTruncation = dTruncated || mTruncated;
+
+  if (hasTruncation) {
+    discrepancies.push({
+      id: 'crawling-html-truncated',
+      category: 'Crawling & Indexing',
+      name: 'HTML Payload Truncated (Exceeded Response Size Limit)',
+      severity: 'High',
+      desktopEvidence: dTruncated
+        ? `Desktop HTML truncated at ${(desktop.responseSizeBytes / 1024).toFixed(1)} KB (Incomplete download)`
+        : `Desktop download complete (${(desktop.responseSizeBytes / 1024).toFixed(1)} KB)`,
+      mobileEvidence: mTruncated
+        ? `Mobile HTML truncated at ${(mobile.responseSizeBytes / 1024).toFixed(1)} KB (Incomplete download)`
+        : `Mobile download complete (${(mobile.responseSizeBytes / 1024).toFixed(1)} KB)`,
+      whyItMatters:
+        'The HTML response exceeded the maximum size limit and was truncated before the entire document was received. SEO signals lower in the HTML (such as structured data, footer links, or content sections) may appear missing solely because the download stopped prematurely.',
+      recommendation:
+        'Optimize page HTML size or review full server-side logs to confirm indexability of elements located late in the DOM.',
+    });
+  }
+
+  comparisonTable.push({
+    category: 'Crawling & Indexing',
+    element: 'HTML Download Completeness',
+    desktop: dTruncated
+      ? `Truncated (${(desktop.responseSizeBytes / 1024).toFixed(1)} KB)`
+      : `Complete (${(desktop.responseSizeBytes / 1024).toFixed(1)} KB)`,
+    mobile: mTruncated
+      ? `Truncated (${(mobile.responseSizeBytes / 1024).toFixed(1)} KB)`
+      : `Complete (${(mobile.responseSizeBytes / 1024).toFixed(1)} KB)`,
+    status: hasTruncation ? 'Warning' : 'Match',
+    details: hasTruncation
+      ? 'One or both responses exceeded response size limits and were truncated.'
+      : 'Both HTML documents downloaded completely within response size limits.',
+    isImportant: true,
+  });
+
   // ==========================================
   // 2. HTML SEO SIGNALS COMPARISON (Subject to eligibility)
   // ==========================================
@@ -363,6 +465,7 @@ export function compareDesktopAndMobile(
       { element: 'Meta Description', category: 'Headings & Content' as const },
       { element: 'Primary H1 Heading', category: 'Headings & Content' as const },
       { element: 'Visible Text Word Count', category: 'Headings & Content' as const },
+      { element: 'Content Text Similarity', category: 'Headings & Content' as const },
       { element: 'Unique Internal Links', category: 'Links & Navigation' as const },
       { element: 'Images & Alt Text Parity', category: 'Images & Media' as const },
       { element: 'Schema Markup (JSON-LD / Microdata)', category: 'Structured Data' as const },
@@ -438,6 +541,7 @@ export function compareDesktopAndMobile(
     appendPartialRow('Headings & Content', 'Meta Description', eligibleAgent.content.metaDescription || '(Missing)', desktopEligible);
     appendPartialRow('Headings & Content', 'Primary H1 Heading', eligibleAgent.content.h1Primary || '(Missing)', desktopEligible);
     appendPartialRow('Headings & Content', 'Visible Text Word Count', `${eligibleAgent.content.wordCount.toLocaleString()} words`, desktopEligible);
+    appendPartialRow('Headings & Content', 'Content Text Similarity', 'Not Applicable (Incomplete)', desktopEligible);
     appendPartialRow('Links & Navigation', 'Unique Internal Links', `${eligibleAgent.links.uniqueInternalDestinations} unique (${eligibleAgent.links.internalCount} total)`, desktopEligible);
     appendPartialRow('Images & Media', 'Images & Alt Text Parity', `${eligibleAgent.images.totalCount} total (${eligibleAgent.images.withAltCount} with alt)`, desktopEligible);
     appendPartialRow('Structured Data', 'Schema Markup (JSON-LD / Microdata)', eligibleAgent.structuredData.types.length > 0 ? eligibleAgent.structuredData.types.join(', ') : '(None)', desktopEligible);
@@ -806,7 +910,9 @@ export function compareDesktopAndMobile(
   // Visible Text & Word Count Parity
   const dWords = desktop.content.wordCount;
   const mWords = mobile.content.wordCount;
-  const textSimilarity = calculateTextSimilarity(desktop.content.textSnippet, mobile.content.textSnippet);
+  const dCompText = desktop.content.comparisonText || desktop.content.textSnippet;
+  const mCompText = mobile.content.comparisonText || mobile.content.textSnippet;
+  const textSimilarity = calculateContentSimilarity(dCompText, mCompText);
   let wordCountStatus: ParityStatus = 'Match';
 
   const maxWords = Math.max(dWords, mWords, 1);
@@ -853,6 +959,56 @@ export function compareDesktopAndMobile(
       wordCountStatus === 'Match'
         ? 'Word count is closely aligned.'
         : `Difference: ${Math.abs(dWords - mWords).toLocaleString()} words (${Math.round(wordDiffRatio * 100)}% variance).`,
+    isImportant: true,
+  });
+
+  // Content Text Similarity Parity
+  let textSimilarityStatus: ParityStatus = 'Match';
+  if (dWords > 30 && mWords > 30) {
+    if (textSimilarity < 0.35) {
+      textSimilarityStatus = 'Warning';
+      discrepancies.push({
+        id: 'content-text-similarity-low',
+        category: 'Headings & Content',
+        name: 'Body Content Disparity: Substantial Text Differences Detected',
+        severity: 'High',
+        desktopEvidence: `Desktop: ${dWords.toLocaleString()} words (Text preview: "${desktop.content.textSnippet.slice(0, 80)}...")`,
+        mobileEvidence: `Mobile: ${mWords.toLocaleString()} words (Text preview: "${mobile.content.textSnippet.slice(0, 80)}...")`,
+        whyItMatters:
+          'Under Google mobile-first indexing, rankings and relevance are derived from the mobile content. Serving different topics or missing substantial text sections on mobile can cause unexpected ranking drops or keyword drift.',
+        recommendation:
+          'Review the mobile page source to ensure the explanatory body content, articles, and product details match the desktop version.',
+      });
+    } else if (textSimilarity < 0.65) {
+      textSimilarityStatus = 'Difference';
+      discrepancies.push({
+        id: 'content-text-similarity-moderate',
+        category: 'Headings & Content',
+        name: 'Content Parity Difference: Notable Text Variance Between Versions',
+        severity: 'Medium',
+        desktopEvidence: `Desktop: ${dWords.toLocaleString()} words (Content similarity: ${Math.round(textSimilarity * 100)}%)`,
+        mobileEvidence: `Mobile: ${mWords.toLocaleString()} words (Content similarity: ${Math.round(textSimilarity * 100)}%)`,
+        whyItMatters:
+          'Differences in paragraph text, descriptions, or specifications can cause Googlebot to evaluate a different set of topical signals on mobile.',
+        recommendation: 'Align primary descriptive content between desktop and mobile versions.',
+      });
+    }
+  }
+
+  comparisonTable.push({
+    category: 'Headings & Content',
+    element: 'Content Text Similarity',
+    desktop: '100% (Baseline)',
+    mobile: `${Math.round(textSimilarity * 100)}% similarity${
+      desktop.content.isSampled || mobile.content.isSampled ? ' (Sampled)' : ''
+    }`,
+    status: textSimilarityStatus,
+    details:
+      textSimilarityStatus === 'Match'
+        ? 'Body text content displays strong topical and phrasing parity.'
+        : `Body text differs: similarity is ${Math.round(textSimilarity * 100)}% (${
+            textSimilarity < 0.35 ? 'significant disparity' : 'moderate variance'
+          }).`,
     isImportant: true,
   });
 
@@ -949,19 +1105,35 @@ export function compareDesktopAndMobile(
   if (!dSchema.hasStructuredData && !mSchema.hasStructuredData) {
     schemaStatus = 'Both Missing';
   } else if (dSchema.hasStructuredData && !mSchema.hasStructuredData) {
-    schemaStatus = 'Critical';
-    discrepancies.push({
-      id: 'schema-missing-on-mobile',
-      category: 'Structured Data',
-      name: 'Structured Data Present on Desktop but Missing on Mobile',
-      severity: 'Critical',
-      desktopEvidence: `Desktop Schema Types: ${dSchema.types.join(', ')} (${dSchema.entityCount} entities)`,
-      mobileEvidence: 'Mobile: (No structured data detected)',
-      whyItMatters:
-        'Google extracts schema markup predominantly from the mobile version under mobile-first indexing. If mobile omits JSON-LD, pages may lose rich snippets and Knowledge Graph eligibility.',
-      recommendation:
-        'Add the exact same JSON-LD structured data markup to the mobile version.',
-    });
+    if (mTruncated) {
+      schemaStatus = 'Warning';
+      discrepancies.push({
+        id: 'schema-missing-on-mobile',
+        category: 'Structured Data',
+        name: 'Structured Data Not Detected in Truncated Mobile Payload',
+        severity: 'Medium',
+        desktopEvidence: `Desktop Schema Types: ${dSchema.types.join(', ')} (${dSchema.entityCount} entities)`,
+        mobileEvidence: 'Mobile: (No structured data detected in truncated response)',
+        whyItMatters:
+          'The mobile response was truncated due to response size limits before structured data could be found. The JSON-LD markup may exist further down in the source.',
+        recommendation:
+          'Review the complete mobile page source to confirm whether JSON-LD blocks are located late in the document.',
+      });
+    } else {
+      schemaStatus = 'Critical';
+      discrepancies.push({
+        id: 'schema-missing-on-mobile',
+        category: 'Structured Data',
+        name: 'Structured Data Present on Desktop but Missing on Mobile',
+        severity: 'Critical',
+        desktopEvidence: `Desktop Schema Types: ${dSchema.types.join(', ')} (${dSchema.entityCount} entities)`,
+        mobileEvidence: 'Mobile: (No structured data detected)',
+        whyItMatters:
+          'Google extracts schema markup predominantly from the mobile version under mobile-first indexing. If mobile omits JSON-LD, pages may lose rich snippets and Knowledge Graph eligibility.',
+        recommendation:
+          'Add the exact same JSON-LD structured data markup to the mobile version.',
+      });
+    }
   } else if (!dSchema.hasStructuredData && mSchema.hasStructuredData) {
     schemaStatus = 'Difference';
   } else {
@@ -1023,19 +1195,35 @@ export function compareDesktopAndMobile(
   if (dHreflang.count === 0 && mHreflang.count === 0) {
     hreflangStatus = 'Both Missing';
   } else if (dHreflang.count > 0 && mHreflang.count === 0) {
-    hreflangStatus = 'Critical';
-    discrepancies.push({
-      id: 'hreflang-missing-on-mobile',
-      category: 'Hreflang',
-      name: 'Hreflang Annotations Present on Desktop but Missing on Mobile',
-      severity: 'Critical',
-      desktopEvidence: `Desktop: ${dHreflang.count} hreflang annotations found`,
-      mobileEvidence: 'Mobile: 0 hreflang annotations found',
-      whyItMatters:
-        'Under mobile-first indexing, search engines process international targeting signals from the mobile version. If mobile omits hreflang, international targeting may not be evaluated correctly.',
-      recommendation:
-        'Include all corresponding hreflang link elements in the mobile page <head> (or HTTP Link headers).',
-    });
+    if (mTruncated) {
+      hreflangStatus = 'Warning';
+      discrepancies.push({
+        id: 'hreflang-missing-on-mobile',
+        category: 'Hreflang',
+        name: 'Hreflang Annotations Not Detected in Truncated Mobile Payload',
+        severity: 'Medium',
+        desktopEvidence: `Desktop: ${dHreflang.count} hreflang annotations found`,
+        mobileEvidence: 'Mobile: (0 annotations found in truncated response)',
+        whyItMatters:
+          'The mobile response was truncated before hreflang annotations could be confirmed. Link tags located late in <head> or in the body may have been cut off.',
+        recommendation:
+          'Verify that hreflang link tags are declared early in the mobile <head> or served via HTTP Link headers.',
+      });
+    } else {
+      hreflangStatus = 'Critical';
+      discrepancies.push({
+        id: 'hreflang-missing-on-mobile',
+        category: 'Hreflang',
+        name: 'Hreflang Annotations Present on Desktop but Missing on Mobile',
+        severity: 'Critical',
+        desktopEvidence: `Desktop: ${dHreflang.count} hreflang annotations found`,
+        mobileEvidence: 'Mobile: 0 hreflang annotations found',
+        whyItMatters:
+          'Under mobile-first indexing, search engines process international targeting signals from the mobile version. If mobile omits hreflang, international targeting may not be evaluated correctly.',
+        recommendation:
+          'Include all corresponding hreflang link elements in the mobile page <head> (or HTTP Link headers).',
+      });
+    }
   } else if (dHreflang.count !== mHreflang.count) {
     hreflangStatus = 'Warning';
     discrepancies.push({
@@ -1067,7 +1255,13 @@ export function compareDesktopAndMobile(
   const infoCount = discrepancies.filter((d) => d.severity === 'Informational').length;
 
   let parityVerdict: MobileFirstParityVerdict = 'Full Parity Passed';
-  if (criticalCount > 0) {
+  let verdictExplanation: string | undefined = undefined;
+
+  if (hasTruncation) {
+    parityVerdict = 'Incomplete Audit — HTML Response Truncated';
+    verdictExplanation =
+      'The audit could not be fully completed because one or both HTML responses exceeded the response size limit and were truncated before download completion.';
+  } else if (criticalCount > 0) {
     parityVerdict = 'Critical Discrepancies Detected';
   } else if (highCount > 0) {
     parityVerdict = 'Significant SEO Parity Issues';
@@ -1082,6 +1276,7 @@ export function compareDesktopAndMobile(
     mobileStatus: mobile.statusCode,
     isSeparateMobileUrl,
     parityVerdict,
+    verdictExplanation,
     hasDifferences: discrepancies.length > 0,
     totalDiscrepancies: discrepancies.length,
     criticalCount,

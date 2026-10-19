@@ -164,13 +164,21 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
   const redirectHistory: { from: string; to: string; statusCode: number }[] = [];
   let currentUrl = rawUrl;
   const startTime = Date.now();
+  const deadline = startTime + timeoutMs;
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
+    const remainingTimeMs = deadline - Date.now();
+    if (remainingTimeMs <= 0) {
+      throw new Error(`Request timed out: overall operation exceeded deadline of ${timeoutMs}ms for ${rawUrl}`);
+    }
+
     const parsedUrl = validateUrl(currentUrl);
     // SSRF DNS re-check on every hop and pin validated IP
     const resolvedIp = await validateAndResolveHost(parsedUrl.hostname);
 
     const client = parsedUrl.protocol === 'https:' ? https : http;
+
+    const hopTimeoutMs = Math.max(50, Math.min(timeoutMs, remainingTimeMs));
 
     const requestOptions: https.RequestOptions = {
       protocol: parsedUrl.protocol,
@@ -197,7 +205,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         'Connection': 'close',
         ...(options.headers || {})
       },
-      timeout: timeoutMs
+      timeout: hopTimeoutMs
     };
 
     const releaseSlot = await acquireOutboundSlot(parsedUrl.origin);
@@ -221,7 +229,35 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         isTruncated: boolean;
         downloadedBytes: number;
       }>((resolve, reject) => {
+        let isSettled = false;
         let isTimedOut = false;
+
+        // Hard deadline timer covering connection, TLS, headers, and entire body streaming
+        const overallTimer = setTimeout(() => {
+          if (!isSettled) {
+            isTimedOut = true;
+            isSettled = true;
+            req.destroy();
+            reject(new Error(`Request timed out after ${timeoutMs}ms for ${currentUrl}`));
+          }
+        }, hopTimeoutMs);
+
+        const safeResolve = (val: any) => {
+          if (!isSettled) {
+            isSettled = true;
+            clearTimeout(overallTimer);
+            resolve(val);
+          }
+        };
+
+        const safeReject = (err: any) => {
+          if (!isSettled) {
+            isSettled = true;
+            clearTimeout(overallTimer);
+            reject(err);
+          }
+        };
+
         const req = client.request(requestOptions, (response) => {
           const statusCode = response.statusCode || 0;
           const statusText = response.statusMessage || '';
@@ -235,7 +271,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
           // Check for redirects (301, 302, 303, 307, 308)
           if ([301, 302, 303, 307, 308].includes(statusCode) && headers['location']) {
             response.resume(); // discard body
-            return resolve({
+            return safeResolve({
               statusCode,
               statusText,
               headers,
@@ -267,7 +303,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
 
           response.on('end', () => {
             const body = Buffer.concat(chunks).toString('utf-8');
-            resolve({
+            safeResolve({
               statusCode,
               statusText,
               headers,
@@ -280,7 +316,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
           response.on('close', () => {
             if (truncated) {
               const body = Buffer.concat(chunks).toString('utf-8');
-              resolve({
+              safeResolve({
                 statusCode,
                 statusText,
                 headers,
@@ -292,19 +328,21 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
           });
 
           response.on('error', (err) => {
-            reject(err);
+            safeReject(err);
           });
         });
 
         req.on('timeout', () => {
-          isTimedOut = true;
-          req.destroy();
-          reject(new Error(`Request timed out after ${timeoutMs}ms for ${currentUrl}`));
+          if (!isSettled) {
+            isTimedOut = true;
+            req.destroy();
+            safeReject(new Error(`Request timed out after ${timeoutMs}ms for ${currentUrl}`));
+          }
         });
 
         req.on('error', (err) => {
           if (!isTimedOut) {
-            reject(err);
+            safeReject(err);
           }
         });
 
