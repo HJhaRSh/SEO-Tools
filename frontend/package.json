@@ -11,14 +11,17 @@
   "dependencies": {
     "@sparticuz/chromium": "133.0.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "archiver": "^8.0.0",
     "cheerio": "^1.2.0",
+    "csv-parse": "^7.0.3",
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.11.2",
     "next": "16.4.0",
     "playwright-core": "1.50.1",
     "postcss": "^8.5.29",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "unzipper": "^0.12.5"
   },
   "optionalDependencies": {
     "lightningcss-linux-x64-gnu": "1.32.0",
@@ -26,9 +29,11 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/unzipper": "^0.10.11",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",

@@ -7,8 +7,8 @@ const backendTarget =
   (isDev ? "http://localhost:5000" : "");
 
 const nextConfig: NextConfig = {
-  // Prevent Next.js from bundling native-binary packages — they must be loaded at runtime
-  serverExternalPackages: ['@sparticuz/chromium', 'playwright-core'],
+  // Prevent Next.js from bundling native-binary or node-only packages — they must be loaded at runtime
+  serverExternalPackages: ['@sparticuz/chromium', 'playwright-core', 'unzipper', 'archiver'],
 
   async rewrites() {
     // Only configure Next.js proxy rewrites if a backend target is defined.
@@ -31,6 +31,10 @@ const nextConfig: NextConfig = {
       {
         source: '/api/seo/robots/:path*',
         destination: '/api/seo/robots/:path*'
+      },
+      {
+        source: '/api/seo/sitemap/:path*',
+        destination: '/api/seo/sitemap/:path*'
       },
       {
         source: '/api/:path*',

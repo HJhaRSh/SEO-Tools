@@ -78,6 +78,12 @@
       }
     },
     {
+      "source": "/api/seo/sitemap/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"
