@@ -83,7 +83,14 @@ export function isBlockedHostname(hostname: string): boolean {
   const lower = hostname.toLowerCase().trim();
 
   if (BLOCKED_HOSTNAMES.has(lower)) return true;
-  if (lower.endsWith('.local') || lower.endsWith('.internal') || lower.endsWith('.localhost') || lower.endsWith('.corp')) {
+  if (
+    lower.endsWith('.local') ||
+    lower.endsWith('.internal') ||
+    lower.endsWith('.localhost') ||
+    lower.endsWith('.corp') ||
+    lower.endsWith('.intranet') ||
+    lower.endsWith('.lan')
+  ) {
     return true;
   }
 

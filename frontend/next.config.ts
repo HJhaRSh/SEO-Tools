@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
         destination: '/api/seo/htaccess/:path*'
       },
       {
+        source: '/api/seo/fetch-render/:path*',
+        destination: '/api/seo/fetch-render/:path*'
+      },
+      {
         source: '/api/:path*',
         destination: `${backendTarget.replace(/\/$/, '')}/api/:path*`
       }

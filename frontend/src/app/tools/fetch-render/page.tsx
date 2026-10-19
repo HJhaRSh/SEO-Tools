@@ -49,6 +49,29 @@ const DEFAULT_USER_AGENTS: UserAgentOption[] = [
   }
 ];
 
+function base64ToBytes(base64: string): Uint8Array {
+  if (!base64) return new Uint8Array(0);
+  const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+  const binaryString = atob(cleanBase64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function triggerDownload(filename: string, mimeType: string, data: any) {
+  const blob = new Blob([data], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function FetchRenderPage() {
   // Input fields
   const [url, setUrl] = useState('');
@@ -734,13 +757,13 @@ export default function FetchRenderPage() {
                     >
                       {copiedOriginal ? 'Copied!' : 'Copy Code'}
                     </button>
-                    <a
-                      href={`/api/seo/fetch-render/download/${result.downloads.originalHtmlId}`}
+                    <button
+                      type="button"
+                      onClick={() => triggerDownload('original.html', 'text/html;charset=utf-8', result.initialFetch.rawHtml)}
                       className="btn btn-primary text-xs py-2 px-3"
-                      download="original.html"
                     >
                       Download HTML
-                    </a>
+                    </button>
                   </div>
                 </div>
 
@@ -766,13 +789,13 @@ export default function FetchRenderPage() {
                         >
                           {copiedRendered ? 'Copied!' : 'Copy Code'}
                         </button>
-                        <a
-                          href={`/api/seo/fetch-render/download/${result.downloads.renderedHtmlId}`}
+                        <button
+                          type="button"
+                          onClick={() => triggerDownload('rendered.html', 'text/html;charset=utf-8', result.renderResult?.renderedHtml ?? '')}
                           className="btn btn-primary text-xs py-2 px-3"
-                          download="rendered.html"
                         >
                           Download Rendered DOM
-                        </a>
+                        </button>
                       </div>
                     </div>
 
@@ -797,13 +820,13 @@ export default function FetchRenderPage() {
                       <div className="text-sm text-slate-500">
                         Viewport: <strong>{result.userAgent.viewport.width} x {result.userAgent.viewport.height}</strong> ({result.userAgent.name})
                       </div>
-                      <a
-                        href={`/api/seo/fetch-render/download/${result.downloads.screenshotId}`}
+                      <button
+                        type="button"
+                        onClick={() => triggerDownload('screenshot.png', 'image/png', base64ToBytes(result.renderResult?.screenshotBase64 ?? ''))}
                         className="btn btn-primary text-xs py-2 px-3"
-                        download="screenshot.png"
                       >
                         Download Screenshot
-                      </a>
+                      </button>
                     </div>
                     <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-4 bg-slate-100 dark:bg-slate-900 flex justify-center">
                       <img
@@ -888,28 +911,28 @@ export default function FetchRenderPage() {
               <p className="text-xs text-slate-500">Export test artifacts, screenshots, and structured diagnostic data.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <a
-                href={`/api/seo/fetch-render/download/${result.downloads.reportJsonId}`}
-                download="fetch-render-report.json"
+              <button
+                type="button"
+                onClick={() => triggerDownload('fetch-render-report.json', 'application/json;charset=utf-8', JSON.stringify(result, null, 2))}
                 className="btn btn-secondary text-xs py-2 px-3"
               >
                 JSON Report
-              </a>
-              <a
-                href={`/api/seo/fetch-render/download/${result.downloads.seoDiffCsvId}`}
-                download="seo-diff.csv"
+              </button>
+              <button
+                type="button"
+                onClick={() => triggerDownload('seo-diff.csv', 'text/csv;charset=utf-8', result.seoDiffCsv ?? '')}
                 className="btn btn-secondary text-xs py-2 px-3"
               >
                 SEO Diff CSV
-              </a>
+              </button>
               {result.downloads.screenshotId && (
-                <a
-                  href={`/api/seo/fetch-render/download/${result.downloads.screenshotId}`}
-                  download="screenshot.png"
+                <button
+                  type="button"
+                  onClick={() => triggerDownload('screenshot.png', 'image/png', base64ToBytes(result.renderResult?.screenshotBase64 ?? ''))}
                   className="btn btn-primary text-xs py-2 px-3"
                 >
                   Screenshot PNG
-                </a>
+                </button>
               )}
             </div>
           </div>

@@ -96,6 +96,12 @@
       }
     },
     {
+      "source": "/api/seo/fetch-render/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"
