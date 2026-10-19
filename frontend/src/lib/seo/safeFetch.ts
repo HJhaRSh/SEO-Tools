@@ -6,6 +6,8 @@ import { isBlockedHostname, isPrivateOrReservedIP } from './ssrf';
 
 const dnsLookup = promisify(dns.lookup);
 
+export type DnsLookupFn = (hostname: string, options: { all: boolean }) => Promise<dns.LookupAddress[]>;
+
 export interface SafeFetchOptions {
   timeoutMs?: number;
   maxRedirects?: number;
@@ -14,6 +16,7 @@ export interface SafeFetchOptions {
   userAgent?: string;
   beforeRedirect?: (nextUrl: string, currentUrl: string) => Promise<{ allow: boolean; reason?: string; blockType?: 'BLOCKED' | 'UNKNOWN' | 'ERROR' }>;
   allowLocalhostForTesting?: boolean;
+  dnsLookup?: DnsLookupFn;
 }
 
 export interface SafeFetchResult {
@@ -53,6 +56,14 @@ const HTTP_PER_DOMAIN_CONCURRENCY = 2;
 let activeGlobalRequests = 0;
 const activeDomainRequests = new Map<string, number>();
 const requestQueue: { origin: string; resolve: () => void }[] = [];
+
+export function getOutboundQueueState() {
+  return {
+    activeGlobalRequests,
+    activeDomainRequestsCount: activeDomainRequests.size,
+    queueLength: requestQueue.length
+  };
+}
 
 export function acquireOutboundSlot(origin: string, maxWaitMs?: number): Promise<() => void> {
   return new Promise<() => void>((resolveSlot, rejectSlot) => {
@@ -143,7 +154,8 @@ function dispatchNextQueued() {
 export async function validateAndResolveHost(
   hostname: string,
   timeoutMs?: number,
-  allowLocalhostForTesting = false
+  allowLocalhostForTesting = false,
+  customDnsLookup?: DnsLookupFn
 ): Promise<string> {
   const isLocalhostTest =
     allowLocalhostForTesting &&
@@ -163,7 +175,11 @@ export async function validateAndResolveHost(
   }
 
   try {
-    const dnsPromise = dnsLookup(hostname, { all: true });
+    const resolver = customDnsLookup || dnsLookup;
+    const dnsPromise = Promise.resolve().then(() => resolver(hostname, { all: true }));
+    // Guard against unhandled rejections if dnsPromise fails/rejects after deadline
+    dnsPromise.catch(() => {});
+
     let lookupResult: dns.LookupAddress[];
 
     if (typeof timeoutMs === 'number' && timeoutMs > 0) {
@@ -261,7 +277,12 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
     if (dnsRemaining <= 0) {
       throw new Error(`Request timed out: overall operation exceeded deadline of ${timeoutMs}ms for ${rawUrl}`);
     }
-    const resolvedIp = await validateAndResolveHost(parsedUrl.hostname, dnsRemaining, allowLocalhostForTesting);
+    const resolvedIp = await validateAndResolveHost(
+      parsedUrl.hostname,
+      dnsRemaining,
+      allowLocalhostForTesting,
+      options.dnsLookup
+    );
 
     // Concurrency queue wait, respecting remaining deadline budget
     const slotRemaining = deadline - Date.now();
@@ -476,7 +497,30 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         if (redirectRemaining <= 0) {
           throw new Error(`Request timed out: overall operation exceeded deadline of ${timeoutMs}ms for ${rawUrl}`);
         }
-        const check = await options.beforeRedirect(nextUrl, currentUrl);
+
+        let callbackTimer: NodeJS.Timeout | null = null;
+        const callbackTimeoutPromise = new Promise<never>((_, reject) => {
+          callbackTimer = setTimeout(() => {
+            reject(new Error(`Request timed out: overall operation exceeded deadline of ${timeoutMs}ms for ${rawUrl}`));
+          }, redirectRemaining);
+        });
+
+        // Run beforeRedirect and attach safe error handler to suppress unhandled promise rejection if it settles or rejects after deadline
+        const rawCallbackPromise = Promise.resolve().then(() => options.beforeRedirect!(nextUrl, currentUrl));
+        rawCallbackPromise.catch(() => {
+          // Suppress unhandled rejection if callback fails after timeout
+        });
+
+        let check: { allow: boolean; reason?: string; blockType?: 'BLOCKED' | 'UNKNOWN' | 'ERROR' };
+        try {
+          check = await Promise.race([rawCallbackPromise, callbackTimeoutPromise]);
+        } finally {
+          if (callbackTimer) {
+            clearTimeout(callbackTimer);
+            callbackTimer = null;
+          }
+        }
+
         if (!check.allow) {
           const durationMs = Date.now() - startTime;
           return {

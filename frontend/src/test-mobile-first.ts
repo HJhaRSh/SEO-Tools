@@ -1,7 +1,7 @@
 import assert from 'assert';
 import http from 'http';
 import net from 'net';
-import { validateUrl, validateAndResolveHost, safeFetch, acquireOutboundSlot } from './lib/seo/safeFetch';
+import { validateUrl, validateAndResolveHost, safeFetch, acquireOutboundSlot, getOutboundQueueState, DnsLookupFn } from './lib/seo/safeFetch';
 import { extractSeoSignals } from './lib/seo/mobile-first/extractor';
 import { compareDesktopAndMobile, calculateContentSimilarity, tokenizeText } from './lib/seo/mobile-first/comparator';
 import { checkHtmlEligibility } from './lib/seo/mobile-first/auditService';
@@ -1260,7 +1260,7 @@ Allow: /
     }
   });
 
-  await test('Timeout Integration: validateAndResolveHost terminates promptly within deadline on slow/delayed DNS', async () => {
+  await test('Timeout Integration: validateAndResolveHost enforces deadline before lookup when timeout <= 0', async () => {
     const startTime = Date.now();
     await assert.rejects(
       async () => {
@@ -1272,7 +1272,174 @@ Allow: /
       }
     );
     const elapsed = Date.now() - startTime;
-    assert.ok(elapsed < 200, `DNS timeout should terminate promptly (took ${elapsed}ms)`);
+    assert.ok(elapsed < 200, `Immediate DNS timeout should terminate promptly (took ${elapsed}ms)`);
+  });
+
+  await test('Timeout Integration: safeFetch enforces deadline during pending DNS, rejects within bounded interval, prevents late HTTP connection & resource leaks', async () => {
+    let dnsResolutionStarted = false;
+    let dnsResolutionCompleted = false;
+    let httpConnectionAttempted = false;
+    const unhandledErrors: any[] = [];
+
+    const onUnhandled = (err: any) => {
+      unhandledErrors.push(err);
+    };
+    process.on('unhandledRejection', onUnhandled);
+
+    // Spy on http.request to verify no HTTP connection is ever initiated
+    const originalHttpRequest = http.request;
+    (http as any).request = function (...args: any[]) {
+      httpConnectionAttempted = true;
+      return (originalHttpRequest as any).apply(this, args);
+    };
+
+    // Injectable DNS resolver that deliberately stalls longer (400ms) than timeoutMs (120ms)
+    const delayedDnsResolver: DnsLookupFn = async (_hostname, _opts) => {
+      dnsResolutionStarted = true;
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      dnsResolutionCompleted = true;
+      return [{ address: '93.184.216.34', family: 4 }];
+    };
+
+    const targetUrl = 'http://custom-delayed-domain.test/test-path';
+    const startTime = Date.now();
+
+    try {
+      // 1 & 2 & 3: DNS starts, deadline expires while pending, caller receives timeout error within bounded interval
+      await assert.rejects(
+        async () => {
+          await safeFetch(targetUrl, {
+            timeoutMs: 120,
+            dnsLookup: delayedDnsResolver
+          });
+        },
+        (err: any) => {
+          return /timed out/i.test(err.message);
+        }
+      );
+
+      const elapsed = Date.now() - startTime;
+      assert.strictEqual(dnsResolutionStarted, true, '1. DNS resolution must have started');
+      assert.strictEqual(dnsResolutionCompleted, false, '2. DNS resolution must still be pending when deadline expired');
+      assert.ok(elapsed >= 100, `3. Caller received timeout within bounded interval (took ${elapsed}ms, expected >= 100ms)`);
+      assert.ok(elapsed < 600, `3. Caller received timeout within bounded interval (took ${elapsed}ms, expected < 600ms)`);
+
+      // 4: Wait until late DNS resolution completes, verify it CANNOT initiate an HTTP connection
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      assert.strictEqual(dnsResolutionCompleted, true, 'Delayed DNS resolver must have completed its late run');
+      assert.strictEqual(httpConnectionAttempted, false, '4. Late DNS resolution must NEVER initiate an HTTP connection');
+
+      // 5: Verify no unhandled promise rejections occurred
+      assert.strictEqual(unhandledErrors.length, 0, '5. No unhandled promise rejections occurred');
+
+      // 6: Verify request-queue and connection resources are clean
+      const queueState = getOutboundQueueState();
+      assert.strictEqual(queueState.activeGlobalRequests, 0, '6. No active global outbound requests remain');
+      assert.strictEqual(queueState.queueLength, 0, '6. Outbound request queue is empty');
+    } finally {
+      (http as any).request = originalHttpRequest;
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  await test('Timeout Integration: validateAndResolveHost terminates on slow DNS and suppresses late rejection errors', async () => {
+    const unhandledErrors: any[] = [];
+    const onUnhandled = (err: any) => {
+      unhandledErrors.push(err);
+    };
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const startTime = Date.now();
+      await assert.rejects(
+        async () => {
+          await validateAndResolveHost('slow-failing-domain.test', 100, false, async () => {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            throw new Error('Late DNS lookup failed');
+          });
+        },
+        /DNS resolution timed out after 100ms/
+      );
+      const elapsed = Date.now() - startTime;
+      assert.ok(elapsed >= 90 && elapsed < 500, `Timed out within bounded interval: ${elapsed}ms`);
+
+      // Wait for late rejection to settle
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      assert.strictEqual(unhandledErrors.length, 0, 'Must not cause unhandled promise rejections on late failure');
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  await test('Timeout Integration: safeFetch enforces deadline during delayed beforeRedirect callback and prevents late approval', async () => {
+    let redirectCallbackStarted = false;
+    let redirectCallbackCompleted = false;
+    let targetEndpointHit = false;
+    const unhandledErrors: any[] = [];
+
+    const onUnhandled = (err: any) => {
+      unhandledErrors.push(err);
+    };
+    process.on('unhandledRejection', onUnhandled);
+
+    const server = http.createServer((req, res) => {
+      if (req.url === '/start') {
+        res.writeHead(302, { Location: '/target' });
+        res.end();
+      } else if (req.url === '/target') {
+        targetEndpointHit = true;
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body>Destination reached</body></html>');
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const port = (server.address() as net.AddressInfo).port;
+    const initialUrl = `http://127.0.0.1:${port}/start`;
+
+    try {
+      const startTime = Date.now();
+      // Configure overall deadline of 150ms. Callback stalls for 400ms.
+      await assert.rejects(
+        async () => {
+          await safeFetch(initialUrl, {
+            timeoutMs: 150,
+            allowLocalhostForTesting: true,
+            beforeRedirect: async () => {
+              redirectCallbackStarted = true;
+              await new Promise((resolve) => setTimeout(resolve, 400));
+              redirectCallbackCompleted = true;
+              return { allow: true }; // Late attempt to approve redirect
+            }
+          });
+        },
+        (err: any) => {
+          return /timed out: overall operation exceeded deadline/i.test(err.message);
+        }
+      );
+
+      const elapsed = Date.now() - startTime;
+      assert.strictEqual(redirectCallbackStarted, true, 'beforeRedirect callback must have started');
+      assert.strictEqual(redirectCallbackCompleted, false, 'Callback must still be running when deadline fired');
+      assert.ok(elapsed >= 120, `Enforced bounded deadline: ${elapsed}ms >= 120ms`);
+      assert.ok(elapsed < 500, `Callback did not prolong audit beyond deadline: ${elapsed}ms < 500ms`);
+
+      // Wait for late callback completion
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      assert.strictEqual(redirectCallbackCompleted, true, 'Delayed callback finished late');
+      assert.strictEqual(targetEndpointHit, false, 'Timed-out callback must never approve or navigate to redirect destination');
+      assert.strictEqual(unhandledErrors.length, 0, 'No unhandled promise rejections on late callback resolution');
+
+      // Verify queue clean
+      const queueState = getOutboundQueueState();
+      assert.strictEqual(queueState.activeGlobalRequests, 0, 'Outbound requests released');
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   await test('Timeout Integration: acquireOutboundSlot terminates promptly when concurrency queue wait times out', async () => {
