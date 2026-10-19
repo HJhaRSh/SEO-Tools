@@ -2,6 +2,9 @@ import assert from 'assert';
 import { validateUrl, validateAndResolveHost } from './lib/seo/safeFetch';
 import { extractSeoSignals } from './lib/seo/mobile-first/extractor';
 import { compareDesktopAndMobile } from './lib/seo/mobile-first/comparator';
+import { checkHtmlEligibility } from './lib/seo/mobile-first/auditService';
+import { checkRobotsCrawlability } from './lib/seo/mobile-first/robotsChecker';
+import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability } from './lib/seo/robotsParser';
 import { generateMobileFirstCsv, generateMobileFirstXlsx, sanitizeSpreadsheetField } from './lib/seo/mobile-first/exporter';
 import { AgentCrawlResult, MobileFirstAuditResponse } from './lib/seo/mobile-first/types';
 import { USER_AGENT_PROFILES } from './lib/seo/mobile-first/userAgents';
@@ -34,8 +37,12 @@ function createMockAgent(overrides: Partial<AgentCrawlResult> = {}): AgentCrawlR
     contentType: 'text/html; charset=utf-8',
     responseHeaders: {},
     responseSizeBytes: 15420,
+    downloadedBytes: 15420,
+    decodedCharCount: 7500,
     durationMs: 250,
     isTruncated: false,
+    isEligibleForSeoExtraction: true,
+    ineligibilityReason: undefined,
     robotsTxt: {
       origin: 'https://example.com',
       fetched: true,
@@ -97,6 +104,8 @@ function createMockAgent(overrides: Partial<AgentCrawlResult> = {}): AgentCrawlR
       titleLength: 36,
       metaDescription: 'Learn about best practices for mobile-first indexing and technical SEO parity.',
       metaDescriptionLength: 79,
+      ogDescription: 'OG Description for social sharing',
+      ogDescriptionLength: 33,
       h1Primary: 'Example Page Title',
       h1Count: 1,
       allH1s: ['Example Page Title'],
@@ -197,9 +206,120 @@ async function runMobileFirstTestSuite() {
     assert.throws(() => validateUrl('https://admin:secret@example.com/'), /User credentials in URLs are not permitted/);
   });
 
-  console.log('\n2. Crawling & Indexability Parity Tests:');
+  console.log('\n2. HTTP Error & Non-HTML Eligibility Handling:');
 
-  await test('Identical desktop and mobile responses yield Full Parity Passed', () => {
+  await test('HTML eligibility: Accepts 200 text/html and application/xhtml+xml', () => {
+    assert.strictEqual(checkHtmlEligibility(200, 'text/html; charset=utf-8', '<html></html>').isEligible, true);
+    assert.strictEqual(checkHtmlEligibility(200, 'application/xhtml+xml', '<html xmlns="..."></html>').isEligible, true);
+  });
+
+  await test('HTML eligibility: Rejects non-2xx HTTP statuses (403, 404, 500)', () => {
+    assert.strictEqual(checkHtmlEligibility(404, 'text/html', '<html>404</html>').isEligible, false);
+    assert.strictEqual(checkHtmlEligibility(403, 'text/html', '<html>403</html>').isEligible, false);
+    assert.strictEqual(checkHtmlEligibility(500, 'text/html', '<html>500</html>').isEligible, false);
+  });
+
+  await test('HTML eligibility: Rejects non-HTML types (PDF, JSON, Image, Binary)', () => {
+    assert.strictEqual(checkHtmlEligibility(200, 'application/pdf', '%PDF-1.4').isEligible, false);
+    assert.strictEqual(checkHtmlEligibility(200, 'application/json', '{"error": true}').isEligible, false);
+    assert.strictEqual(checkHtmlEligibility(200, 'image/png', '<png>').isEligible, false);
+    assert.strictEqual(checkHtmlEligibility(200, 'application/octet-stream', '<bin>').isEligible, false);
+  });
+
+  await test('Desktop 200 vs Mobile 404 flags Critical Discrepancy and suppresses false HTML warnings', () => {
+    const desktop = createMockAgent({ statusCode: 200, isEligibleForSeoExtraction: true });
+    const mobile = createMockAgent({
+      statusCode: 404,
+      statusText: 'Not Found',
+      isEligibleForSeoExtraction: false,
+      ineligibilityReason: 'HTTP 404 response code (non-2xx)',
+    });
+
+    const result = compareDesktopAndMobile(desktop, mobile, false);
+    assert.strictEqual(result.summary.criticalCount >= 1, true);
+    assert.strictEqual(result.summary.parityVerdict, 'Critical Discrepancies Detected');
+    assert.ok(result.discrepancies.some((d) => d.id === 'crawling-mobile-404'));
+
+    // Verify false HTML warnings are NOT generated when mobile is 404
+    assert.ok(!result.discrepancies.some((d) => d.id === 'content-title-missing-mobile'));
+    assert.ok(!result.discrepancies.some((d) => d.id === 'content-h1-missing-mobile'));
+    assert.ok(!result.discrepancies.some((d) => d.id === 'schema-missing-on-mobile'));
+
+    // Verify comparison table row is labeled Not Applicable
+    const titleRow = result.comparisonTable.find((r) => r.element === 'Page Title (<title>)');
+    assert.strictEqual(titleRow?.status, 'Not Applicable');
+  });
+
+  await test('Desktop 200 vs Mobile 403 flags Critical Discrepancy and suppresses false HTML warnings', () => {
+    const desktop = createMockAgent({ statusCode: 200, isEligibleForSeoExtraction: true });
+    const mobile = createMockAgent({
+      statusCode: 403,
+      statusText: 'Forbidden',
+      isEligibleForSeoExtraction: false,
+      ineligibilityReason: 'HTTP 403 response code (non-2xx)',
+    });
+
+    const result = compareDesktopAndMobile(desktop, mobile, false);
+    assert.strictEqual(result.summary.criticalCount >= 1, true);
+    assert.ok(result.discrepancies.some((d) => d.id === 'crawling-mobile-blocked'));
+    assert.ok(!result.discrepancies.some((d) => d.id === 'content-title-missing-mobile'));
+  });
+
+  await test('Both responses 404 yields Audit Failed verdict (not Full Parity Passed)', () => {
+    const desktop = createMockAgent({
+      statusCode: 404,
+      statusText: 'Not Found',
+      isEligibleForSeoExtraction: false,
+      ineligibilityReason: 'HTTP 404 response code (non-2xx)',
+    });
+    const mobile = createMockAgent({
+      statusCode: 404,
+      statusText: 'Not Found',
+      isEligibleForSeoExtraction: false,
+      ineligibilityReason: 'HTTP 404 response code (non-2xx)',
+    });
+
+    const result = compareDesktopAndMobile(desktop, mobile, false);
+    assert.strictEqual(result.summary.parityVerdict, 'Audit Failed');
+    assert.ok(result.discrepancies.some((d) => d.id === 'crawling-both-404'));
+    // Ensure all HTML rows are marked Not Applicable
+    const h1Row = result.comparisonTable.find((r) => r.element === 'Primary H1 Heading');
+    assert.strictEqual(h1Row?.status, 'Not Applicable');
+  });
+
+  await test('Desktop HTML vs Mobile PDF flags Critical Discrepancy (Content-Type mismatch)', () => {
+    const desktop = createMockAgent({ statusCode: 200, contentType: 'text/html; charset=utf-8', isEligibleForSeoExtraction: true });
+    const mobile = createMockAgent({
+      statusCode: 200,
+      contentType: 'application/pdf',
+      isEligibleForSeoExtraction: false,
+      ineligibilityReason: 'Non-HTML Content-Type (application/pdf)',
+    });
+
+    const result = compareDesktopAndMobile(desktop, mobile, false);
+    assert.strictEqual(result.summary.criticalCount >= 1, true);
+    assert.ok(result.discrepancies.some((d) => d.id === 'crawling-mobile-non-html'));
+    assert.ok(!result.discrepancies.some((d) => d.id === 'content-title-missing-mobile'));
+  });
+
+  await test('Mobile request failure/timeout yields Critical Discrepancy and Incomplete Audit', () => {
+    const desktop = createMockAgent({ statusCode: 200, isEligibleForSeoExtraction: true });
+    const mobile = createMockAgent({
+      statusCode: 0,
+      statusText: 'Request timed out after 9000ms',
+      fetchError: 'Request timed out after 9000ms',
+      isEligibleForSeoExtraction: false,
+      ineligibilityReason: 'Network request failed: Request timed out',
+    });
+
+    const result = compareDesktopAndMobile(desktop, mobile, false);
+    assert.strictEqual(result.summary.parityVerdict, 'Critical Discrepancies Detected');
+    assert.ok(result.discrepancies.some((d) => d.id === 'crawling-mobile-fetch-failed'));
+  });
+
+  console.log('\n3. Crawling & Indexability Parity Tests:');
+
+  await test('Identical eligible desktop and mobile responses yield Full Parity Passed', () => {
     const desktop = createMockAgent();
     const mobile = createMockAgent({ agentName: 'Googlebot Smartphone' });
 
@@ -209,27 +329,33 @@ async function runMobileFirstTestSuite() {
     assert.strictEqual(result.discrepancies.length, 0);
   });
 
-  await test('Desktop 200 vs Mobile 404 flags Critical Discrepancy', () => {
-    const desktop = createMockAgent({ statusCode: 200 });
-    const mobile = createMockAgent({ statusCode: 404, statusText: 'Not Found' });
+  await test('Robots.txt: Googlebot profile matches Googlebot-specific disallow', () => {
+    const robotsTxtContent = `
+User-agent: Googlebot
+Disallow: /private/
 
-    const result = compareDesktopAndMobile(desktop, mobile, false);
-    assert.strictEqual(result.summary.criticalCount >= 1, true);
-    assert.strictEqual(result.summary.parityVerdict, 'Critical Discrepancies Detected');
-    const finding = result.discrepancies.find((d) => d.id === 'crawling-mobile-404');
-    assert.ok(finding, 'crawling-mobile-404 discrepancy should be reported');
-    assert.strictEqual(finding?.severity, 'Critical');
+User-agent: *
+Allow: /
+`;
+    const parsed = parseRobotsTxt(robotsTxtContent);
+    const selected = selectRulesForUserAgent(parsed.groups, 'googlebot', 'googlebot');
+    const match = evaluateCrawlability(selected.rules, '/private/page', 'Desktop Googlebot', selected.matchedToken);
+    assert.strictEqual(match.status, 'BLOCKED');
   });
 
-  await test('Desktop 200 vs Mobile 403 flags Critical Discrepancy', () => {
-    const desktop = createMockAgent({ statusCode: 200 });
-    const mobile = createMockAgent({ statusCode: 403, statusText: 'Forbidden' });
+  await test('Robots.txt: Chrome profile ignores Googlebot-specific disallow and matches wildcard allow', () => {
+    const robotsTxtContent = `
+User-agent: Googlebot
+Disallow: /private/
 
-    const result = compareDesktopAndMobile(desktop, mobile, false);
-    assert.strictEqual(result.summary.criticalCount >= 1, true);
-    const finding = result.discrepancies.find((d) => d.id === 'crawling-mobile-blocked');
-    assert.ok(finding);
-    assert.strictEqual(finding?.severity, 'Critical');
+User-agent: *
+Allow: /
+`;
+    const parsed = parseRobotsTxt(robotsTxtContent);
+    // For Chrome, token is '*' and fallbackToken is undefined
+    const selected = selectRulesForUserAgent(parsed.groups, '*', undefined);
+    const match = evaluateCrawlability(selected.rules, '/private/page', 'Desktop Chrome', selected.matchedToken);
+    assert.strictEqual(match.status, 'ALLOWED');
   });
 
   await test('Robots.txt: Desktop Allowed vs Mobile Disallowed flags Critical', () => {
@@ -395,7 +521,38 @@ async function runMobileFirstTestSuite() {
     assert.strictEqual(finding?.severity, 'Critical');
   });
 
-  console.log('\n3. Content Parity Tests:');
+  console.log('\n4. Content Parity & Meta Description Tests:');
+
+  await test('Meta description: Standard meta description reported as missing when only og:description exists', () => {
+    const htmlWithOgOnly = `
+      <html>
+        <head>
+          <title>Test Page</title>
+          <meta property="og:description" content="This is an OG description only" />
+        </head>
+        <body><h1>Heading</h1></body>
+      </html>
+    `;
+    const signals = extractSeoSignals(htmlWithOgOnly, 'https://example.com/page', {});
+    assert.strictEqual(signals.content.metaDescription, null, 'Standard meta description should be null');
+    assert.strictEqual(signals.content.ogDescription, 'This is an OG description only');
+  });
+
+  await test('Meta description: Both standard and og:description extracted independently', () => {
+    const htmlWithBoth = `
+      <html>
+        <head>
+          <title>Test Page</title>
+          <meta name="description" content="Official meta description" />
+          <meta property="og:description" content="Social media description" />
+        </head>
+        <body><h1>Heading</h1></body>
+      </html>
+    `;
+    const signals = extractSeoSignals(htmlWithBoth, 'https://example.com/page', {});
+    assert.strictEqual(signals.content.metaDescription, 'Official meta description');
+    assert.strictEqual(signals.content.ogDescription, 'Social media description');
+  });
 
   await test('Missing title tag on mobile flags Critical', () => {
     const desktop = createMockAgent({
@@ -478,7 +635,7 @@ async function runMobileFirstTestSuite() {
     assert.strictEqual(finding?.severity, 'Critical');
   });
 
-  console.log('\n4. Links & Images Parity Tests:');
+  console.log('\n5. Links & Images Parity Tests:');
 
   await test('Substantial loss of internal links on mobile flags High', () => {
     const desktop = createMockAgent({
@@ -547,7 +704,7 @@ async function runMobileFirstTestSuite() {
     assert.strictEqual(signals.images.responsiveMarkupCount >= 2, true);
   });
 
-  console.log('\n5. Structured Data Parity Tests:');
+  console.log('\n6. Structured Data Parity Tests:');
 
   await test('Structured data present on desktop but missing on mobile flags Critical', () => {
     const desktop = createMockAgent();
@@ -635,7 +792,6 @@ async function runMobileFirstTestSuite() {
     assert.strictEqual(signalsB.structuredData.types[0], 'Product');
     assert.strictEqual(signalsA.structuredData.entities[0].name, 'Widget');
     assert.strictEqual(signalsB.structuredData.entities[0].name, 'Widget');
-    // Normalized JSON strings match identically despite original key order
     assert.strictEqual(
       signalsA.structuredData.entities[0].rawNormalizedJson,
       signalsB.structuredData.entities[0].rawNormalizedJson
@@ -674,7 +830,7 @@ async function runMobileFirstTestSuite() {
     assert.strictEqual(signals.structuredData.parseErrors.length, 1);
   });
 
-  console.log('\n6. Hreflang Parity Tests:');
+  console.log('\n7. Hreflang Parity Tests:');
 
   await test('Hreflang present on desktop but missing on mobile flags Critical', () => {
     const desktop = createMockAgent();
@@ -709,7 +865,7 @@ async function runMobileFirstTestSuite() {
     assert.ok(signals.hreflang.items.some((i) => i.hreflang === 'fr' && i.source === 'HTTP_HEADER'));
   });
 
-  console.log('\n7. Exporters & Sanitization Tests:');
+  console.log('\n8. Exporters & Sanitization Tests:');
 
   await test('Sanitizes spreadsheet formula injection (=, +, -, @, \\t, \\r)', () => {
     assert.strictEqual(sanitizeSpreadsheetField('=CMD|"/C calc"!A0'), '\'=CMD|"/C calc"!A0');
@@ -720,9 +876,13 @@ async function runMobileFirstTestSuite() {
     assert.strictEqual(sanitizeSpreadsheetField('Normal Text'), 'Normal Text');
   });
 
-  await test('CSV Export generates UTF-8 with BOM and escaped cells', () => {
+  await test('CSV Export generates UTF-8 with BOM and handles Incomplete Audits', () => {
     const desktop = createMockAgent();
-    const mobile = createMockAgent();
+    const mobile = createMockAgent({
+      statusCode: 404,
+      isEligibleForSeoExtraction: false,
+      ineligibilityReason: 'HTTP 404 response code (non-2xx)',
+    });
     const { summary, comparisonTable, discrepancies } = compareDesktopAndMobile(desktop, mobile, false);
 
     const mockResponse: MobileFirstAuditResponse = {
@@ -746,7 +906,7 @@ async function runMobileFirstTestSuite() {
     assert.strictEqual(csv.startsWith('\uFEFF'), true, 'CSV should start with UTF-8 BOM');
     assert.ok(csv.includes('Mobile-First Index Checker'));
     assert.ok(csv.includes('https://example.com/page'));
-    assert.ok(csv.includes('Raw HTML Comparison'));
+    assert.ok(csv.includes('Not Applicable'));
   });
 
   await test('XLSX Export generates valid multi-worksheet workbook buffer', async () => {

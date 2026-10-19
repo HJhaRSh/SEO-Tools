@@ -347,9 +347,9 @@ export default function MobileFirstIndexPage() {
 
             {/* OVERALL VERDICT BANNER */}
             <div className={`mt-6 p-5 rounded-2xl border ${
-              auditData.summary.criticalCount > 0
+              auditData.summary.parityVerdict === 'Audit Failed' || auditData.summary.criticalCount > 0
                 ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/60'
-                : auditData.summary.highCount > 0
+                : auditData.summary.parityVerdict === 'Incomplete Audit' || auditData.summary.highCount > 0
                 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800/60'
                 : auditData.summary.hasDifferences
                 ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/60'
@@ -359,9 +359,9 @@ export default function MobileFirstIndexPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`w-3 h-3 rounded-full ${
-                      auditData.summary.criticalCount > 0
+                      auditData.summary.parityVerdict === 'Audit Failed' || auditData.summary.criticalCount > 0
                         ? 'bg-rose-500 animate-pulse'
-                        : auditData.summary.highCount > 0
+                        : auditData.summary.parityVerdict === 'Incomplete Audit' || auditData.summary.highCount > 0
                         ? 'bg-orange-500'
                         : auditData.summary.hasDifferences
                         ? 'bg-amber-500'
@@ -372,13 +372,15 @@ export default function MobileFirstIndexPage() {
                     </h3>
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                    {auditData.summary.criticalCount > 0
+                    {auditData.summary.verdictExplanation
+                      ? auditData.summary.verdictExplanation
+                      : auditData.summary.criticalCount > 0
                       ? 'Critical discrepancies detected between desktop and mobile responses. Under Google mobile-first indexing, these issues can lead to immediate indexing failure or ranking loss.'
                       : auditData.summary.highCount > 0
-                      ? 'Significant differences detected. Important SEO elements (such as structured data or internal links) differ between desktop and mobile versions.'
+                      ? 'Significant differences detected. Important SEO elements differ between desktop and mobile versions.'
                       : auditData.summary.hasDifferences
                       ? 'Minor discrepancies detected. Review the findings below to verify whether markup differences are intentional.'
-                      : 'Excellent! Core SEO tags, canonicals, robots directives, content length, and structured data match cleanly across desktop and mobile responses.'}
+                      : 'All surveyed core SEO elements (titles, canonicals, robots directives, content length, and structured data) match across desktop and mobile responses.'}
                   </p>
                 </div>
 

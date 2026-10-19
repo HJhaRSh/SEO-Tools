@@ -27,6 +27,7 @@ export interface SafeFetchResult {
   contentType: string;
   timestamp: string;
   isTruncated: boolean;
+  downloadedBytes?: number;
   blockedByRedirectHook?: boolean;
   redirectBlockedReason?: string;
   redirectBlockType?: 'BLOCKED' | 'UNKNOWN' | 'ERROR';
@@ -207,6 +208,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
       body: string;
       redirectLocation?: string;
       isTruncated: boolean;
+      downloadedBytes: number;
     };
 
     try {
@@ -217,6 +219,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         body: string;
         redirectLocation?: string;
         isTruncated: boolean;
+        downloadedBytes: number;
       }>((resolve, reject) => {
         let isTimedOut = false;
         const req = client.request(requestOptions, (response) => {
@@ -238,7 +241,8 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
               headers,
               body: '',
               redirectLocation: headers['location'],
-              isTruncated: false
+              isTruncated: false,
+              downloadedBytes: 0
             });
           }
 
@@ -268,7 +272,8 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
               statusText,
               headers,
               body,
-              isTruncated: truncated
+              isTruncated: truncated,
+              downloadedBytes: totalBytes
             });
           });
 
@@ -280,7 +285,8 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
                 statusText,
                 headers,
                 body,
-                isTruncated: true
+                isTruncated: true,
+                downloadedBytes: totalBytes
               });
             }
           });
@@ -361,7 +367,8 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
       durationMs,
       contentType: res.headers['content-type'] || 'text/plain',
       timestamp: new Date().toISOString(),
-      isTruncated: res.isTruncated
+      isTruncated: res.isTruncated,
+      downloadedBytes: res.downloadedBytes
     };
   }
 

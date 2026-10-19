@@ -13,7 +13,8 @@ import { RobotsTxtCheckResult } from './types';
 export async function checkRobotsCrawlability(
   targetUrl: string,
   userAgentToken: string,
-  userAgentName: string
+  userAgentName: string,
+  fallbackToken?: string
 ): Promise<RobotsTxtCheckResult> {
   let parsedUrl: URL;
   try {
@@ -80,7 +81,7 @@ export async function checkRobotsCrawlability(
     // 200 OK: parse rules
     if (statusCode >= 200 && statusCode < 300) {
       const parsed = parseRobotsTxt(fetchRes.body);
-      const selected = selectRulesForUserAgent(parsed.groups, userAgentToken, 'googlebot');
+      const selected = selectRulesForUserAgent(parsed.groups, userAgentToken, fallbackToken);
       const pathAndQuery = parsedUrl.pathname + parsedUrl.search;
       const match = evaluateCrawlability(selected.rules, pathAndQuery, userAgentName, selected.matchedToken);
 

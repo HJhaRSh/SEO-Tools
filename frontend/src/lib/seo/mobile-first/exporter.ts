@@ -172,6 +172,13 @@ export async function generateMobileFirstXlsx(audit: MobileFirstAuditResponse): 
         fgColor: { argb: 'FFDCFCE7' },
       };
       addedRow.getCell('status').font = { color: { argb: 'FF166534' } };
+    } else if (row.status === 'Not Applicable') {
+      addedRow.getCell('status').fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' },
+      };
+      addedRow.getCell('status').font = { color: { argb: 'FF64748B' } };
     }
   }
 

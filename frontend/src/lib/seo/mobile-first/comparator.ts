@@ -3,6 +3,7 @@ import {
   ComparisonRow,
   DiscrepancyFinding,
   MobileFirstAuditSummary,
+  MobileFirstParityVerdict,
   ParityStatus,
 } from './types';
 
@@ -46,6 +47,9 @@ export function compareDesktopAndMobile(
   const discrepancies: DiscrepancyFinding[] = [];
   const comparisonTable: ComparisonRow[] = [];
 
+  const desktopEligible = desktop.isEligibleForSeoExtraction;
+  const mobileEligible = mobile.isEligibleForSeoExtraction;
+
   // Determine if this is a separate mobile URL setup (e.g. m.example.com or user specified)
   let isSeparateMobileUrl = isSeparateMobileUrlRequested;
   try {
@@ -59,7 +63,7 @@ export function compareDesktopAndMobile(
   }
 
   // ==========================================
-  // 1. CRAWLING & INDEXING COMPARISON
+  // 1. CRAWLING & INDEXING COMPARISON (Always evaluated)
   // ==========================================
 
   // A. Final URL & Redirects
@@ -90,7 +94,7 @@ export function compareDesktopAndMobile(
         desktopEvidence: `Desktop redirected to: ${desktop.finalUrl}`,
         mobileEvidence: `Mobile redirected to: ${mobile.finalUrl}`,
         whyItMatters:
-          'Unless your site intentionally operates separate desktop and mobile URLs, unexpected redirect divergence can cause search engines to index unintended pages.',
+          'Unless your site intentionally operates separate desktop and mobile URLs, redirect divergence can cause search engines to index unintended pages.',
         recommendation:
           'Verify your server redirect rules to confirm whether this redirect divergence is intentional.',
       });
@@ -112,7 +116,45 @@ export function compareDesktopAndMobile(
   const mStatus = mobile.statusCode;
   let httpStatusState: ParityStatus = 'Match';
 
-  if (mStatus !== dStatus) {
+  if (dStatus === 0 && mStatus === 0) {
+    httpStatusState = 'Critical';
+    discrepancies.push({
+      id: 'crawling-both-failed-fetch',
+      category: 'Crawling & Indexing',
+      name: 'Both Desktop and Mobile Requests Failed to Connect',
+      severity: 'Critical',
+      desktopEvidence: `Desktop error: ${desktop.statusText}`,
+      mobileEvidence: `Mobile error: ${mobile.statusText}`,
+      whyItMatters: 'Neither request could establish a connection with the target host.',
+      recommendation: 'Check website availability, DNS resolution, and firewall settings.',
+    });
+  } else if (dStatus === 404 && mStatus === 404) {
+    httpStatusState = 'Critical';
+    discrepancies.push({
+      id: 'crawling-both-404',
+      category: 'Crawling & Indexing',
+      name: 'Both Desktop and Mobile URLs Returned HTTP 404 (Not Found)',
+      severity: 'Critical',
+      desktopEvidence: `Desktop response code: HTTP ${dStatus}`,
+      mobileEvidence: `Mobile response code: HTTP ${mStatus}`,
+      whyItMatters:
+        'Both versions of this URL returned HTTP 404 Not Found. Search engines crawling either version will treat the URL as non-existent and cannot index it.',
+      recommendation:
+        'Ensure the URL is published and returns a valid HTTP 200 OK status.',
+    });
+  } else if (dStatus >= 500 && mStatus >= 500) {
+    httpStatusState = 'Critical';
+    discrepancies.push({
+      id: 'crawling-both-5xx',
+      category: 'Crawling & Indexing',
+      name: 'Both Desktop and Mobile Requests Returned Server Errors (HTTP 5xx)',
+      severity: 'Critical',
+      desktopEvidence: `Desktop response code: HTTP ${dStatus}`,
+      mobileEvidence: `Mobile response code: HTTP ${mStatus}`,
+      whyItMatters: 'The application server threw an internal error for both requests.',
+      recommendation: 'Inspect web application server error logs to resolve the 5xx exception.',
+    });
+  } else if (mStatus !== dStatus) {
     if (dStatus === 200 && (mStatus === 404 || mStatus === 410)) {
       httpStatusState = 'Critical';
       discrepancies.push({
@@ -123,9 +165,9 @@ export function compareDesktopAndMobile(
         desktopEvidence: `Desktop response code: HTTP ${dStatus}`,
         mobileEvidence: `Mobile response code: HTTP ${mStatus}`,
         whyItMatters:
-          'CRITICAL RISK: Google crawls and indexes exclusively with Googlebot Smartphone. Because your mobile URL returns HTTP 404, Google cannot index this page and will drop it from search results.',
+          'Because Google crawls predominantly with Googlebot Smartphone, a mobile HTTP 404 response may prevent search engines from indexing this URL.',
         recommendation:
-          'Immediately fix server routing so the mobile user-agent returns HTTP 200 OK with full content.',
+          'Ensure server routing serves the mobile user-agent an HTTP 200 OK response with full content.',
       });
     } else if (dStatus === 200 && (mStatus === 403 || mStatus === 401)) {
       httpStatusState = 'Critical';
@@ -137,9 +179,9 @@ export function compareDesktopAndMobile(
         desktopEvidence: `Desktop response code: HTTP ${dStatus}`,
         mobileEvidence: `Mobile response code: HTTP ${mStatus}`,
         whyItMatters:
-          'Googlebot Smartphone is blocked from accessing the mobile version of the page. Google cannot crawl or index blocked content.',
+          'The mobile user-agent request received HTTP 403 Forbidden while the desktop request succeeded. Verify server firewall, WAF, and access rules to ensure mobile crawlers are permitted.',
         recommendation:
-          'Check your firewall, WAF (Cloudflare/AWS WAF), or server security rules to whitelist Googlebot Smartphone.',
+          'Check your firewall, WAF (Cloudflare/AWS WAF), or server security rules to allow mobile crawlers.',
       });
     } else if (dStatus === 200 && mStatus >= 500) {
       httpStatusState = 'Critical';
@@ -151,9 +193,21 @@ export function compareDesktopAndMobile(
         desktopEvidence: `Desktop response code: HTTP ${dStatus}`,
         mobileEvidence: `Mobile response code: HTTP ${mStatus}`,
         whyItMatters:
-          'The mobile user-agent triggers a server error. Persistent 5xx errors cause search engines to de-index pages.',
+          'The mobile user-agent request triggered a server error. Persistent 5xx errors may lead search engines to de-index pages.',
         recommendation:
           'Inspect application server error logs for exceptions thrown specifically when handling mobile user-agents.',
+      });
+    } else if (dStatus === 200 && mStatus === 0) {
+      httpStatusState = 'Critical';
+      discrepancies.push({
+        id: 'crawling-mobile-fetch-failed',
+        category: 'Crawling & Indexing',
+        name: 'Mobile Request Failed to Complete',
+        severity: 'Critical',
+        desktopEvidence: `Desktop succeeded: HTTP ${dStatus}`,
+        mobileEvidence: `Mobile failed: ${mobile.statusText || 'Connection error'}`,
+        whyItMatters: 'The mobile user-agent could not complete the request.',
+        recommendation: 'Check server responsiveness to mobile user-agent requests.',
       });
     } else {
       httpStatusState = 'Warning';
@@ -164,7 +218,7 @@ export function compareDesktopAndMobile(
         severity: 'High',
         desktopEvidence: `Desktop HTTP ${dStatus}`,
         mobileEvidence: `Mobile HTTP ${mStatus}`,
-        whyItMatters: 'Status code divergence can cause Googlebot Smartphone to treat the page differently from desktop expectations.',
+        whyItMatters: 'Status code divergence can cause search crawlers to treat the page differently from desktop expectations.',
         recommendation: 'Ensure both versions return consistent, successful HTTP 200 responses.',
       });
     }
@@ -173,14 +227,42 @@ export function compareDesktopAndMobile(
   comparisonTable.push({
     category: 'Crawling & Indexing',
     element: 'HTTP Response Status',
-    desktop: `HTTP ${dStatus} ${desktop.statusText || ''}`.trim(),
-    mobile: `HTTP ${mStatus} ${mobile.statusText || ''}`.trim(),
+    desktop: dStatus > 0 ? `HTTP ${dStatus} ${desktop.statusText || ''}`.trim() : `Failed (${desktop.statusText})`,
+    mobile: mStatus > 0 ? `HTTP ${mStatus} ${mobile.statusText || ''}`.trim() : `Failed (${mobile.statusText})`,
     status: httpStatusState,
     details: dStatus === mStatus ? `Both return HTTP ${dStatus}` : `Status code mismatch: Desktop ${dStatus} vs Mobile ${mStatus}`,
     isImportant: true,
   });
 
-  // C. Robots.txt Crawlability
+  // C. Content-Type Check
+  const dContentType = desktop.contentType || '(None)';
+  const mContentType = mobile.contentType || '(None)';
+  const contentTypeMatches = dContentType.toLowerCase() === mContentType.toLowerCase();
+
+  if (desktopEligible && !mobileEligible && mobile.statusCode >= 200 && mobile.statusCode < 300) {
+    discrepancies.push({
+      id: 'crawling-mobile-non-html',
+      category: 'Crawling & Indexing',
+      name: 'Mobile Version Returned Non-HTML Content-Type',
+      severity: 'Critical',
+      desktopEvidence: `Desktop Content-Type: ${dContentType}`,
+      mobileEvidence: `Mobile Content-Type: ${mContentType}`,
+      whyItMatters:
+        'Desktop returned HTML markup, but mobile returned a non-HTML payload. Search crawlers expect equivalent HTML markup across devices.',
+      recommendation: 'Ensure mobile requests receive the intended HTML document.',
+    });
+  }
+
+  comparisonTable.push({
+    category: 'Crawling & Indexing',
+    element: 'Response Content-Type',
+    desktop: dContentType,
+    mobile: mContentType,
+    status: contentTypeMatches ? 'Match' : (desktopEligible && !mobileEligible ? 'Critical' : 'Difference'),
+    details: contentTypeMatches ? 'Both Content-Types match.' : 'Content-Types differ.',
+  });
+
+  // D. Robots.txt Crawlability
   const dRobots = desktop.robotsTxt;
   const mRobots = mobile.robotsTxt;
   let robotsStatus: ParityStatus = 'Match';
@@ -195,7 +277,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop crawlability: ${dRobots.status} (${dRobots.explanation})`,
       mobileEvidence: `Mobile crawlability: ${mRobots.status} (${mRobots.explanation})`,
       whyItMatters:
-        'Googlebot Smartphone is disallowed by your robots.txt file. Under mobile-first indexing, Google cannot crawl or update your page.',
+        'The mobile crawler is disallowed by your robots.txt file. Under mobile-first indexing, search engines cannot crawl or update your page.',
       recommendation:
         `Modify ${mRobots.origin}/robots.txt to remove the blocking Disallow rule: "${mRobots.appliedRule?.originalText || 'Disallow'}"`,
     });
@@ -213,7 +295,192 @@ export function compareDesktopAndMobile(
     isImportant: true,
   });
 
-  // D. Meta Robots
+  // E. X-Robots-Tag HTTP Header (can be checked even without HTML body)
+  const dXRobots = desktop.xRobotsTag;
+  const mXRobots = mobile.xRobotsTag;
+  let xRobotsStatus: ParityStatus = 'Match';
+
+  if (dXRobots.index && mXRobots.noindex) {
+    xRobotsStatus = 'Critical';
+    discrepancies.push({
+      id: 'crawling-xrobots-mobile-noindex',
+      category: 'Crawling & Indexing',
+      name: 'Mobile Header Declares X-Robots-Tag: noindex',
+      severity: 'Critical',
+      desktopEvidence: `Desktop header: ${dXRobots.raw || '(None)'}`,
+      mobileEvidence: `Mobile header: ${mXRobots.raw}`,
+      whyItMatters:
+        'The mobile HTTP response sends an X-Robots-Tag with noindex, instructing search engines not to index the page.',
+      recommendation: 'Remove the X-Robots-Tag: noindex header from the mobile response.',
+    });
+  } else if ((dXRobots.raw || '') !== (mXRobots.raw || '')) {
+    xRobotsStatus = 'Difference';
+  }
+
+  comparisonTable.push({
+    category: 'Crawling & Indexing',
+    element: 'X-Robots-Tag Header',
+    desktop: dXRobots.raw || '(None declared)',
+    mobile: mXRobots.raw || '(None declared)',
+    status: xRobotsStatus,
+    details: xRobotsStatus === 'Match' ? 'Both headers match or omitted.' : 'Header values differ.',
+  });
+
+  // F. Vary: User-Agent Header
+  const dVary = desktop.varyHeader;
+  const mVary = mobile.varyHeader;
+  let varyStatus: ParityStatus = 'Match';
+
+  if (dVary.includesUserAgent && mVary.includesUserAgent) {
+    varyStatus = 'Match';
+  } else if (!finalUrlsMatch && !isSeparateMobileUrl) {
+    varyStatus = 'Difference';
+  }
+
+  comparisonTable.push({
+    category: 'Crawling & Indexing',
+    element: 'Vary: User-Agent Header',
+    desktop: dVary.raw || '(None)',
+    mobile: mVary.raw || '(None)',
+    status: varyStatus,
+    details: dVary.explanation,
+  });
+
+  // ==========================================
+  // 2. HTML SEO SIGNALS COMPARISON (Subject to eligibility)
+  // ==========================================
+
+  // CASE 1: Neither desktop nor mobile is eligible for HTML SEO extraction
+  if (!desktopEligible && !mobileEligible) {
+    const ineligibleLabelD = `Not Available (${desktop.ineligibilityReason || 'HTTP Error'})`;
+    const ineligibleLabelM = `Not Available (${mobile.ineligibilityReason || 'HTTP Error'})`;
+
+    const skippedElements = [
+      { element: 'Canonical Tag', category: 'Canonicals & Alternates' as const },
+      { element: 'Mobile Alternate Link', category: 'Canonicals & Alternates' as const },
+      { element: 'Meta Robots Tag', category: 'Crawling & Indexing' as const },
+      { element: 'Page Title (<title>)', category: 'Headings & Content' as const },
+      { element: 'Meta Description', category: 'Headings & Content' as const },
+      { element: 'Primary H1 Heading', category: 'Headings & Content' as const },
+      { element: 'Visible Text Word Count', category: 'Headings & Content' as const },
+      { element: 'Unique Internal Links', category: 'Links & Navigation' as const },
+      { element: 'Images & Alt Text Parity', category: 'Images & Media' as const },
+      { element: 'Schema Markup (JSON-LD / Microdata)', category: 'Structured Data' as const },
+      { element: 'Hreflang Annotations', category: 'Hreflang' as const },
+    ];
+
+    for (const item of skippedElements) {
+      comparisonTable.push({
+        category: item.category,
+        element: item.element,
+        desktop: ineligibleLabelD,
+        mobile: ineligibleLabelM,
+        status: 'Not Applicable',
+        details: 'HTML SEO signal extraction not performed due to HTTP error or non-HTML content.',
+      });
+    }
+
+    const criticalCount = discrepancies.filter((d) => d.severity === 'Critical').length;
+    const highCount = discrepancies.filter((d) => d.severity === 'High').length;
+    const mediumCount = discrepancies.filter((d) => d.severity === 'Medium').length;
+    const lowCount = discrepancies.filter((d) => d.severity === 'Low').length;
+    const infoCount = discrepancies.filter((d) => d.severity === 'Informational').length;
+
+    const summary: MobileFirstAuditSummary = {
+      desktopFinalUrl: desktop.finalUrl,
+      mobileFinalUrl: mobile.finalUrl,
+      desktopStatus: desktop.statusCode,
+      mobileStatus: mobile.statusCode,
+      isSeparateMobileUrl,
+      parityVerdict: 'Audit Failed',
+      verdictExplanation: 'Neither response was eligible for HTML SEO extraction due to HTTP errors, non-HTML content, or network failures.',
+      hasDifferences: true,
+      totalDiscrepancies: discrepancies.length,
+      criticalCount,
+      highCount,
+      mediumCount,
+      lowCount,
+      infoCount,
+      textSimilarityPct: 0,
+      desktopEligible: false,
+      mobileEligible: false,
+    };
+
+    return { summary, comparisonTable, discrepancies };
+  }
+
+  // CASE 2: Only one response is eligible for HTML SEO extraction
+  if (desktopEligible !== mobileEligible) {
+    const ineligibleAgent = desktopEligible ? mobile : desktop;
+    const eligibleAgent = desktopEligible ? desktop : mobile;
+    const ineligibleLabel = `Not Available (${ineligibleAgent.ineligibilityReason || 'HTTP Error'})`;
+
+    const appendPartialRow = (
+      category: ComparisonRow['category'],
+      element: string,
+      eligibleVal: string,
+      isDesktop: boolean
+    ) => {
+      comparisonTable.push({
+        category,
+        element,
+        desktop: isDesktop ? eligibleVal : ineligibleLabel,
+        mobile: isDesktop ? ineligibleLabel : eligibleVal,
+        status: 'Not Applicable',
+        details: `${ineligibleAgent.agentName} was not eligible for HTML SEO extraction (${ineligibleAgent.ineligibilityReason || 'HTTP Error'}).`,
+      });
+    };
+
+    appendPartialRow('Canonicals & Alternates', 'Canonical Tag', eligibleAgent.canonical.resolved || '(Missing)', desktopEligible);
+    appendPartialRow('Canonicals & Alternates', 'Mobile Alternate Link', eligibleAgent.mobileAlternate.resolved || '(None)', desktopEligible);
+    appendPartialRow('Crawling & Indexing', 'Meta Robots Tag', eligibleAgent.metaRobots.raw || 'index, follow (implicit default)', desktopEligible);
+    appendPartialRow('Headings & Content', 'Page Title (<title>)', eligibleAgent.content.title || '(Missing)', desktopEligible);
+    appendPartialRow('Headings & Content', 'Meta Description', eligibleAgent.content.metaDescription || '(Missing)', desktopEligible);
+    appendPartialRow('Headings & Content', 'Primary H1 Heading', eligibleAgent.content.h1Primary || '(Missing)', desktopEligible);
+    appendPartialRow('Headings & Content', 'Visible Text Word Count', `${eligibleAgent.content.wordCount.toLocaleString()} words`, desktopEligible);
+    appendPartialRow('Links & Navigation', 'Unique Internal Links', `${eligibleAgent.links.uniqueInternalDestinations} unique (${eligibleAgent.links.internalCount} total)`, desktopEligible);
+    appendPartialRow('Images & Media', 'Images & Alt Text Parity', `${eligibleAgent.images.totalCount} total (${eligibleAgent.images.withAltCount} with alt)`, desktopEligible);
+    appendPartialRow('Structured Data', 'Schema Markup (JSON-LD / Microdata)', eligibleAgent.structuredData.types.length > 0 ? eligibleAgent.structuredData.types.join(', ') : '(None)', desktopEligible);
+    appendPartialRow('Hreflang', 'Hreflang Annotations', `${eligibleAgent.hreflang.count} annotations`, desktopEligible);
+
+    const criticalCount = discrepancies.filter((d) => d.severity === 'Critical').length;
+    const highCount = discrepancies.filter((d) => d.severity === 'High').length;
+    const mediumCount = discrepancies.filter((d) => d.severity === 'Medium').length;
+    const lowCount = discrepancies.filter((d) => d.severity === 'Low').length;
+    const infoCount = discrepancies.filter((d) => d.severity === 'Informational').length;
+
+    let parityVerdict: MobileFirstParityVerdict = 'Incomplete Audit';
+    if (criticalCount > 0) {
+      parityVerdict = 'Critical Discrepancies Detected';
+    }
+
+    const summary: MobileFirstAuditSummary = {
+      desktopFinalUrl: desktop.finalUrl,
+      mobileFinalUrl: mobile.finalUrl,
+      desktopStatus: desktop.statusCode,
+      mobileStatus: mobile.statusCode,
+      isSeparateMobileUrl,
+      parityVerdict,
+      verdictExplanation: `Audit incomplete: ${ineligibleAgent.agentName} was not eligible for HTML SEO extraction (${ineligibleAgent.ineligibilityReason || 'HTTP Error'}).`,
+      hasDifferences: true,
+      totalDiscrepancies: discrepancies.length,
+      criticalCount,
+      highCount,
+      mediumCount,
+      lowCount,
+      infoCount,
+      textSimilarityPct: 0,
+      desktopEligible,
+      mobileEligible,
+    };
+
+    return { summary, comparisonTable, discrepancies };
+  }
+
+  // CASE 3: BOTH Desktop and Mobile are eligible HTML responses
+  // Perform complete deep comparison across all categories!
+
+  // Meta Robots Tag
   const dMetaRobots = desktop.metaRobots;
   const mMetaRobots = mobile.metaRobots;
   let metaRobotsStatus: ParityStatus = 'Match';
@@ -228,7 +495,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: ${dMetaRobots.raw || 'index, follow (default)'}`,
       mobileEvidence: `Mobile: ${mMetaRobots.raw}`,
       whyItMatters:
-        'CRITICAL ISSUE: Google respects the mobile version directives under mobile-first indexing. A noindex directive on mobile will cause Google to drop the page from search results entirely.',
+        'The mobile user-agent response contains a noindex directive, which may prevent indexing if search engines receive and apply the same directive.',
       recommendation:
         'Remove the noindex directive from the mobile version so search engines can index your content.',
     });
@@ -242,7 +509,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: ${dMetaRobots.raw || 'follow (default)'}`,
       mobileEvidence: `Mobile: ${mMetaRobots.raw}`,
       whyItMatters:
-        'Googlebot Smartphone will not follow links on the mobile version, severely impairing the flow of PageRank and discovery of internal pages.',
+        'Search crawlers evaluating mobile responses may not follow links on the mobile version, impairing link equity and discovery of internal pages.',
       recommendation: 'Remove nofollow from the mobile robots meta tag.',
     });
   } else if ((dMetaRobots.raw || '') !== (mMetaRobots.raw || '')) {
@@ -259,38 +526,7 @@ export function compareDesktopAndMobile(
     isImportant: true,
   });
 
-  // E. X-Robots-Tag HTTP Header
-  const dXRobots = desktop.xRobotsTag;
-  const mXRobots = mobile.xRobotsTag;
-  let xRobotsStatus: ParityStatus = 'Match';
-
-  if (dXRobots.index && mXRobots.noindex) {
-    xRobotsStatus = 'Critical';
-    discrepancies.push({
-      id: 'crawling-xrobots-mobile-noindex',
-      category: 'Crawling & Indexing',
-      name: 'Mobile Header Declares X-Robots-Tag: noindex',
-      severity: 'Critical',
-      desktopEvidence: `Desktop header: ${dXRobots.raw || '(None)'}`,
-      mobileEvidence: `Mobile header: ${mXRobots.raw}`,
-      whyItMatters:
-        'The mobile HTTP response sends an X-Robots-Tag with noindex, commanding search engines not to index the page.',
-      recommendation: 'Remove the X-Robots-Tag: noindex header from the mobile response.',
-    });
-  } else if ((dXRobots.raw || '') !== (mXRobots.raw || '')) {
-    xRobotsStatus = 'Difference';
-  }
-
-  comparisonTable.push({
-    category: 'Crawling & Indexing',
-    element: 'X-Robots-Tag Header',
-    desktop: dXRobots.raw || '(None declared)',
-    mobile: mXRobots.raw || '(None declared)',
-    status: xRobotsStatus,
-    details: xRobotsStatus === 'Match' ? 'Both headers match or omitted.' : 'Header values differ.',
-  });
-
-  // F. Canonical Tag
+  // Canonical Tag
   const dCanon = desktop.canonical;
   const mCanon = mobile.canonical;
   let canonStatus: ParityStatus = 'Match';
@@ -304,7 +540,7 @@ export function compareDesktopAndMobile(
       severity: 'Low',
       desktopEvidence: 'No <link rel="canonical"> found',
       mobileEvidence: 'No <link rel="canonical"> found',
-      whyItMatters: 'Search engines must guess the canonical URL, which can lead to duplicate content issues with query parameters or tracking codes.',
+      whyItMatters: 'Search engines must infer the canonical URL, which can lead to duplicate content issues with query parameters or tracking codes.',
       recommendation: 'Add self-referencing canonical tags to both versions.',
     });
   } else if (!dCanon.isMissing && mCanon.isMissing) {
@@ -324,7 +560,6 @@ export function compareDesktopAndMobile(
     canonStatus = 'Warning';
   } else if (dCanon.resolved && mCanon.resolved) {
     if (isSeparateMobileUrl) {
-      // In a separate mobile setup: mobile canonical MUST point to desktop canonical
       const expectedTarget = (dCanon.resolved || desktop.finalUrl).toLowerCase();
       const actualMobileCanon = mCanon.resolved.toLowerCase();
 
@@ -345,7 +580,6 @@ export function compareDesktopAndMobile(
         });
       }
     } else {
-      // In a responsive setup: both should point to the exact same canonical URL
       if (dCanon.resolved.toLowerCase() === mCanon.resolved.toLowerCase()) {
         canonStatus = 'Match';
       } else {
@@ -358,7 +592,7 @@ export function compareDesktopAndMobile(
           desktopEvidence: `Desktop canonical: ${dCanon.resolved}`,
           mobileEvidence: `Mobile canonical: ${mCanon.resolved}`,
           whyItMatters:
-            'Conflicting canonical declarations confuse search crawlers regarding which URL should receive ranking signals and display in search results.',
+            'Conflicting canonical declarations can confuse search crawlers regarding which URL should receive ranking signals and display in search results.',
           recommendation: 'Ensure both desktop and mobile versions declare the exact same canonical URL.',
         });
       }
@@ -380,7 +614,7 @@ export function compareDesktopAndMobile(
     isImportant: true,
   });
 
-  // G. Mobile Alternate Tag
+  // Mobile Alternate Tag
   const dMobileAlt = desktop.mobileAlternate;
   let altStatus: ParityStatus = 'Not Applicable';
 
@@ -418,31 +652,6 @@ export function compareDesktopAndMobile(
       : 'Responsive site — separate mobile alternate not required.',
   });
 
-  // H. Vary: User-Agent Header
-  const dVary = desktop.varyHeader;
-  const mVary = mobile.varyHeader;
-  let varyStatus: ParityStatus = 'Match';
-
-  if (dVary.includesUserAgent && mVary.includesUserAgent) {
-    varyStatus = 'Match';
-  } else if (!finalUrlsMatch && !isSeparateMobileUrl) {
-    // Dynamic serving on same URL usually requires Vary: User-Agent
-    varyStatus = 'Difference';
-  }
-
-  comparisonTable.push({
-    category: 'Crawling & Indexing',
-    element: 'Vary: User-Agent Header',
-    desktop: dVary.raw || '(None)',
-    mobile: mVary.raw || '(None)',
-    status: varyStatus,
-    details: dVary.explanation,
-  });
-
-  // ==========================================
-  // 2. HEADINGS & CONTENT COMPARISON
-  // ==========================================
-
   // Title Tag
   const dTitle = desktop.content.title;
   const mTitle = mobile.content.title;
@@ -470,7 +679,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: "${dTitle}"`,
       mobileEvidence: '(Missing on mobile)',
       whyItMatters:
-        'Under mobile-first indexing, Google indexes the title tag from the mobile version. A missing title tag will degrade your rankings.',
+        'Under mobile-first indexing, search engines index the title tag from the mobile version. A missing title tag on mobile can degrade search rankings and SERP appearance.',
       recommendation: `Add the title tag to the mobile version: <title>${dTitle}</title>`,
     });
   } else if (dTitle !== mTitle) {
@@ -483,7 +692,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: "${dTitle}" (${desktop.content.titleLength} chars)`,
       mobileEvidence: `Mobile: "${mTitle}" (${mobile.content.titleLength} chars)`,
       whyItMatters:
-        'Google will display and rank the mobile title in search results. Ensure the mobile title contains your primary target keywords.',
+        'Google predominantly indexes and displays the mobile title in search results. Ensure the mobile title contains your primary target keywords and branding.',
       recommendation: 'Align the desktop and mobile title tags to ensure consistent keyword optimization.',
     });
   }
@@ -498,7 +707,7 @@ export function compareDesktopAndMobile(
     isImportant: true,
   });
 
-  // Meta Description
+  // Meta Description (Separated from Open Graph Description)
   const dDesc = desktop.content.metaDescription;
   const mDesc = mobile.content.metaDescription;
   let descStatus: ParityStatus = 'Match';
@@ -514,8 +723,8 @@ export function compareDesktopAndMobile(
       severity: 'Medium',
       desktopEvidence: `Desktop: "${dDesc}"`,
       mobileEvidence: '(Missing on mobile)',
-      whyItMatters: 'Google will fall back to extracting page text for search snippets on mobile.',
-      recommendation: 'Include the meta description tag on the mobile version.',
+      whyItMatters: 'Search engines generating snippets for mobile search results may rely on the mobile meta description or fall back to extracting page text.',
+      recommendation: 'Include the standard <meta name="description"> tag on the mobile version.',
     });
   } else if (dDesc !== mDesc) {
     descStatus = 'Difference';
@@ -567,7 +776,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop H1: "${dH1}"`,
       mobileEvidence: '(Missing on mobile)',
       whyItMatters:
-        'Under mobile-first indexing, search engines index heading structure from the mobile page. Missing mobile headings weakens topical relevance.',
+        'Under mobile-first indexing, search engines evaluate heading structure from the mobile page. Omitting mobile headings may weaken topical relevance in mobile search evaluations.',
       recommendation: `Add the primary H1 to the mobile page: <h1>${dH1}</h1>`,
     });
   } else if (dH1 !== mH1) {
@@ -579,7 +788,7 @@ export function compareDesktopAndMobile(
       severity: 'Medium',
       desktopEvidence: `Desktop: "${dH1}"`,
       mobileEvidence: `Mobile: "${mH1}"`,
-      whyItMatters: 'Heading differences can alter how Google evaluates the core subject of the page.',
+      whyItMatters: 'Heading differences can alter how search engines evaluate the core subject of the page.',
       recommendation: 'Align your H1 headings across both versions.',
     });
   }
@@ -613,7 +822,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop word count: ${dWords.toLocaleString()} words`,
       mobileEvidence: `Mobile word count: ${mWords.toLocaleString()} words`,
       whyItMatters:
-        'CRITICAL MOBILE-FIRST PROBLEM: Google does not index content that exists only on your desktop version. Hiding or cutting articles, product descriptions, or explanations on mobile will cause Google to devalue or de-rank your page.',
+        'Under mobile-first indexing, search engines evaluate content from the mobile version. Hiding or cutting articles, product descriptions, or explanations on mobile means search crawlers may not index that content.',
       recommendation:
         'Ensure the primary content, body text, and key explanations are fully present in the mobile HTML payload.',
     });
@@ -627,7 +836,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: ${dWords.toLocaleString()} words`,
       mobileEvidence: `Mobile: ${mWords.toLocaleString()} words`,
       whyItMatters:
-        'Meaningful text differences mean Googlebot Smartphone may evaluate different content and keywords than your desktop visitors experience.',
+        'Meaningful text differences mean mobile search crawlers may evaluate different content and keywords than desktop visitors experience.',
       recommendation: 'Review mobile templates to ensure secondary sections and explanatory content are not stripped.',
     });
   } else if (wordDiffRatio > 0.1) {
@@ -647,9 +856,7 @@ export function compareDesktopAndMobile(
     isImportant: true,
   });
 
-  // ==========================================
-  // 3. LINKS & NAVIGATION COMPARISON
-  // ==========================================
+  // Links & Navigation Comparison
   const dLinks = desktop.links;
   const mLinks = mobile.links;
   let linksStatus: ParityStatus = 'Match';
@@ -667,9 +874,9 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: ${dLinks.uniqueInternalDestinations} unique internal link targets (${dLinks.internalCount} total internal links)`,
       mobileEvidence: `Mobile: ${mLinks.uniqueInternalDestinations} unique internal link targets (${mLinks.internalCount} total internal links)`,
       whyItMatters:
-        'Because Googlebot crawls with a mobile user agent, any internal links omitted from the mobile navigation or footer will stop passing PageRank and will impede crawler discovery across your site.',
+        'Because Googlebot crawls with a mobile user agent, any internal links omitted from the mobile navigation or footer may pass less internal link equity and impede crawler discovery.',
       recommendation:
-        'Ensure key navigational menus, category links, and footer links remain accessible in the mobile DOM (e.g. via accordion or slide-out menu that exists in initial HTML).',
+        'Ensure key navigational menus, category links, and footer links remain accessible in the mobile DOM.',
     });
   } else if (internalDiffRatio > 0.15) {
     linksStatus = 'Difference';
@@ -687,9 +894,7 @@ export function compareDesktopAndMobile(
         : `Difference in unique internal link destinations: Desktop ${dLinks.uniqueInternalDestinations} vs Mobile ${mLinks.uniqueInternalDestinations}`,
   });
 
-  // ==========================================
-  // 4. IMAGES & MEDIA COMPARISON
-  // ==========================================
+  // Images & Media Comparison
   const dImages = desktop.images;
   const mImages = mobile.images;
   let imagesStatus: ParityStatus = 'Match';
@@ -704,7 +909,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: ${dImages.totalCount} images`,
       mobileEvidence: 'Mobile: 0 images found',
       whyItMatters:
-        'Google Image Search indexes image assets from the mobile version of the page. Omitting images on mobile removes them from image search indexing.',
+        'Image search indexes assets evaluated from the mobile version of the page. Omitting images on mobile may remove them from image search indexing.',
       recommendation: 'Ensure key content images are served on mobile, using responsive image techniques.',
     });
   } else if (dImages.withAltCount > 0 && mImages.missingAltCount > dImages.missingAltCount + 3) {
@@ -717,7 +922,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: ${dImages.withAltCount} images with alt text (${dImages.missingAltCount} missing)`,
       mobileEvidence: `Mobile: ${mImages.withAltCount} images with alt text (${mImages.missingAltCount} missing)`,
       whyItMatters:
-        'Alt text provides essential context for Googlebot and screen readers. Omitting alt text on mobile harms accessibility and image SEO.',
+        'Alt text provides essential context for search engines and screen readers. Omitting alt text on mobile harms accessibility and image SEO.',
       recommendation: 'Ensure responsive image tags preserve descriptive alt attributes on mobile.',
     });
   } else if (dImages.totalCount !== mImages.totalCount) {
@@ -736,9 +941,7 @@ export function compareDesktopAndMobile(
         : `Image markup differences detected (Responsive <picture>/srcset tags detected: Desktop ${dImages.responsiveMarkupCount}, Mobile ${mImages.responsiveMarkupCount}).`,
   });
 
-  // ==========================================
-  // 5. STRUCTURED DATA COMPARISON
-  // ==========================================
+  // Structured Data Comparison
   const dSchema = desktop.structuredData;
   const mSchema = mobile.structuredData;
   let schemaStatus: ParityStatus = 'Match';
@@ -755,14 +958,13 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop Schema Types: ${dSchema.types.join(', ')} (${dSchema.entityCount} entities)`,
       mobileEvidence: 'Mobile: (No structured data detected)',
       whyItMatters:
-        'CRITICAL GOOGLE REQUIREMENT: Google extracts schema exclusively from the mobile version under mobile-first indexing. If your mobile page omits JSON-LD, your website will lose rich snippets (stars, FAQs, breadcrumbs, prices) and Knowledge Graph visibility.',
+        'Google extracts schema markup predominantly from the mobile version under mobile-first indexing. If mobile omits JSON-LD, pages may lose rich snippets and Knowledge Graph eligibility.',
       recommendation:
         'Add the exact same JSON-LD structured data markup to the mobile version.',
     });
   } else if (!dSchema.hasStructuredData && mSchema.hasStructuredData) {
     schemaStatus = 'Difference';
   } else {
-    // Both have schema: compare schema types
     const missingOnMobile = dSchema.types.filter((t) => !mSchema.types.includes(t));
     const mobileOnly = mSchema.types.filter((t) => !dSchema.types.includes(t));
 
@@ -776,13 +978,12 @@ export function compareDesktopAndMobile(
         desktopEvidence: `Desktop types: ${dSchema.types.join(', ')}`,
         mobileEvidence: `Mobile types: ${mSchema.types.join(', ')} (Missing: ${missingOnMobile.join(', ')})`,
         whyItMatters:
-          `The schema type(s) [${missingOnMobile.join(', ')}] will not be indexed by Google because they are missing from the mobile payload.`,
+          `The schema type(s) [${missingOnMobile.join(', ')}] may not be evaluated by search engines if omitted from the mobile payload.`,
         recommendation: `Include [${missingOnMobile.join(', ')}] structured data on the mobile version.`,
       });
     } else if (mobileOnly.length > 0) {
       schemaStatus = 'Difference';
     } else {
-      // Types match: compare entity counts and properties
       if (dSchema.entityCount !== mSchema.entityCount) {
         schemaStatus = 'Difference';
         discrepancies.push({
@@ -792,7 +993,7 @@ export function compareDesktopAndMobile(
           severity: 'Medium',
           desktopEvidence: `Desktop: ${dSchema.entityCount} entities across ${dSchema.jsonLdBlocksCount} script blocks`,
           mobileEvidence: `Mobile: ${mSchema.entityCount} entities across ${mSchema.jsonLdBlocksCount} script blocks`,
-          whyItMatters: 'Fewer schema entities on mobile may mean product variants, reviews, or FAQ questions are not being indexed.',
+          whyItMatters: 'Fewer schema entities on mobile may mean product variants, reviews, or FAQ questions are not being evaluated.',
           recommendation: 'Ensure all entities declared on desktop are replicated on mobile.',
         });
       } else {
@@ -814,9 +1015,7 @@ export function compareDesktopAndMobile(
     isImportant: true,
   });
 
-  // ==========================================
-  // 6. HREFLANG COMPARISON
-  // ==========================================
+  // Hreflang Comparison
   const dHreflang = desktop.hreflang;
   const mHreflang = mobile.hreflang;
   let hreflangStatus: ParityStatus = 'Match';
@@ -833,7 +1032,7 @@ export function compareDesktopAndMobile(
       desktopEvidence: `Desktop: ${dHreflang.count} hreflang annotations found`,
       mobileEvidence: 'Mobile: 0 hreflang annotations found',
       whyItMatters:
-        'Under mobile-first indexing, Google processes international targeting signals from the mobile version. If mobile omits hreflang, Google may rank the wrong language/regional URL in international search results.',
+        'Under mobile-first indexing, search engines process international targeting signals from the mobile version. If mobile omits hreflang, international targeting may not be evaluated correctly.',
       recommendation:
         'Include all corresponding hreflang link elements in the mobile page <head> (or HTTP Link headers).',
     });
@@ -867,7 +1066,7 @@ export function compareDesktopAndMobile(
   const lowCount = discrepancies.filter((d) => d.severity === 'Low').length;
   const infoCount = discrepancies.filter((d) => d.severity === 'Informational').length;
 
-  let parityVerdict: MobileFirstAuditSummary['parityVerdict'] = 'Full Parity Passed';
+  let parityVerdict: MobileFirstParityVerdict = 'Full Parity Passed';
   if (criticalCount > 0) {
     parityVerdict = 'Critical Discrepancies Detected';
   } else if (highCount > 0) {
@@ -891,6 +1090,8 @@ export function compareDesktopAndMobile(
     lowCount,
     infoCount,
     textSimilarityPct: Math.round(textSimilarity * 100),
+    desktopEligible: true,
+    mobileEligible: true,
   };
 
   return {

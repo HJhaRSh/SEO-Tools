@@ -17,6 +17,14 @@ export type DiscrepancyCategory =
   | 'Structured Data'
   | 'Hreflang';
 
+export type MobileFirstParityVerdict =
+  | 'Full Parity Passed'
+  | 'Minor Discrepancies Detected'
+  | 'Significant SEO Parity Issues'
+  | 'Critical Discrepancies Detected'
+  | 'Incomplete Audit'
+  | 'Audit Failed';
+
 export interface DiscrepancyFinding {
   id: string;
   category: DiscrepancyCategory;
@@ -164,6 +172,8 @@ export interface ContentInfo {
   titleLength: number;
   metaDescription: string | null;
   metaDescriptionLength: number;
+  ogDescription?: string | null;
+  ogDescriptionLength?: number;
   h1Primary: string | null;
   h1Count: number;
   allH1s: string[];
@@ -185,10 +195,15 @@ export interface AgentCrawlResult {
   contentType: string;
   responseHeaders: Record<string, string>;
   responseSizeBytes: number;
+  downloadedBytes?: number;
+  decodedCharCount?: number;
   durationMs: number;
   isTruncated: boolean;
   fetchError?: string;
-  // Extracted signals
+  // Eligibility:
+  isEligibleForSeoExtraction: boolean;
+  ineligibilityReason?: string;
+  // Extracted signals:
   robotsTxt: RobotsTxtCheckResult;
   metaRobots: MetaRobotsDirectives;
   xRobotsTag: MetaRobotsDirectives;
@@ -208,7 +223,7 @@ export interface MobileFirstAuditSummary {
   desktopStatus: number;
   mobileStatus: number;
   isSeparateMobileUrl: boolean;
-  parityVerdict: 'Full Parity Passed' | 'Minor Discrepancies Detected' | 'Significant SEO Parity Issues' | 'Critical Discrepancies Detected';
+  parityVerdict: MobileFirstParityVerdict;
   hasDifferences: boolean;
   totalDiscrepancies: number;
   criticalCount: number;
@@ -217,11 +232,15 @@ export interface MobileFirstAuditSummary {
   lowCount: number;
   infoCount: number;
   textSimilarityPct: number;
+  desktopEligible?: boolean;
+  mobileEligible?: boolean;
+  verdictExplanation?: string;
 }
 
 export interface MobileFirstAuditResponse {
   success: boolean;
   error?: string;
+  errorCode?: string;
   testedAt: string;
   executionMode: 'Raw HTML Comparison';
   requestedDesktopUrl: string;

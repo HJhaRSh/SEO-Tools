@@ -68,11 +68,16 @@ export function extractSeoSignals(
 
   // 1. Content Extraction
   const titleTag = $('title').first().text().replace(/\s+/g, ' ').trim();
-  const metaDescTag =
-    $('meta[name="description" i]').attr('content') ||
+
+  // Extract standard meta description strictly from <meta name="description">
+  const standardDescAttr = $('meta[name="description" i]').attr('content');
+  const metaDescription = standardDescAttr ? standardDescAttr.replace(/\s+/g, ' ').trim() : null;
+
+  // Extract Open Graph description independently from <meta property="og:description">
+  const ogDescAttr =
     $('meta[property="og:description" i]').attr('content') ||
-    '';
-  const metaDescription = metaDescTag.replace(/\s+/g, ' ').trim();
+    $('meta[name="og:description" i]').attr('content');
+  const ogDescription = ogDescAttr ? ogDescAttr.replace(/\s+/g, ' ').trim() : null;
 
   const h1Elements: string[] = [];
   $('h1').each((_, el) => {
@@ -97,7 +102,9 @@ export function extractSeoSignals(
     title: titleTag || null,
     titleLength: titleTag.length,
     metaDescription: metaDescription || null,
-    metaDescriptionLength: metaDescription.length,
+    metaDescriptionLength: metaDescription ? metaDescription.length : 0,
+    ogDescription: ogDescription || null,
+    ogDescriptionLength: ogDescription ? ogDescription.length : 0,
     h1Primary: h1Elements.length > 0 ? h1Elements[0] : null,
     h1Count: h1Elements.length,
     allH1s: h1Elements,
