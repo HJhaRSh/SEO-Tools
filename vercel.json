@@ -72,6 +72,12 @@
       }
     },
     {
+      "source": "/api/seo/robots/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"

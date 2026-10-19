@@ -42,6 +42,75 @@ export default function RobotsTxtTester() {
     return selectedUserAgent === 'Custom' ? customUserAgent.trim() || 'CustomBot' : selectedUserAgent;
   };
 
+  /**
+   * Safely inspects HTTP response status, Content-Type, and parses JSON.
+   * Gracefully handles HTML/text 500/502/503/504 serverless errors and malformed JSON.
+   */
+  const parseSafeJsonResponse = async <T = any>(
+    res: Response,
+    fallbackErrorMsg: string
+  ): Promise<{ ok: boolean; data?: T; error?: string }> => {
+    const status = res.status;
+    const contentType = res.headers.get('content-type') || '';
+
+    let rawText = '';
+    try {
+      rawText = await res.text();
+    } catch (err: any) {
+      return {
+        ok: false,
+        error: `Unable to read server response (HTTP ${status}): ${err?.message || 'Network stream error'}`
+      };
+    }
+
+    let parsed: any = null;
+    const isLikelyJson =
+      contentType.toLowerCase().includes('application/json') ||
+      rawText.trim().startsWith('{') ||
+      rawText.trim().startsWith('[');
+
+    if (isLikelyJson) {
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        return {
+          ok: false,
+          error: `Server returned an invalid JSON response (HTTP ${status}).`
+        };
+      }
+    }
+
+    if (parsed && typeof parsed === 'object') {
+      if (res.ok && parsed.success !== false) {
+        return { ok: true, data: parsed as T };
+      }
+
+      const errorMsg =
+        parsed.error ||
+        (Array.isArray(parsed.errors) && parsed.errors.length > 0 ? parsed.errors.join(', ') : null) ||
+        parsed.message ||
+        fallbackErrorMsg;
+
+      return { ok: false, data: parsed as T, error: errorMsg };
+    }
+
+    // Non-JSON server error handling (e.g. Vercel 500/502/503/504 HTML error pages)
+    let sanitizedError = `Server responded with HTTP ${status} ${res.statusText || 'Error'}.`;
+    if (status === 504 || status === 408) {
+      sanitizedError = 'The request timed out on the server. Please check the website URL and try again.';
+    } else if (status === 502 || status === 503) {
+      sanitizedError = 'The service is temporarily unavailable. Please try again in a few moments.';
+    } else if (status >= 500) {
+      sanitizedError = 'A server error occurred while evaluating robots.txt. Please verify the target URL.';
+    } else if (status === 404) {
+      sanitizedError = 'The requested endpoint was not found on the server (HTTP 404).';
+    } else if (status === 403) {
+      sanitizedError = 'Access to this URL was blocked by security policies (HTTP 403).';
+    }
+
+    return { ok: false, error: sanitizedError };
+  };
+
   const handleTest = async (overrideMode?: 'live' | 'editor', contentToTest?: string) => {
     if (!websiteUrl.trim()) {
       setErrorMessage('Please enter a valid website URL.');
@@ -75,15 +144,18 @@ export default function RobotsTxtTester() {
         })
       });
 
-      const data = await res.json();
+      const { ok, data, error } = await parseSafeJsonResponse<RobotsTestResult>(
+        res,
+        'Failed to evaluate robots.txt'
+      );
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to evaluate robots.txt');
+      if (!ok || !data || data.success === false) {
+        throw new Error(error || data?.errors?.join(', ') || 'Failed to evaluate robots.txt');
       }
 
       setResultData(data);
       if (currentMode === 'live') {
-        const fetchedContent = data.robotsTxt.content || '';
+        const fetchedContent = data.robotsTxt?.content || '';
         setOriginalLiveContent(fetchedContent);
         setEditorContent(fetchedContent);
       }
@@ -117,9 +189,16 @@ export default function RobotsTxtTester() {
           sitemaps: resultData.sitemaps.map(s => s.url)
         })
       });
-      const data = await res.json();
-      if (data.success) {
+
+      const { ok, data, error } = await parseSafeJsonResponse<{ success: boolean; sitemaps: SitemapCheckResult[] }>(
+        res,
+        'Failed checking sitemaps'
+      );
+
+      if (ok && data?.success && Array.isArray(data.sitemaps)) {
         setSitemapResults(data.sitemaps);
+      } else {
+        console.warn('Sitemap status check returned an error:', error);
       }
     } catch (err) {
       console.error('Error checking sitemaps', err);
@@ -141,11 +220,16 @@ export default function RobotsTxtTester() {
           userAgent: getEffectiveUserAgent()
         })
       });
-      const data = await res.json();
-      if (data.success) {
+
+      const { ok, data, error } = await parseSafeJsonResponse<ResourceCheckResult & { success?: boolean }>(
+        res,
+        'Failed checking page resources'
+      );
+
+      if (ok && data && data.success !== false) {
         setResourceResults(data);
       } else {
-        alert(data.error || 'Failed checking resources');
+        alert(error || 'Failed checking resources');
       }
     } catch (err: any) {
       alert(err.message || 'Network error checking page resources');

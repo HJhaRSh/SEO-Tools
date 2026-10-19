@@ -4,7 +4,7 @@ import fs from 'fs';
 import { AI_BOT_REGISTRY, getAiBotById } from './seo/aiBotRegistry.js';
 import { runAiBotAccessTest } from './seo/aiBotTesterService.js';
 import { testRobotsTxt } from './seo/robotsService.js';
-import { checkPageResources } from './seo/resourceService.js';
+import { checkPageResources, checkSitemaps } from './seo/resourceService.js';
 import { safeFetch } from './seo/safeFetch.js';
 import { testHtaccessRules } from './seo/htaccessService.js';
 import { sanitizeHtaccessSettings } from './seo/htaccessValidation.js';
@@ -86,22 +86,29 @@ app.post('/api/seo/robots/resources', async (req: Request, res: Response) => {
 // POST /api/seo/robots/sitemaps/check
 app.post('/api/seo/robots/sitemaps/check', async (req: Request, res: Response) => {
   try {
-    const { sitemapUrl } = req.body;
-    if (!sitemapUrl) {
-      return res.status(400).json({ success: false, error: 'sitemapUrl is required' });
+    const { sitemaps, sitemapUrl } = req.body;
+
+    if (Array.isArray(sitemaps) && sitemaps.length > 0) {
+      const results = await checkSitemaps(sitemaps);
+      return res.json({ success: true, sitemaps: results });
     }
 
-    const fetchRes = await safeFetch(sitemapUrl, { timeoutMs: 8000, maxBytes: 512 * 1024 });
-    const isXml = fetchRes.contentType.toLowerCase().includes('xml') || fetchRes.body.includes('<?xml');
+    if (sitemapUrl && typeof sitemapUrl === 'string') {
+      const results = await checkSitemaps([sitemapUrl.trim()]);
+      const first = results[0];
+      return res.json({
+        success: true,
+        url: sitemapUrl,
+        statusCode: first?.statusCode ?? 500,
+        statusText: first?.statusText ?? 'Fetch failed',
+        contentType: first?.contentType || 'text/plain',
+        isAccessible: first?.accessible ?? false,
+        isXmlFormat: (first?.contentType || '').toLowerCase().includes('xml'),
+        sitemaps: results
+      });
+    }
 
-    res.json({
-      url: sitemapUrl,
-      statusCode: fetchRes.statusCode,
-      statusText: fetchRes.statusText,
-      contentType: fetchRes.contentType,
-      isAccessible: fetchRes.statusCode >= 200 && fetchRes.statusCode < 300,
-      isXmlFormat: isXml
-    });
+    return res.status(400).json({ success: false, error: 'sitemaps array or sitemapUrl is required' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
   }

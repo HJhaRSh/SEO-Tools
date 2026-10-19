@@ -17,21 +17,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!userAgent || typeof userAgent !== 'string' || !userAgent.trim()) {
-      return NextResponse.json(
-        { success: false, code: 'VALIDATION_ERROR', error: 'A valid userAgent string is required.' },
-        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
-      );
-    }
+    const effectiveUserAgent =
+      typeof userAgent === 'string' && userAgent.trim() ? userAgent.trim() : 'Googlebot';
+
+    const effectiveCustomRobotsTxt =
+      typeof customRobotsTxt === 'string'
+        ? customRobotsTxt
+        : typeof body.customContent === 'string'
+        ? body.customContent
+        : null;
 
     const testPath = typeof path === 'string' ? path : '/';
 
     const result = await testRobotsTxt({
       websiteUrl: websiteUrl.trim(),
       path: testPath,
-      userAgent: userAgent.trim(),
+      userAgent: effectiveUserAgent,
       mode: mode === 'editor' ? 'editor' : 'live',
-      customRobotsTxt: typeof customRobotsTxt === 'string' ? customRobotsTxt : null,
+      customRobotsTxt: effectiveCustomRobotsTxt,
       forceRefresh: Boolean(forceRefresh)
     });
 

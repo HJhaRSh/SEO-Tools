@@ -29,6 +29,10 @@ const nextConfig: NextConfig = {
         destination: '/api/seo/mobile-first-index/:path*'
       },
       {
+        source: '/api/seo/robots/:path*',
+        destination: '/api/seo/robots/:path*'
+      },
+      {
         source: '/api/:path*',
         destination: `${backendTarget.replace(/\/$/, '')}/api/:path*`
       }
