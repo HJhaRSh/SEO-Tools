@@ -168,7 +168,7 @@ function createZipInstance(): any {
 export async function createSitemapsZip(
   files: GeneratedSitemapFile[],
   issues?: SitemapValidationIssue[]
-): Promise<{ filePath: string; byteSize: number }> {
+): Promise<{ filePath: string; byteSize: number; zipBase64?: string }> {
   const tempFileName = `dl_temp_${crypto.randomBytes(16).toString('hex')}.zip`;
   const tempFilePath = path.join(SITEMAP_TEMP_DIR, tempFileName);
 
@@ -183,9 +183,22 @@ export async function createSitemapsZip(
     const output = fs.createWriteStream(tempFilePath, { mode: 0o600 });
 
     output.on('close', () => {
+      const byteSize = archive.pointer();
+      let zipBase64: string | undefined = undefined;
+      // If zip size is under 10MB (safe bound), also provide Base64 for instant stateless download
+      if (byteSize <= 10 * 1024 * 1024 && fs.existsSync(tempFilePath)) {
+        try {
+          const buf = fs.readFileSync(tempFilePath);
+          zipBase64 = buf.toString('base64');
+        } catch {
+          // ignore error
+        }
+      }
+
       resolve({
         filePath: tempFilePath,
-        byteSize: archive.pointer()
+        byteSize,
+        zipBase64
       });
     });
 

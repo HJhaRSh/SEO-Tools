@@ -8,6 +8,7 @@ interface GeneratedFile {
   type: 'urlset' | 'sitemapindex';
   urlCount: number;
   byteSize: number;
+  content?: string;
   downloadId: string;
 }
 
@@ -41,6 +42,9 @@ export default function SitemapGenerator() {
   const [summary, setSummary] = useState<GenerationSummary | null>(null);
   const [files, setFiles] = useState<GeneratedFile[]>([]);
   const [zipDownloadId, setZipDownloadId] = useState<string | null>(null);
+  const [zipBase64, setZipBase64] = useState<string | null>(null);
+  const [reportDownloadId, setReportDownloadId] = useState<string | null>(null);
+  const [reportCsv, setReportCsv] = useState<string | null>(null);
   const [xmlPreview, setXmlPreview] = useState<string>('');
   const [isPreviewTruncated, setIsPreviewTruncated] = useState<boolean>(false);
   const [copiedXml, setCopiedXml] = useState<boolean>(false);
@@ -54,9 +58,75 @@ export default function SitemapGenerator() {
     setSummary(null);
     setFiles([]);
     setZipDownloadId(null);
+    setZipBase64(null);
+    setReportDownloadId(null);
+    setReportCsv(null);
     setXmlPreview('');
     setIsPreviewTruncated(false);
     setCopiedXml(false);
+  };
+
+  /**
+   * Client-side Blob download triggers: guarantees durable downloads across serverless instances
+   */
+  const downloadXmlFile = (file: GeneratedFile) => {
+    if (file.content) {
+      const blob = new Blob([file.content], { type: 'application/xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else if (file.downloadId) {
+      window.location.href = `/api/seo/sitemap/download/${file.downloadId}`;
+    }
+  };
+
+  const downloadZipArchive = () => {
+    if (zipBase64) {
+      try {
+        const binaryString = window.atob(zipBase64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'application/zip' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'sitemaps.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return;
+      } catch {
+        // Fallback to server endpoint if base64 decoding fails
+      }
+    }
+    if (zipDownloadId) {
+      window.location.href = `/api/seo/sitemap/download/${zipDownloadId}`;
+    }
+  };
+
+  const downloadReportCsv = () => {
+    if (reportCsv) {
+      const blob = new Blob([reportCsv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sitemap-validation-report.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else if (reportDownloadId) {
+      window.location.href = `/api/seo/sitemap/download/${reportDownloadId}`;
+    }
   };
 
   /**
@@ -277,6 +347,9 @@ export default function SitemapGenerator() {
       setSummary(genData.summary);
       setFiles(genData.files || []);
       setZipDownloadId(genData.zipDownloadId || null);
+      setZipBase64(genData.zipBase64 || null);
+      setReportDownloadId(genData.reportDownloadId || null);
+      setReportCsv(genData.reportCsv || null);
       setXmlPreview(genData.xmlPreview || '');
       setIsPreviewTruncated(genData.isPreviewTruncated || false);
       setStatus('success');
@@ -333,6 +406,9 @@ export default function SitemapGenerator() {
       setSummary(data.summary);
       setFiles(data.files || []);
       setZipDownloadId(data.zipDownloadId || null);
+      setZipBase64(data.zipBase64 || null);
+      setReportDownloadId(data.reportDownloadId || null);
+      setReportCsv(data.reportCsv || null);
       setXmlPreview(data.xmlPreview || '');
       setIsPreviewTruncated(data.isPreviewTruncated || false);
       setStatus('success');
@@ -485,6 +561,34 @@ export default function SitemapGenerator() {
                 </div>
               )}
             </div>
+
+            {/* Sample Templates Download Links */}
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium">Need a template?</span>
+              <a
+                href="/api/seo/sitemap/templates/simple"
+                download="template-simple-sitemap.csv"
+                className="text-green-600 dark:text-green-400 font-semibold hover:underline"
+              >
+                Simple CSV
+              </a>
+              <span>•</span>
+              <a
+                href="/api/seo/sitemap/templates/hreflang-wide"
+                download="template-hreflang-wide.csv"
+                className="text-green-600 dark:text-green-400 font-semibold hover:underline"
+              >
+                Hreflang (Wide) CSV
+              </a>
+              <span>•</span>
+              <a
+                href="/api/seo/sitemap/templates/hreflang-long"
+                download="template-hreflang-long.csv"
+                className="text-green-600 dark:text-green-400 font-semibold hover:underline"
+              >
+                Hreflang (Long) CSV
+              </a>
+            </div>
           </div>
         )}
 
@@ -570,24 +674,36 @@ export default function SitemapGenerator() {
             {/* Prominent Download Button */}
             <div className="flex flex-wrap items-center gap-4">
               {files.length === 1 && (
-                <a
-                  href={`/api/seo/sitemap/download/${files[0].downloadId}`}
-                  download={files[0].filename}
-                  className="w-full sm:w-auto px-8 py-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-base transition-all shadow-md hover:shadow-green-500/25 flex items-center justify-center gap-3"
+                <button
+                  type="button"
+                  onClick={() => downloadXmlFile(files[0])}
+                  className="w-full sm:w-auto px-8 py-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-base transition-all shadow-md hover:shadow-green-500/25 flex items-center justify-center gap-3 cursor-pointer"
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Download XML Sitemap
-                </a>
+                </button>
               )}
 
-              {files.length > 1 && zipDownloadId && (
-                <a
-                  href={`/api/seo/sitemap/download/${zipDownloadId}`}
-                  className="w-full sm:w-auto px-8 py-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-base transition-all shadow-md hover:shadow-green-500/25 flex items-center justify-center gap-3"
+              {files.length > 1 && (zipBase64 || zipDownloadId) && (
+                <button
+                  type="button"
+                  onClick={downloadZipArchive}
+                  className="w-full sm:w-auto px-8 py-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-base transition-all shadow-md hover:shadow-green-500/25 flex items-center justify-center gap-3 cursor-pointer"
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Download XML Sitemap (ZIP - {files.length} Files)
-                </a>
+                </button>
+              )}
+
+              {(reportCsv || reportDownloadId) && (
+                <button
+                  type="button"
+                  onClick={downloadReportCsv}
+                  className="w-full sm:w-auto px-6 py-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-sm transition-all border border-slate-200 dark:border-slate-600 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                  Download Validation Report (CSV)
+                </button>
               )}
             </div>
 
@@ -599,16 +715,16 @@ export default function SitemapGenerator() {
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {files.map(file => (
-                    <a
+                    <button
+                      type="button"
                       key={file.filename}
-                      href={`/api/seo/sitemap/download/${file.downloadId}`}
-                      download={file.filename}
-                      className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-green-500 text-xs font-mono text-slate-700 dark:text-slate-300 flex items-center gap-2"
+                      onClick={() => downloadXmlFile(file)}
+                      className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-green-500 text-xs font-mono text-slate-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer"
                     >
                       <span className="w-2 h-2 rounded-full bg-green-500"></span>
                       <strong>{file.filename}</strong>
                       <span className="text-slate-400">({file.urlCount} URLs)</span>
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>

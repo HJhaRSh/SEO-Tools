@@ -396,6 +396,20 @@ export function validatePublicSitemapOptions(raw: any): {
   const PROTOCOL_MAX_URLS = 50000;
   const PROTOCOL_MAX_BYTES = 50 * 1024 * 1024; // 50MB
 
+  const parsedMaxUrls = typeof safe.maxUrlsPerSitemap === 'number'
+    ? safe.maxUrlsPerSitemap
+    : parseInt(String(safe.maxUrlsPerSitemap || ''), 10);
+  const maxUrlsPerSitemap = !isNaN(parsedMaxUrls) && parsedMaxUrls > 0
+    ? Math.min(parsedMaxUrls, PROTOCOL_MAX_URLS)
+    : PROTOCOL_MAX_URLS;
+
+  const parsedMaxBytes = typeof safe.maxBytesPerSitemap === 'number'
+    ? safe.maxBytesPerSitemap
+    : parseInt(String(safe.maxBytesPerSitemap || ''), 10);
+  const maxBytesPerSitemap = !isNaN(parsedMaxBytes) && parsedMaxBytes > 0
+    ? Math.min(parsedMaxBytes, PROTOCOL_MAX_BYTES)
+    : PROTOCOL_MAX_BYTES;
+
   return {
     isValid: true,
     options: {
@@ -407,8 +421,8 @@ export function validatePublicSitemapOptions(raw: any): {
       generateIndex,
       publicBaseUrl,
       autoExpandReciprocalHreflang,
-      maxUrlsPerSitemap: PROTOCOL_MAX_URLS,
-      maxBytesPerSitemap: PROTOCOL_MAX_BYTES
+      maxUrlsPerSitemap,
+      maxBytesPerSitemap
     }
   };
 }

@@ -281,8 +281,9 @@ app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
 
     // Only generate separate validation report if issues (errors or warnings) were found
     let reportToken: string | undefined = undefined;
+    let reportCsv: string | undefined = undefined;
     if (allIssues.length > 0) {
-      const reportCsv = generateIssuesCsv(allIssues);
+      reportCsv = generateIssuesCsv(allIssues);
       reportToken = storeDownload('sitemap-validation-report.csv', 'text/csv; charset=utf-8', Buffer.from(reportCsv, 'utf-8'));
     }
 
@@ -294,8 +295,11 @@ app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
         type: f.type,
         urlCount: f.urlCount,
         byteSize: f.byteSize,
+        content: f.byteSize <= 2 * 1024 * 1024 ? f.content : undefined,
         downloadId: f.downloadId
       })),
+      zipBase64: zipPackage.zipBase64,
+      reportCsv,
       zipDownloadId: zipToken,
       reportDownloadId: reportToken,
       xmlPreview: genResult.xmlPreview,
