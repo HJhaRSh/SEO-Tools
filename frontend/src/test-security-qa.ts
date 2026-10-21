@@ -2,9 +2,10 @@ import assert from 'assert';
 import { isPrivateIPv4, isPrivateIPv6, validateSafeUrl, resolveAndVerifyPublicIp } from './lib/seo/hreflang/safeFetch';
 import { validateTargetUrlForBrowser, classifyBrowserRenderError } from './lib/seo/mobile-friendly/browserSecurity';
 import { redactSensitiveDetails, classifyAndSanitizeError } from './lib/seo/errorSanitizer';
+import { isPrivateOrReservedIP } from './lib/seo/ssrf';
 
 // Import core services for each of the 14 tools to verify functional integrity
-import { sanitizeBulkUrls } from './lib/seo/aiBotTesterService';
+import { sanitizeBulkUrls, selectUniqueAiBots } from './lib/seo/aiBotTesterService';
 import { AI_BOT_REGISTRY } from './lib/seo/aiBotRegistry';
 import { parseHtmlHreflang } from './lib/seo/hreflang/parseHtml';
 import { validateHreflangCode } from './lib/seo/hreflang/validateLocale';
@@ -80,6 +81,14 @@ async function runSecurityAndQASuite() {
   test('Hreflang safeFetch: Allows public IPv4 (8.8.8.8, 1.1.1.1)', () => {
     assert.strictEqual(isPrivateIPv4('8.8.8.8'), false);
     assert.strictEqual(isPrivateIPv4('1.1.1.1'), false);
+  });
+
+  test('Core SSRF: IPv4-mapped IPv6 hex forms are blocked (::ffff:7f00:1, ::ffff:a9fe:a9fe, ::ffff:c0a8:0101)', () => {
+    assert.strictEqual(isPrivateOrReservedIP('::ffff:7f00:1'), true, '::ffff:7f00:1 must be blocked');
+    assert.strictEqual(isPrivateOrReservedIP('0:0:0:0:0:ffff:7f00:1'), true, '0:0:0:0:0:ffff:7f00:1 must be blocked');
+    assert.strictEqual(isPrivateOrReservedIP('::ffff:a9fe:a9fe'), true, '::ffff:a9fe:a9fe (169.254.169.254) must be blocked');
+    assert.strictEqual(isPrivateOrReservedIP('::ffff:c0a8:0101'), true, '::ffff:c0a8:0101 (192.168.1.1) must be blocked');
+    assert.strictEqual(isPrivateOrReservedIP('::ffff:0808:0808'), false, '::ffff:0808:0808 (8.8.8.8) must be allowed');
   });
 
   await test('Hreflang safeFetch: validateSafeUrl rejects localhost and metadata hostname', async () => {
@@ -246,6 +255,21 @@ async function runSecurityAndQASuite() {
     assert(AI_BOT_REGISTRY.length >= 10, 'Must have at least 10 registered AI bots');
     const { validUrls } = sanitizeBulkUrls(['https://example.com/p1', 'https://example.com/p1', 'http://example.com/p2']);
     assert.strictEqual(validUrls.length, 2, 'Should deduplicate bulk URLs');
+  });
+
+  test('Tool 1 (AI Bot Access Tester): Deduplicates bot IDs, preserves first-occurrence order, and ignores unknown IDs', () => {
+    const botIds = [
+      'gptbot',
+      'gptbot',
+      'claudebot',
+      'gptbot',
+      'claudebot',
+      'unknown-bot-id-12345'
+    ];
+    const selected = selectUniqueAiBots(botIds);
+    assert.strictEqual(selected.length, 2, 'Should deduplicate to exactly 2 selected bots');
+    assert.strictEqual(selected[0].id, 'gptbot', 'First bot must be gptbot (preserving first-occurrence order)');
+    assert.strictEqual(selected[1].id, 'claudebot', 'Second bot must be claudebot');
   });
 
   // Tool 2: Fetch & Render

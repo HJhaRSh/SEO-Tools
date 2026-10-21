@@ -318,6 +318,20 @@ export function analyzePageContent(
 }
 
 /**
+ * Deduplicates bot IDs (preserving first-occurrence order) and maps them to registered AI bot definitions.
+ * Ignores non-string entries and unknown bot IDs.
+ */
+export function selectUniqueAiBots(botIds: string[]): AiBotDefinition[] {
+  const uniqueBotIds = [...new Set((botIds || []).filter(id => typeof id === 'string'))];
+  const selectedBots: AiBotDefinition[] = [];
+  for (const id of uniqueBotIds) {
+    const found = getAiBotById(id);
+    if (found) selectedBots.push(found);
+  }
+  return selectedBots;
+}
+
+/**
  * Runs the comprehensive 3-Layer Access Evaluation for a batch of URLs against selected AI Bots
  */
 export async function runAiBotAccessTest(
@@ -329,11 +343,8 @@ export async function runAiBotAccessTest(
     throw new Error('No valid URLs provided for testing.');
   }
 
-  const selectedBots: AiBotDefinition[] = [];
-  for (const id of request.botIds) {
-    const found = getAiBotById(id);
-    if (found) selectedBots.push(found);
-  }
+  // Deduplicate bot IDs (preserve first-occurrence order) to avoid multiplying the task matrix
+  const selectedBots = selectUniqueAiBots(request.botIds);
 
   if (selectedBots.length === 0) {
     throw new Error('Please select at least one AI bot to test.');
@@ -354,8 +365,6 @@ export async function runAiBotAccessTest(
     urlsByOrigin.set(origin, list);
   }
 
-  // Cache parsed robots.txt per origin to eliminate redundant network roundtrips
-  const robotsCacheByOrigin = new Map<string, any>();
 
   async function getRobotsTest(origin: string, testPath: string, token: string) {
     if (!checkRobots) {

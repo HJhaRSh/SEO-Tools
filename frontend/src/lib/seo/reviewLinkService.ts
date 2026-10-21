@@ -50,7 +50,24 @@ export function buildPlaceIdReviewUrl(placeId: string): string {
 }
 
 /**
- * Validate if a string is a plausible Google Review URL
+ * Returns true if the hostname is exactly google.com or a proper subdomain of google.com.
+ * Prevents evilgoogle.com / fakegoogle.com from matching.
+ */
+function isStrictGoogleHost(host: string): boolean {
+  return host === 'google.com' || host.endsWith('.google.com');
+}
+
+/**
+ * Validate if a string is a plausible Google Review URL.
+ *
+ * Accepted Google-hosted forms (strict hostname check):
+ *   - search.google.com/local/writereview?...
+ *   - www.google.com/maps/...  (place / writereview paths)
+ *   - maps.google.com/maps/...
+ *
+ * Accepted short-link hosts:
+ *   - g.page
+ *   - maps.app.goo.gl
  */
 export function isValidGoogleReviewUrl(url: unknown): boolean {
   if (typeof url !== 'string') return false;
@@ -58,12 +75,24 @@ export function isValidGoogleReviewUrl(url: unknown): boolean {
   try {
     const parsed = new URL(trimmed);
     const host = parsed.hostname.toLowerCase();
-    return (
-      (host.endsWith('google.com') && (parsed.pathname.includes('writereview') || parsed.pathname.includes('/maps'))) ||
-      host === 'g.page' ||
-      host === 'maps.app.goo.gl' ||
-      host.endsWith('.google.com')
-    );
+    const path = parsed.pathname;
+
+    // Short-link hosts — accepted as-is (no path check needed)
+    if (host === 'g.page' || host === 'maps.app.goo.gl') return true;
+
+    // Google-hosted — require strict hostname and a review/maps path
+    if (isStrictGoogleHost(host)) {
+      if (
+        path.includes('writereview') ||
+        path.includes('/maps/place') ||
+        path.includes('/maps/search') ||
+        path.includes('/local/')
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   } catch {
     return false;
   }
@@ -178,7 +207,7 @@ export function executeGenerateLink(
       businessName,
       location: location || undefined,
       reviewUrl: reviewSearchUrl,
-      source: 'BUSINESS_NAME_SEARCH' as any,
+      source: 'BUSINESS_NAME_SEARCH',
       warning: 'Generated via Business Name & Location search link. For direct 5-star popup modal, you can optionally provide the Google Place ID.'
     };
   }

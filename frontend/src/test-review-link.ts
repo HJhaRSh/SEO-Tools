@@ -75,6 +75,12 @@ async function runTests() {
   const pastedSearch = `https://search.google.com/local/writereview?placeid=${validId}`;
   assert(isValidGoogleReviewUrl(pastedSearch) === true, 'Validates search.google.com review link format');
   assert(isValidGoogleReviewUrl('https://malicious-site.com/fake') === false, 'Rejects non-Google domain review URL');
+  // Strict hostname validation — must reject domain names that merely end with 'google.com' as a substring
+  assert(isValidGoogleReviewUrl('https://evilgoogle.com/maps/place/test') === false, 'Rejects evilgoogle.com spoofing google.com');
+  assert(isValidGoogleReviewUrl('https://fakegoogle.com/local/writereview') === false, 'Rejects fakegoogle.com spoofing google.com');
+  // Google subdomains without a review/maps path must also be rejected
+  assert(isValidGoogleReviewUrl('https://accounts.google.com/') === false, 'Rejects accounts.google.com (no review path)');
+  assert(isValidGoogleReviewUrl('https://mail.google.com/') === false, 'Rejects mail.google.com (no review path)');
 
   const extracted = extractPlaceIdFromUrl(pastedSearch);
   assert(extracted === validId, `Extracts Place ID from URL query parameters (got ${extracted})`);

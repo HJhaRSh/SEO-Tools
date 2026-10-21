@@ -31,7 +31,9 @@ async function asyncPool<T, R>(
     if (limit <= items.length) {
       const e: Promise<void> = p.then(() => {
         executing.splice(executing.indexOf(e), 1);
-      });
+      }).catch(() => {
+        executing.splice(executing.indexOf(e), 1);
+      }) as Promise<void>;
       executing.push(e);
       if (executing.length >= limit) {
         await Promise.race(executing);

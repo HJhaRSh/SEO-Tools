@@ -14,6 +14,13 @@ assert.strictEqual(isPrivateOrReservedIP('8.8.8.8'), false, '8.8.8.8 should NOT 
 assert.strictEqual(isBlockedHostname('localhost'), true, 'localhost should be blocked');
 assert.strictEqual(isBlockedHostname('metadata.google.internal'), true, 'metadata.google.internal should be blocked');
 assert.strictEqual(isBlockedHostname('google.com'), false, 'google.com should not be blocked');
+// IPv4-mapped IPv6 regression — dotted and hex forms
+assert.strictEqual(isPrivateOrReservedIP('::ffff:127.0.0.1'), true, '::ffff:127.0.0.1 loopback must be blocked');
+assert.strictEqual(isPrivateOrReservedIP('::ffff:7f00:1'), true, '::ffff:7f00:1 loopback hex must be blocked');
+assert.strictEqual(isPrivateOrReservedIP('0:0:0:0:0:ffff:7f00:1'), true, '0:0:0:0:0:ffff:7f00:1 must be blocked');
+assert.strictEqual(isPrivateOrReservedIP('::ffff:a9fe:a9fe'), true, '::ffff:a9fe:a9fe (169.254.169.254) must be blocked');
+assert.strictEqual(isPrivateOrReservedIP('::ffff:c0a8:0101'), true, '::ffff:c0a8:0101 (192.168.1.1) must be blocked');
+assert.strictEqual(isPrivateOrReservedIP('::ffff:0808:0808'), false, '::ffff:0808:0808 (8.8.8.8) must be allowed');
 console.log('   ✓ SSRF tests passed.');
 
 // 2. Parser & Group Matching Tests

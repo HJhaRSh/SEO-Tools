@@ -65,7 +65,8 @@ async function validateDestination(hostname: string, portStr?: string, allowLoca
  * and workers) is validated before TCP connection establishment.
  */
 export async function startSsrfGuardProxy(options?: { allowLocalhostForTesting?: boolean }): Promise<SsrfGuardProxyInstance> {
-  const allowLocalhost = options?.allowLocalhostForTesting ?? false;
+  // Effective allowLocalhost: requires both the option AND a non-production environment
+  const allowLocalhost = (options?.allowLocalhostForTesting ?? false) && process.env.NODE_ENV !== 'production';
   const server = http.createServer(async (req, res) => {
     try {
       if (!req.url) {
@@ -129,18 +130,45 @@ export async function startSsrfGuardProxy(options?: { allowLocalhostForTesting?:
   // Handle HTTPS CONNECT tunneling (used by Chromium for https:// requests)
   server.on('connect', async (req, clientSocket, head) => {
     try {
-      const [hostname, portStr] = (req.url || '').split(':');
+      const authority = req.url || '';
+      let hostname: string;
+      let portNum: number;
+
+      if (authority.startsWith('[')) {
+        // Bracketed IPv6: [2001:db8::1]:443
+        const closingBracket = authority.indexOf(']');
+        if (closingBracket === -1) {
+          clientSocket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+          clientSocket.destroy();
+          return;
+        }
+        hostname = authority.slice(1, closingBracket);
+        const afterBracket = authority.slice(closingBracket + 1);
+        portNum = afterBracket.startsWith(':') ? parseInt(afterBracket.slice(1), 10) : 443;
+      } else {
+        // Normal hostname or IPv4: example.com:443 or 1.2.3.4:443
+        const lastColon = authority.lastIndexOf(':');
+        if (lastColon === -1) {
+          hostname = authority;
+          portNum = 443;
+        } else {
+          hostname = authority.slice(0, lastColon);
+          portNum = parseInt(authority.slice(lastColon + 1), 10);
+        }
+      }
+
       if (!hostname) {
         clientSocket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
         clientSocket.destroy();
         return;
       }
 
-      const port = portStr ? parseInt(portStr, 10) : 443;
-      const validatedIp = await validateDestination(hostname, String(port), allowLocalhost);
+      if (isNaN(portNum) || portNum <= 0) portNum = 443;
+
+      const validatedIp = await validateDestination(hostname, String(portNum), allowLocalhost);
 
       // Connect to the pre-validated public IP address
-      const targetSocket = net.connect(port, validatedIp, () => {
+      const targetSocket = net.connect(portNum, validatedIp, () => {
         clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
         if (head && head.length > 0) {
           targetSocket.write(head);

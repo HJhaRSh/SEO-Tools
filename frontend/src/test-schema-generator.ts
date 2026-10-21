@@ -138,4 +138,22 @@ assert(importRes.success === true, 'Import should succeed');
 assert(importRes.detectedType === 'Organization', 'Import should detect Organization');
 assert(importRes.parsedData?.name === 'Acme Corp', 'Import should extract Acme Corp');
 
+// 9. Test @type array (valid JSON-LD edge case)
+console.log('Testing JSON-LD @type array import...');
+const arrayTypeScript = `{
+  "@context": "https://schema.org",
+  "@type": ["Article", "NewsArticle"],
+  "headline": "Test article"
+}`;
+const arrayImportRes = importExistingJsonLd(arrayTypeScript);
+assert(arrayImportRes.success === true, '@type array import should succeed');
+assert(
+  arrayImportRes.detectedType === 'Article' || arrayImportRes.detectedType === 'NewsArticle',
+  `@type array import should detect a supported article type (got ${arrayImportRes.detectedType})`
+);
+assert(
+  typeof arrayImportRes.parsedData?.headline === 'string' && (arrayImportRes.parsedData.headline as string).length > 0,
+  '@type array import should extract the headline'
+);
+
 console.log('ALL UNIT & LOGIC TESTS PASSED SUCCESSFULLY! ✓');

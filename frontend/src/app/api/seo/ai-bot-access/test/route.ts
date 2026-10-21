@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runAiBotAccessTest } from '@/lib/seo/aiBotTesterService';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,13 +31,14 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(testResponse, { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const sanitized = classifyAndSanitizeError(err);
     return NextResponse.json(
       {
         success: false,
-        error: err.message || 'Failed to process AI Bot Access test.'
+        error: sanitized.message
       },
-      { status: 400 }
+      { status: sanitized.status === 500 ? 400 : sanitized.status }
     );
   }
 }

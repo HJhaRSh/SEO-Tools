@@ -43,15 +43,28 @@ export function importExistingJsonLd(input: string): ImportResult {
     entity = parsed['@graph'][0] as Record<string, unknown>;
   }
 
-  const rawType = (entity['@type'] as string) || '';
-  if (!rawType) {
+  // Normalize @type to an array of strings (valid JSON-LD allows both string and string[])
+  const rawTypeField = entity['@type'];
+  let typeArray: string[];
+  if (Array.isArray(rawTypeField)) {
+    typeArray = rawTypeField.filter((t): t is string => typeof t === 'string');
+  } else if (typeof rawTypeField === 'string' && rawTypeField) {
+    typeArray = [rawTypeField];
+  } else {
     return {
       success: false,
       error: 'No "@type" property found in the imported JSON-LD object.',
     };
   }
 
-  // Normalize type
+  if (typeArray.length === 0) {
+    return {
+      success: false,
+      error: 'No "@type" property found in the imported JSON-LD object.',
+    };
+  }
+
+  // Normalize type — try each value in order
   let detectedType: SupportedSchemaType | undefined;
   const validTypes: SupportedSchemaType[] = [
     'Article',
@@ -77,18 +90,28 @@ export function importExistingJsonLd(input: string): ImportResult {
     'Service',
   ];
 
-  if (validTypes.includes(rawType as SupportedSchemaType)) {
-    detectedType = rawType as SupportedSchemaType;
-  } else if (rawType.toLowerCase().includes('restaurant')) {
-    detectedType = 'Restaurant';
-  } else if (rawType.toLowerCase().includes('article')) {
-    detectedType = 'Article';
-  } else if (rawType.toLowerCase().includes('business') || rawType.toLowerCase().includes('store')) {
-    detectedType = 'LocalBusiness';
-  } else {
+  // First pass: exact match in order of array
+  for (const rawType of typeArray) {
+    if (validTypes.includes(rawType as SupportedSchemaType)) {
+      detectedType = rawType as SupportedSchemaType;
+      break;
+    }
+  }
+
+  // Second pass: fallback substring match in order of array
+  if (!detectedType) {
+    for (const rawType of typeArray) {
+      const lower = rawType.toLowerCase();
+      if (lower.includes('restaurant')) { detectedType = 'Restaurant'; break; }
+      if (lower.includes('article')) { detectedType = 'Article'; break; }
+      if (lower.includes('business') || lower.includes('store')) { detectedType = 'LocalBusiness'; break; }
+    }
+  }
+
+  if (!detectedType) {
     return {
       success: false,
-      error: `Unsupported or unknown schema @type "${rawType}". Supported types include: ${validTypes.join(', ')}`,
+      error: `Unsupported or unknown schema @type "${typeArray.join(', ')}". Supported types include: ${validTypes.join(', ')}`,
     };
   }
 
