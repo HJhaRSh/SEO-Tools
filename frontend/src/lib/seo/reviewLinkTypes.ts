@@ -3,13 +3,6 @@
  * Tool 6: Google Review Link Generator
  */
 
-export interface GenerateLinkRequest {
-  placeId?: string;
-  reviewUrl?: string;
-  businessName?: string;
-  location?: string;
-}
-
 export interface GenerateLinkResponse {
   success: boolean;
   placeId?: string;
@@ -47,10 +40,6 @@ export interface BulkProcessedRow {
   status: BulkRowStatus;
   statusNote?: string;
   source?: 'PASTED_REVIEW_URL' | 'PLACE_ID_SYNTACTIC' | 'NONE';
-}
-
-export interface BulkBatchRequest {
-  rows: BulkInputRow[];
 }
 
 export interface BulkBatchResponse {

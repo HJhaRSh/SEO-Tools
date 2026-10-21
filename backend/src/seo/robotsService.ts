@@ -1,5 +1,5 @@
 import { safeFetch } from './safeFetch';
-import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability, ParsedRobotsTxt, MatchResult } from './robotsParser';
+import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability, ParsedRobotsTxt } from './robotsParser';
 import { findUserAgent, UserAgentDefinition } from './userAgents';
 
 export interface RobotsTxtCacheEntry {

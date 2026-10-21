@@ -2,7 +2,6 @@ import crypto from 'crypto';
 import {
   FetchRenderRequestOptions,
   FetchRenderCompleteResult,
-  FetchRenderMode,
   InitialFetchResult,
   ExtractedSeoSignals,
   DiagnosticItem

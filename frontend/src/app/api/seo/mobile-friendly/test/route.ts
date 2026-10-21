@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseAndValidateBulkUrls } from '@/lib/seo/mobile-friendly/urlValidator';
-import { auditSingleUrl } from '@/lib/seo/mobile-friendly/auditService';
+import { auditSingleUrl, launchMobileAuditBrowser } from '@/lib/seo/mobile-friendly/auditService';
+import { startSsrfGuardProxy, type SsrfGuardProxyInstance } from '@/lib/seo/secureBrowserProxy';
 import {
   SingleUrlMobileAuditResult,
   MobileAuditApiResponse,
@@ -128,98 +129,132 @@ export async function POST(req: NextRequest) {
       return { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred while auditing this webpage.' };
     }
 
-    // Execute audit across requested URLs with bounded concurrency
-    const results: SingleUrlMobileAuditResult[] = await asyncPool(
-      targetUrls,
-      CONCURRENT_REQUESTS,
-      async (targetUrl): Promise<SingleUrlMobileAuditResult> => {
+    let proxyInstance: SsrfGuardProxyInstance | null = null;
+    let browser: import('playwright-core').Browser | null = null;
+
+    let results: SingleUrlMobileAuditResult[];
+    try {
+      if (!process.env.FORCE_STATIC_AUDIT) {
         try {
-          return await auditSingleUrl({
-            url: targetUrl,
-            viewportPresetId: presetId,
+          const isLocalDevelopment = process.env.NODE_ENV !== 'production';
+          proxyInstance = await startSsrfGuardProxy({
+            allowLocalhostForTesting: Boolean(body.allowLocalhostForTesting && isLocalDevelopment),
           });
-        } catch (err: any) {
-          const categorized = categorizeError(err);
-          const defaultVp = MOBILE_VIEWPORT_PRESETS[presetId] || DEFAULT_VIEWPORT_PRESET;
-          return {
-            url: targetUrl,
-            finalUrl: targetUrl,
-            durationMs: 0,
-            testedAt: new Date().toISOString(),
-            isCompleted: false,
-            overallStatus: 'ERROR',
-            overallSummary: categorized.message,
-            executionMode: 'static-dom-heuristics',
-            assessmentLabel: 'Static HTML Assessment — Browser rendering not performed',
-            errorCode: categorized.code,
-            viewport: {
-              width: defaultVp.width,
-              height: defaultVp.height,
-              deviceScaleFactor: defaultVp.deviceScaleFactor,
-            },
-            viewportDeclaration: {
-              present: false,
-              rawContent: null,
-              hasDeviceWidth: false,
-              hasInitialScale: false,
-              userScalableNo: false,
-              maximumScaleRestricted: false,
-            },
-            tests: {
-              configureViewport: {
-                status: 'NOT_TESTED',
-                summary: 'Evaluation aborted due to network or access failure.',
-                issues: [],
-              },
-              fixedWidthViewport: {
-                status: 'NOT_TESTED',
-                summary: 'Evaluation aborted due to network or access failure.',
-                issues: [],
-              },
-              sizeContentToViewport: {
-                status: 'NOT_TESTED',
-                summary: 'Evaluation aborted due to network or access failure.',
-                issues: [],
-              },
-              legibleFontSizes: {
-                status: 'NOT_TESTED',
-                summary: 'Evaluation aborted due to network or access failure.',
-                issues: [],
-              },
-              tapTargets: {
-                status: 'NOT_TESTED',
-                summary: 'Evaluation aborted due to network or access failure.',
-                issues: [],
-              },
-              incompatiblePlugins: {
-                status: 'NOT_TESTED',
-                summary: 'Evaluation aborted due to network or access failure.',
-                issues: [],
-              },
-            },
-            screenshot: {
-              available: false,
-              errorMessage: 'Screenshots require a successful webpage response.',
-              format: 'png',
-              width: defaultVp.width,
-              height: defaultVp.height,
-            },
-            issues: [
-              {
-                category: 'NETWORK',
-                title: 'Page Access Failed',
-                severity: 'CRITICAL',
-                description: categorized.message,
-                evidence: `Target: ${targetUrl}`,
-                recommendedAction: 'Verify that the server is online and accessible without blocking automated audits.',
-              },
-            ],
-            metrics: {},
-            errorMessage: categorized.message,
-          };
+          browser = await launchMobileAuditBrowser();
+        } catch {
+          if (proxyInstance) {
+            await proxyInstance.close().catch(() => {});
+            proxyInstance = null;
+          }
+          browser = null;
         }
       }
-    );
+
+      // Execute audit across requested URLs with bounded concurrency (reusing browser & proxy across batch)
+      results = await asyncPool(
+        targetUrls,
+        CONCURRENT_REQUESTS,
+        async (targetUrl): Promise<SingleUrlMobileAuditResult> => {
+          try {
+            return await auditSingleUrl({
+              url: targetUrl,
+              viewportPresetId: presetId,
+              allowLocalhostForTesting: body.allowLocalhostForTesting,
+              browser: browser ?? undefined,
+              proxyUrl: proxyInstance?.proxyUrl,
+            });
+          } catch (err: unknown) {
+            const categorized = categorizeError(err);
+            const defaultVp = MOBILE_VIEWPORT_PRESETS[presetId] || DEFAULT_VIEWPORT_PRESET;
+            return {
+              url: targetUrl,
+              finalUrl: targetUrl,
+              durationMs: 0,
+              testedAt: new Date().toISOString(),
+              isCompleted: false,
+              overallStatus: 'ERROR',
+              overallSummary: categorized.message,
+              executionMode: 'static-dom-heuristics',
+              assessmentLabel: 'Static HTML Assessment — Browser rendering not performed',
+              errorCode: categorized.code,
+              viewport: {
+                width: defaultVp.width,
+                height: defaultVp.height,
+                deviceScaleFactor: defaultVp.deviceScaleFactor,
+              },
+              viewportDeclaration: {
+                present: false,
+                rawContent: null,
+                hasDeviceWidth: false,
+                hasInitialScale: false,
+                userScalableNo: false,
+                maximumScaleRestricted: false,
+              },
+              tests: {
+                configureViewport: {
+                  status: 'NOT_TESTED',
+                  summary: 'Evaluation aborted due to network or access failure.',
+                  issues: [],
+                },
+                fixedWidthViewport: {
+                  status: 'NOT_TESTED',
+                  summary: 'Evaluation aborted due to network or access failure.',
+                  issues: [],
+                },
+                sizeContentToViewport: {
+                  status: 'NOT_TESTED',
+                  summary: 'Evaluation aborted due to network or access failure.',
+                  issues: [],
+                },
+                legibleFontSizes: {
+                  status: 'NOT_TESTED',
+                  summary: 'Evaluation aborted due to network or access failure.',
+                  issues: [],
+                },
+                tapTargets: {
+                  status: 'NOT_TESTED',
+                  summary: 'Evaluation aborted due to network or access failure.',
+                  issues: [],
+                },
+                incompatiblePlugins: {
+                  status: 'NOT_TESTED',
+                  summary: 'Evaluation aborted due to network or access failure.',
+                  issues: [],
+                },
+              },
+              screenshot: {
+                available: false,
+                errorMessage: 'Screenshots require a successful webpage response.',
+                format: 'png',
+                width: defaultVp.width,
+                height: defaultVp.height,
+              },
+              issues: [
+                {
+                  category: 'NETWORK',
+                  title: 'Page Access Failed',
+                  severity: 'CRITICAL',
+                  description: categorized.message,
+                  evidence: `Target: ${targetUrl}`,
+                  recommendedAction: 'Verify that the server is online and accessible without blocking automated audits.',
+                },
+              ],
+              metrics: {},
+              errorMessage: categorized.message,
+            };
+          }
+        }
+      );
+    } finally {
+      if (browser) {
+        await browser.close().catch(() => {});
+        browser = null;
+      }
+      if (proxyInstance) {
+        await proxyInstance.close().catch(() => {});
+        proxyInstance = null;
+      }
+    }
 
     const summary = {
       totalTested: results.length,

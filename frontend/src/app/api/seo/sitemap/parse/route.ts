@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseCsvContent, parseXlsxContent } from '@/lib/seo/sitemap/sitemapParser';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,9 +37,10 @@ export async function POST(req: NextRequest) {
       );
     }
   } catch (err: any) {
+    const sanitized = classifyAndSanitizeError(err, 'Failed to parse spreadsheet file.');
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to parse spreadsheet file.' },
-      { status: 500, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      { success: false, error: sanitized.message },
+      { status: sanitized.status, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }
 }

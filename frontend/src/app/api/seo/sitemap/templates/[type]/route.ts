@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SAMPLE_TEMPLATES } from '@/lib/seo/sitemap/sitemapExport';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,9 +30,10 @@ export async function GET(
       }
     });
   } catch (err: any) {
+    const sanitized = classifyAndSanitizeError(err, 'Error serving template.');
     return NextResponse.json(
-      { success: false, error: err?.message || 'Error serving template.' },
-      { status: 500 }
+      { success: false, error: sanitized.message },
+      { status: sanitized.status }
     );
   }
 }

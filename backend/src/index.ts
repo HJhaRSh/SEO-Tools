@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import fs from 'fs';
-import { AI_BOT_REGISTRY, getAiBotById } from './seo/aiBotRegistry.js';
+import { AI_BOT_REGISTRY } from './seo/aiBotRegistry.js';
 import { runAiBotAccessTest } from './seo/aiBotTesterService.js';
 import { testRobotsTxt } from './seo/robotsService.js';
 import { checkPageResources, checkSitemaps } from './seo/resourceService.js';
@@ -10,6 +10,7 @@ import { testHtaccessRules } from './seo/htaccessService.js';
 import { sanitizeHtaccessSettings } from './seo/htaccessValidation.js';
 import { HTACCESS_EXAMPLES } from './seo/htaccessExamples.js';
 import { isBrowserRenderAvailable, isVercelEnvironment } from './seo/browserRenderProvider.js';
+import { classifyAndSanitizeError, redactSensitiveDetails } from './seo/errorSanitizer.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -64,7 +65,8 @@ app.post('/api/seo/robots/test', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    const sanitized = classifyAndSanitizeError(err, 'Internal Server Error');
+    res.status(sanitized.status).json({ success: false, error: sanitized.message });
   }
 });
 
@@ -79,7 +81,8 @@ app.post('/api/seo/robots/resources', async (req: Request, res: Response) => {
     const result = await checkPageResources(pageUrl, userAgent || 'Googlebot');
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    const sanitized = classifyAndSanitizeError(err, 'Internal Server Error');
+    res.status(sanitized.status).json({ success: false, error: sanitized.message });
   }
 });
 
@@ -110,7 +113,8 @@ app.post('/api/seo/robots/sitemaps/check', async (req: Request, res: Response) =
 
     return res.status(400).json({ success: false, error: 'sitemaps array or sitemapUrl is required' });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    const sanitized = classifyAndSanitizeError(err, 'Internal Server Error');
+    res.status(sanitized.status).json({ success: false, error: sanitized.message });
   }
 });
 
@@ -151,7 +155,8 @@ app.post('/api/seo/ai-bot-access/test', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed testing AI bot access.' });
+    const sanitized = classifyAndSanitizeError(err, 'Failed testing AI bot access.');
+    res.status(sanitized.status).json({ success: false, error: sanitized.message });
   }
 });
 
@@ -189,16 +194,17 @@ app.post('/api/seo/htaccess/test', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Internal Server Error evaluating .htaccess' });
+    const sanitized = classifyAndSanitizeError(err, 'Internal Server Error evaluating .htaccess');
+    res.status(sanitized.status).json({ success: false, error: sanitized.message });
   }
 });
 
 // ==========================================
 // TOOL 4: XML SITEMAP GENERATOR ENDPOINTS
 // ==========================================
-import { parseCsvContent, parseXlsxContent, extractUrlEntriesFromRows } from './seo/sitemapParser.js';
+import { parseCsvContent, parseXlsxContent, extractUrlEntriesFromRows, MAX_ALLOWED_ROWS } from './seo/sitemapParser.js';
 import { generateSitemapXml } from './seo/sitemapGenerator.js';
-import { validatePublicSitemapOptions } from './seo/sitemapValidation.js';
+import { validatePublicSitemapOptions, validateSitemapInputLimit } from './seo/sitemapValidation.js';
 import { storeDownload, getDownload, createSitemapsZip, generateIssuesCsv, SAMPLE_TEMPLATES } from './seo/sitemapExport.js';
 
 // GET /api/seo/sitemap/templates/:type
@@ -235,7 +241,8 @@ app.post('/api/seo/sitemap/parse', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: `Unsupported format: ${format}. Use 'csv' or 'xlsx'.` });
     }
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to parse spreadsheet file.' });
+    const sanitized = classifyAndSanitizeError(err, 'Failed to parse spreadsheet file.');
+    res.status(sanitized.status).json({ success: false, error: sanitized.message });
   }
 });
 
@@ -250,18 +257,25 @@ app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: validatedOpts.error || 'Invalid generation options.' });
     }
 
+    const limitCheck = validateSitemapInputLimit({ manualUrls, rows });
+    if (!limitCheck.isValid) {
+      return res.status(400).json({ success: false, error: limitCheck.error });
+    }
+
     let entries: any[] = [];
 
     if (manualUrls && typeof manualUrls === 'string') {
       // Manual URL entry
       const lines = manualUrls.split(/\r?\n/).map((l: string) => l.trim()).filter((l: string) => Boolean(l));
       entries = lines.map((url: string) => ({ loc: url }));
-    } else if (Array.isArray(rows) && mapping && formatType) {
-      // Spreadsheet rows mapped
-      entries = extractUrlEntriesFromRows(rows, mapping, formatType);
     } else if (Array.isArray(rows)) {
-      // Direct raw entry objects
-      entries = rows;
+      if (mapping && formatType) {
+        // Spreadsheet rows mapped
+        entries = extractUrlEntriesFromRows(rows, mapping, formatType);
+      } else {
+        // Direct raw entry objects
+        entries = rows;
+      }
     } else {
       return res.status(400).json({ success: false, error: 'Please provide either manualUrls, mapped spreadsheet rows, or URL entry objects.' });
     }
@@ -308,7 +322,8 @@ app.post('/api/seo/sitemap/generate', async (req: Request, res: Response) => {
       errors: genResult.errors
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to generate XML sitemap.' });
+    const sanitized = classifyAndSanitizeError(err, 'Failed to generate XML sitemap.');
+    res.status(sanitized.status).json({ success: false, error: sanitized.message });
   }
 });
 
@@ -371,7 +386,7 @@ app.post('/api/seo/fetch-render/test', async (req: Request, res: Response) => {
 
     let status = 400;
     let code = err.code || 'FETCH_RENDER_ERROR';
-    const message = err.message || 'Fetch & Render test failed.';
+    const message = redactSensitiveDetails(err.message || 'Fetch & Render test failed.');
 
     if (err.code === 'BROWSER_RENDER_UNAVAILABLE' || (typeof err.statusCode === 'number' && err.statusCode === 503)) {
       status = 503;
@@ -522,7 +537,7 @@ app.post('/api/seo/mobile-friendly/render', async (req: Request, res: Response) 
       }
     });
   } catch (err: any) {
-    const message = err.message || 'Mobile rendering failed.';
+    const message = redactSensitiveDetails(err.message || 'Mobile rendering failed.');
     let status = 400;
     let code = 'RENDER_FAILED';
 
@@ -556,15 +571,16 @@ app.all('/api/*', (req: Request, res: Response) => {
 // Centralized Express error handler returning structured JSON (preventing raw HTML 500 pages)
 app.use((err: any, _req: Request, res: Response, _next: any) => {
   console.error('[Backend Unhandled Error]', err);
+  const sanitized = classifyAndSanitizeError(err, 'An unexpected internal server error occurred.');
   const statusCode =
     typeof err?.status === 'number'
       ? err.status
       : typeof err?.statusCode === 'number'
       ? err.statusCode
-      : 500;
+      : sanitized.status;
   res.status(statusCode).json({
     success: false,
-    error: err?.message || 'An unexpected internal server error occurred.'
+    error: sanitized.message
   });
 });
 

@@ -3,6 +3,7 @@ import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
 import { parseSitemapXml } from '@/lib/seo/hreflang/parseSitemap';
 import { validateHreflangCluster } from '@/lib/seo/hreflang/analyzeHreflang';
 import { HreflangSummary, HreflangSitemapRequest, HreflangTestUrlResponse, HreflangValidationItem, HreflangAnnotation } from '@/lib/seo/hreflang/types';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -78,10 +79,11 @@ export async function POST(req: NextRequest) {
           sitemapIssues = sitemapIssues.concat(childParsed.issues);
           totalParsedUrls += childParsed.totalUrls;
         } catch (err: any) {
+          const sanitizedChildErr = classifyAndSanitizeError(err, 'Failed to fetch child sitemap.');
           sitemapIssues.push({
             code: 'CHILD_SITEMAP_FETCH_ERROR',
             severity: 'warning',
-            message: `Could not fetch child sitemap "${childUrl}": ${err.message}`,
+            message: `Could not fetch child sitemap "${childUrl}": ${sanitizedChildErr.message}`,
             sourceUrl: childUrl,
           });
         }
@@ -300,13 +302,14 @@ export async function POST(req: NextRequest) {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
     });
   } catch (err: any) {
+    const sanitized = classifyAndSanitizeError(err, 'An error occurred while inspecting the sitemap.');
     return NextResponse.json(
       {
         success: false,
-        error: err.message || 'An error occurred while inspecting the sitemap.',
+        error: sanitized.message,
       },
       {
-        status: 400,
+        status: sanitized.status,
         headers: { 'Cache-Control': 'no-store, max-age=0' },
       }
     );

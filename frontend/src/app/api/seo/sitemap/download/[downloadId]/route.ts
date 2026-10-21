@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDownload } from '@/lib/seo/sitemap/sitemapExport';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 import * as fs from 'fs';
+import { Readable } from 'stream';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,28 +27,36 @@ export async function GET(
       );
     }
 
-    let bodyBuffer: Buffer | null = null;
     if (pkg.filePath) {
-      if (fs.existsSync(pkg.filePath)) {
-        bodyBuffer = fs.readFileSync(pkg.filePath);
+      if (!fs.existsSync(pkg.filePath)) {
+        return new NextResponse('No file payload found for this download.', { status: 404 });
       }
-    } else if (pkg.buffer) {
-      bodyBuffer = pkg.buffer;
+      const nodeStream = fs.createReadStream(pkg.filePath);
+      const webStream = Readable.toWeb(nodeStream);
+      return new NextResponse(webStream as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          'Content-Type': pkg.mimeType,
+          'Content-Disposition': `attachment; filename="${pkg.filename}"`,
+          'Cache-Control': 'no-store, max-age=0'
+        }
+      });
     }
 
-    if (!bodyBuffer) {
-      return new NextResponse('No file payload found for this download.', { status: 404 });
+    if (pkg.buffer) {
+      return new NextResponse(new Uint8Array(pkg.buffer), {
+        status: 200,
+        headers: {
+          'Content-Type': pkg.mimeType,
+          'Content-Disposition': `attachment; filename="${pkg.filename}"`,
+          'Cache-Control': 'no-store, max-age=0'
+        }
+      });
     }
 
-    return new NextResponse(new Uint8Array(bodyBuffer), {
-      status: 200,
-      headers: {
-        'Content-Type': pkg.mimeType,
-        'Content-Disposition': `attachment; filename="${pkg.filename}"`,
-        'Cache-Control': 'no-store, max-age=0'
-      }
-    });
+    return new NextResponse('No file payload found for this download.', { status: 404 });
   } catch (err: any) {
-    return new NextResponse(err?.message || 'Error serving download file.', { status: 500 });
+    const sanitized = classifyAndSanitizeError(err, 'Error serving download file.');
+    return new NextResponse(sanitized.message, { status: sanitized.status });
   }
 }

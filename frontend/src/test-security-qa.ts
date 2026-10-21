@@ -1,14 +1,19 @@
 import assert from 'assert';
+import http from 'http';
+import net from 'net';
 import { isPrivateIPv4, isPrivateIPv6, validateSafeUrl, resolveAndVerifyPublicIp } from './lib/seo/hreflang/safeFetch';
 import { validateTargetUrlForBrowser, classifyBrowserRenderError } from './lib/seo/mobile-friendly/browserSecurity';
 import { redactSensitiveDetails, classifyAndSanitizeError } from './lib/seo/errorSanitizer';
 import { isPrivateOrReservedIP } from './lib/seo/ssrf';
+import { startSsrfGuardProxy, validateDestination } from './lib/seo/secureBrowserProxy';
+import { auditBulkUrls, runBrowserAudit } from './lib/seo/mobile-friendly/auditService';
 
 // Import core services for each of the 14 tools to verify functional integrity
-import { sanitizeBulkUrls, selectUniqueAiBots } from './lib/seo/aiBotTesterService';
-import { AI_BOT_REGISTRY } from './lib/seo/aiBotRegistry';
+import { sanitizeBulkUrls, selectUniqueAiBots, analyzePageContent } from './lib/seo/aiBotTesterService';
+import { AI_BOT_REGISTRY, getAiBotById } from './lib/seo/aiBotRegistry';
 import { parseHtmlHreflang } from './lib/seo/hreflang/parseHtml';
 import { validateHreflangCode } from './lib/seo/hreflang/validateLocale';
+import { parseLinkHeaders } from './lib/seo/hreflang/parseHeaders';
 import { testHtaccessRules } from './lib/seo/htaccessService';
 import { validateSearchRequest } from './lib/seo/knowledge-graph/validation';
 import { buildGoogleSearchUrl, encodeUule } from './lib/seo/localSearchService';
@@ -171,6 +176,419 @@ async function runSecurityAndQASuite() {
     assert.strictEqual(res.status, 503);
   });
 
+  console.log('\n2b. Mobile-Friendly Secure Browser Proxy & DNS Rebinding Hardening (Phase 3A):');
+
+  await test('Secure Proxy: Public destinations remain allowed', async () => {
+    const pubV4 = await validateDestination('93.184.216.34', '80');
+    assert.strictEqual(pubV4, '93.184.216.34');
+
+    const pubV6 = await validateDestination('2606:4700:4700::1111', '443');
+    assert.strictEqual(pubV6, '2606:4700:4700::1111');
+
+    const mockPublicLookup = async () => [{ address: '93.184.216.34', family: 4 }];
+    const resolvedPub = await validateDestination('public.example.test', '80', false, mockPublicLookup);
+    assert.strictEqual(resolvedPub, '93.184.216.34');
+  });
+
+  await test('Secure Proxy: Blocks private IPv4 addresses (127.0.0.1, 10.0.0.1, 192.168.1.1, 169.254.169.254)', async () => {
+    const privateIps = ['127.0.0.1', '10.0.0.1', '192.168.1.1', '169.254.169.254'];
+    for (const ip of privateIps) {
+      await assert.rejects(async () => {
+        await validateDestination(ip, '80');
+      }, /private or reserved|blocked/i);
+    }
+  });
+
+  await test('Secure Proxy: Blocks private and reserved IPv6 destinations', async () => {
+    const privateV6 = ['::1', 'fe80::1', 'fc00::1', '[::1]', '[fe80::1]'];
+    for (const ip of privateV6) {
+      await assert.rejects(async () => {
+        await validateDestination(ip, '443');
+      }, /private or reserved|blocked/i);
+    }
+  });
+
+  await test('Secure Proxy: Blocks IPv4-mapped private IPv6 addresses', async () => {
+    const mappedIps = [
+      '::ffff:127.0.0.1',
+      '::ffff:7f00:1',
+      '::ffff:a9fe:a9fe',
+      '[::ffff:127.0.0.1]',
+      '[::ffff:7f00:1]',
+      '[::ffff:a9fe:a9fe]',
+    ];
+    for (const ip of mappedIps) {
+      await assert.rejects(async () => {
+        await validateDestination(ip, '80');
+      }, /private or reserved|blocked/i);
+    }
+  });
+
+  await test('Secure Proxy: Enforces 403 Forbidden for TCP CONNECT tunneling to private destinations', async () => {
+    const proxy = await startSsrfGuardProxy();
+    try {
+      const helperConnect = (target: string): Promise<number> => {
+        return new Promise((resolve, reject) => {
+          const client = net.connect(proxy.port, '127.0.0.1', () => {
+            client.write(`CONNECT ${target} HTTP/1.1\r\nHost: ${target}\r\n\r\n`);
+          });
+          let data = '';
+          client.on('data', (chunk) => {
+            data += chunk.toString();
+            const match = data.match(/HTTP\/1\.[01]\s+(\d+)/);
+            if (match) {
+              client.destroy();
+              resolve(parseInt(match[1], 10));
+            }
+          });
+          client.on('error', reject);
+          client.on('end', () => {
+            const match = data.match(/HTTP\/1\.[01]\s+(\d+)/);
+            resolve(match ? parseInt(match[1], 10) : 0);
+          });
+        });
+      };
+
+      const statusV4Loopback = await helperConnect('127.0.0.1:80');
+      assert.strictEqual(statusV4Loopback, 403);
+
+      const statusV4Meta = await helperConnect('169.254.169.254:80');
+      assert.strictEqual(statusV4Meta, 403);
+
+      const statusV6Loopback = await helperConnect('[::1]:443');
+      assert.strictEqual(statusV6Loopback, 403);
+
+      const statusV4Mapped = await helperConnect('::ffff:127.0.0.1:443');
+      assert.strictEqual(statusV4Mapped, 403);
+    } finally {
+      await proxy.close();
+    }
+  });
+
+  await test('Secure Proxy & Audit: Redirect protection blocks safe URL redirecting to private destinations', async () => {
+    // 1. Stand up deterministic mock redirect server
+    let redirectServerPort = 0;
+    const redirectServer = http.createServer((req, res) => {
+      if (req.url === '/redirect-to-meta') {
+        res.writeHead(302, { Location: 'http://169.254.169.254/latest/meta-data/' });
+        res.end();
+      } else if (req.url === '/redirect-to-loopback') {
+        res.writeHead(302, { Location: 'http://127.0.0.1:8080/admin' });
+        res.end();
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Safe Landing');
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      redirectServer.listen(0, '127.0.0.1', () => {
+        redirectServerPort = (redirectServer.address() as net.AddressInfo).port;
+        resolve();
+      });
+    });
+
+    const proxy = await startSsrfGuardProxy({ allowLocalhostForTesting: true });
+
+    try {
+      // Direct request to initial URL succeeds through proxy
+      const initialRes: { statusCode?: number; headers: http.IncomingHttpHeaders } = await new Promise((resolve, reject) => {
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port: proxy.port,
+            method: 'GET',
+            path: `http://127.0.0.1:${redirectServerPort}/redirect-to-meta`,
+            headers: { Host: `127.0.0.1:${redirectServerPort}` },
+          },
+          (res) => {
+            resolve({ statusCode: res.statusCode, headers: res.headers });
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+
+      assert.strictEqual(initialRes.statusCode, 302);
+      const redirectTarget = String(initialRes.headers.location || '');
+      assert.strictEqual(redirectTarget, 'http://169.254.169.254/latest/meta-data/');
+
+      // Secondary request following redirect through proxy is BLOCKED with 403
+      const redirectFollowRes: { statusCode?: number; body: string } = await new Promise((resolve, reject) => {
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port: proxy.port,
+            method: 'GET',
+            path: redirectTarget,
+            headers: { Host: '169.254.169.254' },
+          },
+          (res) => {
+            let body = '';
+            res.on('data', (chunk) => { body += chunk; });
+            res.on('end', () => resolve({ statusCode: res.statusCode, body }));
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+
+      assert.strictEqual(redirectFollowRes.statusCode, 403);
+      assert.match(redirectFollowRes.body, /SSRF Blocked/);
+
+      // Verify that browser navigation pre/post check independently blocks redirect target
+      await assert.rejects(async () => {
+        await validateTargetUrlForBrowser(redirectTarget);
+      }, (err: unknown) => typeof err === 'object' && err !== null && (err as { code?: string }).code === 'BLOCKED_DESTINATION');
+
+      await assert.rejects(async () => {
+        await validateTargetUrlForBrowser('http://127.0.0.1:8080/admin');
+      }, (err: unknown) => typeof err === 'object' && err !== null && (err as { code?: string }).code === 'BLOCKED_DESTINATION');
+    } finally {
+      await proxy.close();
+      await new Promise<void>((resolve) => redirectServer.close(() => resolve()));
+    }
+  });
+
+  await test('Secure Proxy & DNS Rebinding Simulation: Re-evaluates DNS at connection time and rejects rebinding', async () => {
+    let resolutionCount = 0;
+    const rebindingLookupFn = async () => {
+      resolutionCount++;
+      if (resolutionCount === 1) {
+        // Initial resolution returns public IP
+        return [{ address: '93.184.216.34', family: 4 }];
+      } else {
+        // Subsequent resolution rebinds to internal private IP
+        return [{ address: '127.0.0.1', family: 4 }];
+      }
+    };
+
+    // 1. Direct validation check: first resolution passes, second is rejected
+    const ip1 = await validateDestination('rebind.victim.test', '80', false, rebindingLookupFn);
+    assert.strictEqual(ip1, '93.184.216.34');
+
+    await assert.rejects(async () => {
+      await validateDestination('rebind.victim.test', '80', false, rebindingLookupFn);
+    }, /private\/reserved IP 127\.0\.0\.1/);
+
+    // 2. Proxy connection check: verify proxy dynamically evaluates destination and blocks connection
+    let proxyLookupCount = 0;
+    const proxyLookupFn = async () => {
+      proxyLookupCount++;
+      if (proxyLookupCount === 1) {
+        return [{ address: '93.184.216.34', family: 4 }];
+      } else {
+        return [{ address: '10.0.0.1', family: 4 }];
+      }
+    };
+
+    const proxy = await startSsrfGuardProxy({ lookupFn: proxyLookupFn });
+    try {
+      // First connection validates 93.184.216.34
+      const firstIp = await validateDestination('rebinding-host.test', '80', false, proxyLookupFn);
+      assert.strictEqual(firstIp, '93.184.216.34');
+
+      // Second connection attempt through proxy: dynamically resolves to 10.0.0.1 and returns 403 Forbidden
+      const res: { statusCode?: number; body: string } = await new Promise((resolve, reject) => {
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port: proxy.port,
+            method: 'GET',
+            path: 'http://rebinding-host.test/',
+            headers: { Host: 'rebinding-host.test' },
+          },
+          (response) => {
+            let body = '';
+            response.on('data', (c) => { body += c; });
+            response.on('end', () => resolve({ statusCode: response.statusCode, body }));
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+
+      assert.strictEqual(res.statusCode, 403);
+      assert.match(res.body, /resolves to private\/reserved IP 10\.0\.0\.1/);
+    } finally {
+      await proxy.close();
+    }
+  });
+
+  console.log('\n2c. Mobile-Friendly Batch Chromium Reuse & Context Isolation (Phase 3B):');
+
+  function createDeterministicMockChromium() {
+    let launchCount = 0;
+    let browserCloseCount = 0;
+    const contextsCreated: Array<{
+      id: number;
+      isClosed: boolean;
+      options: unknown;
+      close: () => Promise<void>;
+      newPage: () => Promise<unknown>;
+      route: () => Promise<void>;
+      addInitScript: () => Promise<void>;
+    }> = [];
+
+    const mockBrowser = {
+      isConnected: () => browserCloseCount === 0,
+      close: async () => {
+        browserCloseCount++;
+      },
+      newContext: async (contextOptions: unknown) => {
+        const contextId = contextsCreated.length + 1;
+        const mockPage = {
+          setDefaultNavigationTimeout: () => {},
+          setDefaultTimeout: () => {},
+          goto: async (targetUrl: string) => {
+            if (targetUrl.includes('simulate-timeout')) {
+              throw new Error('Navigation failed: net::ERR_CONNECTION_TIMED_OUT');
+            }
+            return {
+              status: () => 200,
+              statusText: () => 'OK',
+              url: () => targetUrl,
+            };
+          },
+          waitForTimeout: async () => {},
+          evaluate: async () => ({
+            hasViewportMeta: true,
+            viewportContent: 'width=device-width, initial-scale=1',
+            contentWidth: 390,
+            windowInnerWidth: 390,
+            tapTargetsTotal: 5,
+            tapTargetsSmall: 0,
+            fontSizesUnder12pxCount: 0,
+            hasLegacyPlugins: false,
+          }),
+          screenshot: async () => Buffer.from('mock-png'),
+        };
+
+        const ctx = {
+          id: contextId,
+          isClosed: false,
+          options: contextOptions,
+          newPage: async () => mockPage,
+          route: async () => {},
+          addInitScript: async () => {},
+          close: async () => {
+            ctx.isClosed = true;
+          },
+        };
+
+        contextsCreated.push(ctx);
+        return ctx as unknown as import('playwright-core').BrowserContext;
+      },
+    };
+
+    const mockLauncher = async () => {
+      launchCount++;
+      return mockBrowser as unknown as import('playwright-core').Browser;
+    };
+
+    return {
+      getLaunchCount: () => launchCount,
+      getBrowserCloseCount: () => browserCloseCount,
+      getContextsCreated: () => contextsCreated,
+      mockLauncher,
+      mockBrowser: mockBrowser as unknown as import('playwright-core').Browser,
+    };
+  }
+
+  await test('Chromium Reuse: Launches Chromium exactly once for a batch of 3 URLs', async () => {
+    const mock = createDeterministicMockChromium();
+    const urls = ['https://example.com/p1', 'https://example.com/p2', 'https://example.com/p3'];
+
+    const results = await auditBulkUrls({
+      urls,
+      launcher: mock.mockLauncher,
+      allowLocalhostForTesting: false,
+    });
+
+    assert.strictEqual(results.length, 3, 'Must return 3 results');
+    assert.strictEqual(mock.getLaunchCount(), 1, 'Chromium launcher must be called exactly 1 time across batch');
+    assert.strictEqual(mock.getContextsCreated().length, 3, 'Must create 3 distinct contexts');
+  });
+
+  await test('Context Isolation: Preserves independent BrowserContext per URL', async () => {
+    const mock = createDeterministicMockChromium();
+    const urls = ['https://example.com/alpha', 'https://example.com/beta', 'https://example.com/gamma'];
+
+    await auditBulkUrls({
+      urls,
+      launcher: mock.mockLauncher,
+    });
+
+    const contexts = mock.getContextsCreated();
+    assert.strictEqual(contexts.length, 3);
+    assert.notStrictEqual(contexts[0], contexts[1], 'Context 1 and Context 2 must be different instances');
+    assert.notStrictEqual(contexts[1], contexts[2], 'Context 2 and Context 3 must be different instances');
+    assert.strictEqual(contexts[0].id, 1);
+    assert.strictEqual(contexts[1].id, 2);
+    assert.strictEqual(contexts[2].id, 3);
+  });
+
+  await test('Context Cleanup: Closes each BrowserContext after URL completion', async () => {
+    const mock = createDeterministicMockChromium();
+    const urls = ['https://example.com/page-a', 'https://example.com/page-b'];
+
+    await auditBulkUrls({
+      urls,
+      launcher: mock.mockLauncher,
+    });
+
+    const contexts = mock.getContextsCreated();
+    assert.strictEqual(contexts.length, 2);
+    assert.strictEqual(contexts[0].isClosed, true, 'Context for page-a must be closed');
+    assert.strictEqual(contexts[1].isClosed, true, 'Context for page-b must be closed');
+  });
+
+  await test('Browser Cleanup: Closes shared Chromium instance exactly once after batch completion', async () => {
+    const mock = createDeterministicMockChromium();
+    const urls = ['https://example.com/u1', 'https://example.com/u2', 'https://example.com/u3'];
+
+    await auditBulkUrls({
+      urls,
+      launcher: mock.mockLauncher,
+    });
+
+    assert.strictEqual(mock.getBrowserCloseCount(), 1, 'Browser must be closed exactly once when batch completes');
+  });
+
+  await test('Failure Isolation: Failed URL cleans up its context and allows remaining URLs to proceed', async () => {
+    const mock = createDeterministicMockChromium();
+    const urls = [
+      'https://example.com/healthy-1',
+      'https://example.com/simulate-timeout',
+      'https://example.com/healthy-2',
+    ];
+
+    const results = await auditBulkUrls({
+      urls,
+      launcher: mock.mockLauncher,
+    });
+
+    assert.strictEqual(results.length, 3, 'Must return results for all 3 URLs');
+    const contexts = mock.getContextsCreated();
+    assert.strictEqual(contexts.length, 3, 'Must have attempted context for each URL');
+    assert.strictEqual(contexts[1].isClosed, true, 'Failed URL context must be closed');
+    assert.strictEqual(contexts[0].isClosed, true, 'Healthy URL 1 context must be closed');
+    assert.strictEqual(contexts[2].isClosed, true, 'Healthy URL 2 context must be closed');
+    assert.strictEqual(mock.getBrowserCloseCount(), 1, 'Browser must remain open until all URLs finish, then close once');
+  });
+
+  await test('Single-URL Compatibility: runBrowserAudit works standalone and with provided browser', async () => {
+    const mock = createDeterministicMockChromium();
+
+    // With provided browser: does not close the shared browser
+    const res1 = await runBrowserAudit('https://example.com/single-shared', {
+      browser: mock.mockBrowser,
+    });
+    assert.strictEqual(res1.statusCode, 200);
+    assert.strictEqual(mock.getBrowserCloseCount(), 0, 'Shared browser must NOT be closed by runBrowserAudit');
+    assert.strictEqual(mock.getContextsCreated()[0].isClosed, true, 'URL context must be closed');
+  });
+
   console.log('\n3. Error Sanitization & Diagnostics Protection:');
 
   test('Sanitizer: redactSensitiveDetails scrubs URLs with embedded credentials', () => {
@@ -239,6 +657,61 @@ async function runSecurityAndQASuite() {
     assert.strictEqual(res.message, 'Please provide a valid website URL to test.');
   });
 
+  test('Sanitizer: redactSensitiveDetails scrubs specific sensitive paths and IPs', () => {
+    const rawWin = 'Failed to load file at C:\\Users\\secret\\project\\config.json';
+    const rawUnix = 'Cannot access /etc/passwd directly';
+    const rawLocalIp = 'Connection to 127.0.0.1 refused';
+    const rawMetaIp = 'Request to 169.254.169.254 timed out';
+
+    assert.strictEqual(redactSensitiveDetails(rawWin).includes('C:\\Users\\secret\\project'), false);
+    assert.strictEqual(redactSensitiveDetails(rawWin).includes('[REDACTED_PATH]'), true);
+    assert.strictEqual(redactSensitiveDetails(rawUnix).includes('/etc/passwd'), false);
+    assert.strictEqual(redactSensitiveDetails(rawUnix).includes('[REDACTED_PATH]'), true);
+    assert.strictEqual(redactSensitiveDetails(rawLocalIp).includes('127.0.0.1'), false);
+    assert.strictEqual(redactSensitiveDetails(rawLocalIp).includes('[INTERNAL_IP]'), true);
+    assert.strictEqual(redactSensitiveDetails(rawMetaIp).includes('169.254.169.254'), false);
+    assert.strictEqual(redactSensitiveDetails(rawMetaIp).includes('[INTERNAL_IP]'), true);
+  });
+
+  test('Sanitizer: classifyAndSanitizeError never exposes raw sensitive paths, IPs, or stacks', () => {
+    const errWin = new Error('ENOENT: no such file, open C:\\Users\\secret\\project\\secret.key');
+    const resWin = classifyAndSanitizeError(errWin);
+    assert.strictEqual(resWin.status, 500);
+    assert.strictEqual(resWin.message.includes('C:\\Users\\secret\\project'), false);
+    assert.strictEqual(resWin.message.includes('secret.key'), false);
+
+    const errUnix = new Error('Permission denied: /etc/passwd at FileSystem.read (/usr/app/node_modules/fs:10:2)');
+    const resUnix = classifyAndSanitizeError(errUnix);
+    assert.strictEqual(resUnix.status, 500);
+    assert.strictEqual(resUnix.message.includes('/etc/passwd'), false);
+    assert.strictEqual(resUnix.message.includes('/usr/app'), false);
+
+    const errLocal = new Error('connect ECONNREFUSED 127.0.0.1:5000');
+    const resLocal = classifyAndSanitizeError(errLocal);
+    assert.strictEqual(resLocal.message.includes('127.0.0.1'), false);
+
+    const errMeta = new Error('connect ETIMEDOUT 169.254.169.254:80');
+    const resMeta = classifyAndSanitizeError(errMeta);
+    assert.strictEqual(resMeta.message.includes('169.254.169.254'), false);
+  });
+
+  test('Sanitizer: classifyAndSanitizeError preserves user-facing validation messages with 400', () => {
+    const v1 = classifyAndSanitizeError(new Error('Invalid URL'));
+    assert.strictEqual(v1.status, 400);
+
+    const v2 = classifyAndSanitizeError(new Error('Maximum URL limit exceeded'));
+    assert.strictEqual(v2.status, 400);
+    assert.strictEqual(v2.message, 'Maximum URL limit exceeded');
+
+    const v3 = classifyAndSanitizeError(new Error('Unsupported file type'));
+    assert.strictEqual(v3.status, 400);
+    assert.strictEqual(v3.message, 'Unsupported file type');
+
+    const v4 = classifyAndSanitizeError(new Error('Missing required field: websiteUrl'));
+    assert.strictEqual(v4.status, 400);
+    assert.strictEqual(v4.message, 'Missing required field: websiteUrl');
+  });
+
   test('Sanitizer: classifyAndSanitizeError masks unhandled internal errors as 500 without leaking stack', () => {
     const err = new Error('Uncaught TypeError: Cannot read property of undefined at Object.run (/app/internal/code.ts:42:15)');
     const res = classifyAndSanitizeError(err);
@@ -272,6 +745,57 @@ async function runSecurityAndQASuite() {
     assert.strictEqual(selected[1].id, 'claudebot', 'Second bot must be claudebot');
   });
 
+  test('Tool 1 (AI Bot Access Tester): Enforces 100 URL maximum limit', () => {
+    const raw = Array.from({ length: 110 }, (_, i) => `https://example.com/page-${i}`);
+    const { validUrls, errors } = sanitizeBulkUrls(raw);
+    assert.strictEqual(validUrls.length, 100);
+    assert.strictEqual(errors.length, 1);
+    assert.match(errors[0], /Maximum 100 URLs/);
+  });
+
+  test('Tool 1 (AI Bot Access Tester): Registry integrity verifies 35 bot definitions and representative IDs', () => {
+    assert.strictEqual(AI_BOT_REGISTRY.length, 35);
+    assert.ok(getAiBotById('gptbot'));
+    assert.ok(getAiBotById('claudebot'));
+    assert.ok(getAiBotById('oai-searchbot'));
+    assert.ok(getAiBotById('perplexitybot'));
+    assert.ok(getAiBotById('bytespider'));
+    assert.ok(getAiBotById('omgili'));
+    assert.ok(getAiBotById('semrushbot-ocob'));
+  });
+
+  test('Tool 1 (AI Bot Access Tester): Policy-only bots have HTTP testing disabled', () => {
+    const gExt = getAiBotById('google-extended');
+    assert.strictEqual(gExt?.isPolicyOnlyToken, true);
+    assert.strictEqual(gExt?.isHttpTestable, false);
+
+    const aExt = getAiBotById('applebot-extended');
+    assert.strictEqual(aExt?.isPolicyOnlyToken, true);
+    assert.strictEqual(aExt?.isHttpTestable, false);
+
+    const wExt = getAiBotById('webzio-extended');
+    assert.strictEqual(wExt?.isPolicyOnlyToken, true);
+    assert.strictEqual(wExt?.isHttpTestable, false);
+  });
+
+  test('Tool 1 (AI Bot Access Tester): Content analysis distinguishes challenges, normal HTML, and 403 access denial', () => {
+    // Challenge detection
+    const challengeHtml = '<html><head><title>Just a moment...</title></head><body>Please verify you are a human before accessing. Turnstile challenge.</body></html>';
+    const resChallenge = analyzePageContent(200, 'text/html', challengeHtml);
+    assert.strictEqual(resChallenge.status, 'POSSIBLE_CHALLENGE');
+    assert.strictEqual(resChallenge.challengeDetected, true);
+
+    // Normal HTML
+    const normalHtml = '<html><head><title>SEO Articles</title></head><body><h1>Welcome to Indian Marketers SEO Suite</h1><p>Comprehensive tools.</p></body></html>';
+    const resNormal = analyzePageContent(200, 'text/html', normalHtml);
+    assert.strictEqual(resNormal.status, 'CONTENT_RETRIEVED');
+    assert.strictEqual(resNormal.title, 'SEO Articles');
+
+    // HTTP 403 Access Denied
+    const res403 = analyzePageContent(403, 'text/html', 'Forbidden');
+    assert.strictEqual(res403.status, 'ACCESS_DENIED');
+  });
+
   // Tool 2: Fetch & Render
   test('Tool 2 (Fetch & Render): Normalizes path and respects robots directives', () => {
     const parsed = parseRobotsTxt('User-agent: *\nDisallow: /admin/\nAllow: /admin/help');
@@ -287,6 +811,32 @@ async function runSecurityAndQASuite() {
     assert.strictEqual(parsed.annotations.length, 2);
     const validCode = validateHreflangCode('en-US');
     assert.strictEqual(validCode.isValid, true);
+  });
+
+  test('Tool 3 (Hreflang Tester): Validates UK region, x-default, script codes, delimiter, and parses HTTP Link headers', () => {
+    // Invalid UK region
+    const tUK = validateHreflangCode('en-UK');
+    assert.strictEqual(tUK.isValid, false);
+    assert(tUK.issues.some(i => i.code === 'INVALID_UK_REGION'), 'en-UK should flag INVALID_UK_REGION');
+
+    // x-default
+    const tXDefault = validateHreflangCode('x-default');
+    assert.strictEqual(tXDefault.isValid, true);
+    assert.strictEqual(tXDefault.isXDefault, true);
+
+    // Script code
+    const tScript = validateHreflangCode('zh-Hans');
+    assert.strictEqual(tScript.isValid, true);
+    assert.strictEqual(tScript.script, 'Hans');
+
+    // Invalid delimiter
+    const tDelim = validateHreflangCode('en_US');
+    assert(tDelim.issues.some(i => i.code === 'INVALID_DELIMITER'), 'en_US should flag INVALID_DELIMITER');
+
+    // HTTP Link header parsing
+    const linkHeader = '<https://example.com/en/>; rel="alternate"; hreflang="en", <https://example.com/es/>; rel="alternate"; hreflang="es"';
+    const parsedHeader = parseLinkHeaders(linkHeader, 'https://example.com/en/');
+    assert.strictEqual(parsedHeader.annotations.length, 2, 'Expected 2 Link header annotations');
   });
 
   // Tool 4: .htaccess Tester

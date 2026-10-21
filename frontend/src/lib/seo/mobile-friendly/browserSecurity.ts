@@ -1,7 +1,6 @@
 import dns from 'dns';
 import { promisify } from 'util';
 import { isBlockedHostname, isPrivateOrReservedIP } from '../ssrf';
-import { redactSensitiveDetails } from '../errorSanitizer';
 
 const lookupAsync = promisify(dns.lookup);
 const ALLOWED_PORTS = new Set(['80', '443', '']);
@@ -126,16 +125,12 @@ export async function setupBrowserSecurityContext(
       return route.abort('blockedbyclient');
     }
 
-    // DNS & IP check with session cache
-    const host = parsed.hostname.toLowerCase();
+    // DNS & IP check: do not rely on a long-lived DNS safety cache for connection authorization
+    const host = parsed.hostname.toLowerCase().trim().replace(/^\[|\]$/g, '');
     const cachedSafety = dnsSafetyCache.get(host);
     if (cachedSafety === false) {
       securityViolation = `Host previously determined unsafe: ${host}`;
       return route.abort('blockedbyclient');
-    }
-
-    if (cachedSafety === true) {
-      return route.continue();
     }
 
     try {
@@ -154,7 +149,6 @@ export async function setupBrowserSecurityContext(
         }
       }
 
-      dnsSafetyCache.set(host, true);
       return route.continue();
     } catch {
       dnsSafetyCache.set(host, false);
@@ -204,7 +198,11 @@ export function classifyBrowserRenderError(
     lower.includes('blocked_destination') ||
     lower.includes('net::err_blocked_by_client') ||
     lower.includes('blocked destination') ||
-    lower.includes('private or restricted')
+    lower.includes('private or restricted') ||
+    lower.includes('ssrf blocked') ||
+    lower.includes('ssrf guard') ||
+    lower.includes('tunnel_connection_failed') ||
+    lower.includes('403 forbidden')
   ) {
     return {
       code: 'BLOCKED_DESTINATION',

@@ -174,9 +174,10 @@ export function isBlockedHostname(hostname: string): boolean {
     return true;
   }
 
-  // If the hostname is already an IP, check it
-  if (isIP(lower)) {
-    return isPrivateOrReservedIP(lower);
+  // If the hostname is already an IP (with or without IPv6 brackets), check it
+  const unbracketed = lower.replace(/^\[|\]$/g, '');
+  if (isIP(unbracketed)) {
+    return isPrivateOrReservedIP(unbracketed);
   }
 
   return false;

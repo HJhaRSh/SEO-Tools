@@ -6,6 +6,7 @@ import {
   classifyBrowserRenderError,
 } from '@/lib/seo/mobile-friendly/browserSecurity';
 import { redactSensitiveDetails } from '@/lib/seo/errorSanitizer';
+import { startSsrfGuardProxy, type SsrfGuardProxyInstance } from '@/lib/seo/secureBrowserProxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   let browser: import('playwright-core').Browser | null = null;
+  let proxyInstance: SsrfGuardProxyInstance | null = null;
   let securityViolation: string | null = null;
 
   try {
@@ -52,6 +54,11 @@ export async function POST(req: NextRequest) {
     const vpScale = Number(rawScale.toFixed(2));
     const startMs = Date.now();
 
+    const isLocalDevelopment = process.env.NODE_ENV !== 'production';
+    proxyInstance = await startSsrfGuardProxy({
+      allowLocalhostForTesting: Boolean(body.allowLocalhostForTesting && isLocalDevelopment),
+    });
+
     const isVercel = Boolean(
       process.env.VERCEL || process.env.VERCEL_ENV || process.env.NOW_REGION
     );
@@ -83,6 +90,9 @@ export async function POST(req: NextRequest) {
       userAgent:
         'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
       acceptDownloads: false,
+      proxy: {
+        server: proxyInstance.proxyUrl,
+      },
     });
 
     // 2. Attach strict network isolation: intercepts all subresources, JS requests, and redirect hops
@@ -116,6 +126,10 @@ export async function POST(req: NextRequest) {
       securityViolation = securityIsolation.getSecurityViolation();
       const classified = classifyBrowserRenderError(navErr, securityViolation);
 
+      if (proxyInstance) {
+        await proxyInstance.close().catch(() => {});
+        proxyInstance = null;
+      }
       await browser.close().catch(() => {});
       browser = null;
 
@@ -155,6 +169,10 @@ export async function POST(req: NextRequest) {
       // non-fatal
     }
 
+    if (proxyInstance) {
+      await proxyInstance.close().catch(() => {});
+      proxyInstance = null;
+    }
     await browser.close();
     browser = null;
 
@@ -174,6 +192,9 @@ export async function POST(req: NextRequest) {
       { status: 200, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   } catch (err: any) {
+    if (proxyInstance) {
+      try { await proxyInstance.close(); } catch { /* ignore */ }
+    }
     if (browser) {
       try { await browser.close(); } catch { /* ignore */ }
     }

@@ -4,6 +4,7 @@
  */
 
 import { SitemapChangeFreq, SitemapValidationIssue } from './sitemapTypes';
+import { MAX_ALLOWED_ROWS } from './sitemapParser';
 
 export const VALID_CHANGEFREQS: ReadonlySet<SitemapChangeFreq> = new Set([
   'always',
@@ -425,5 +426,41 @@ export function validatePublicSitemapOptions(raw: any): {
       maxBytesPerSitemap
     }
   };
+}
+
+/**
+ * Validates row count and manual URL limit at the API boundary before processing.
+ */
+export function validateSitemapInputLimit(
+  input: { manualUrls?: unknown; rows?: unknown }
+): { isValid: boolean; count: number; error?: string } {
+  if (input.manualUrls && typeof input.manualUrls === 'string') {
+    const lines = input.manualUrls
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => Boolean(l));
+    if (lines.length > MAX_ALLOWED_ROWS) {
+      return {
+        isValid: false,
+        count: lines.length,
+        error: `Maximum URL limit exceeded. Provided ${lines.length} URLs, but the maximum permitted limit is ${MAX_ALLOWED_ROWS}.`
+      };
+    }
+    return { isValid: true, count: lines.length };
+  }
+
+  if (Array.isArray(input.rows) || (typeof input.rows === 'object' && input.rows !== null && 'length' in input.rows && typeof (input.rows as { length: unknown }).length === 'number')) {
+    const rowLen = (input.rows as { length: number }).length;
+    if (rowLen > MAX_ALLOWED_ROWS) {
+      return {
+        isValid: false,
+        count: rowLen,
+        error: `Maximum URL limit exceeded. Provided ${rowLen} rows, but the maximum permitted limit is ${MAX_ALLOWED_ROWS}.`
+      };
+    }
+    return { isValid: true, count: rowLen };
+  }
+
+  return { isValid: true, count: 0 };
 }
 

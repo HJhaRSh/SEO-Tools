@@ -137,16 +137,6 @@ export function generateRowId(): string {
   return 'row_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
 }
 
-/**
- * Split multiline textarea or comma-separated text into a clean non-empty string array
- */
-export function parseStringList(text: string): string[] {
-  if (!text) return [];
-  return text
-    .split(/[\n,]/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-}
 
 /**
  * Safely format script tag wrapping for HTML output.

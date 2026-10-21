@@ -44,26 +44,6 @@ export interface DisplayUrlResult {
   isValid: boolean;
 }
 
-export interface TruncateResult {
-  text: string;
-  isTruncated: boolean;
-  pixelWidth: number;
-  maxPixelWidth: number;
-}
-
-export interface SerpFormData {
-  url: string;
-  title: string;
-  description: string;
-  query: string;
-  device: SerpDevice;
-  showDate: boolean;
-  customDate?: string;
-  showRating: boolean;
-  ratingValue: number;
-  reviewCount: number;
-}
-
 export interface MetadataFetchResponse {
   success: boolean;
   data?: {

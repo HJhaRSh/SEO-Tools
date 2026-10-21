@@ -1,6 +1,6 @@
 import { safeFetch, validateUrl } from './safeFetch';
 import { testRobotsTxt } from './robotsService';
-import { AI_BOT_REGISTRY, AiBotDefinition, getAiBotById } from './aiBotRegistry';
+import { AiBotDefinition, getAiBotById } from './aiBotRegistry';
 
 export type RobotsPermissionStatus = 'ALLOWED' | 'BLOCKED' | 'UNKNOWN';
 export type HttpResponseStatus =

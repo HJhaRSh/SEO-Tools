@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { testHtaccessRules } from '@/lib/seo/htaccessService';
 import { sanitizeHtaccessSettings } from '@/lib/seo/htaccessValidation';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,12 +36,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { status: 200 });
   } catch (err: any) {
+    const sanitized = classifyAndSanitizeError(err, 'An error occurred while evaluating .htaccess rules.');
     return NextResponse.json(
       {
         success: false,
-        error: err.message || 'An error occurred while evaluating .htaccess rules.'
+        error: sanitized.message
       },
-      { status: 400 }
+      { status: sanitized.status }
     );
   }
 }

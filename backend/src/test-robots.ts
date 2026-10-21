@@ -1,5 +1,5 @@
 import { isPrivateOrReservedIP, isBlockedHostname } from './seo/ssrf.js';
-import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability, normalizePathAndQuery } from './seo/robotsParser.js';
+import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability } from './seo/robotsParser.js';
 import assert from 'assert';
 
 console.log('Running Robots.txt Backend Unit Tests...\n');

@@ -241,17 +241,36 @@ export function classifyAndSanitizeError(err: unknown, defaultMessage?: string):
     };
   }
 
-  // 10. Explicit user validation feedback (starts with "Please provide", "A valid", etc.)
+  // 10. Explicit user validation feedback (preserves input feedback while blocking sensitive leaks)
+  const hasStackTrace = lower.includes('at ') && (lower.includes('node:') || lower.includes('.ts:') || lower.includes('.js:'));
+  const hasPathLeak = /(?:[a-zA-Z]:[\\\/]|\/(?:var|home|etc|tmp|usr|app|root|Users|bin|opt)\/)/i.test(rawMsg);
+  const hasIpLeak = /\b(?:127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2[0-9]|3[0-1])\.)/.test(rawMsg);
+
   if (
-    (lower.startsWith('please provide') ||
+    !hasStackTrace &&
+    !hasPathLeak &&
+    !hasIpLeak &&
+    (
+      lower.startsWith('please provide') ||
       lower.startsWith('please enter') ||
+      lower.startsWith('please select') ||
       lower.startsWith('a valid') ||
+      lower.startsWith('invalid') ||
       lower.includes('is required') ||
+      lower.includes('required field') ||
+      lower.includes('missing required') ||
+      lower.includes('limit exceeded') ||
+      lower.includes('exceeds limit') ||
+      lower.includes('exceeds permitted limit') ||
+      lower.includes('exceeds the maximum') ||
+      lower.includes('exceeding the maximum') ||
+      lower.includes('maximum url limit') ||
+      lower.includes('unsupported file') ||
+      lower.includes('unsupported format') ||
+      lower.includes('no content or file data') ||
       lower.includes('invalid place id') ||
-      lower.includes('viewport dimensions')) &&
-    !lower.includes('error at') &&
-    !lower.includes('\\') &&
-    !lower.includes('/')
+      lower.includes('viewport dimensions')
+    )
   ) {
     return {
       code: 'VALIDATION_ERROR',

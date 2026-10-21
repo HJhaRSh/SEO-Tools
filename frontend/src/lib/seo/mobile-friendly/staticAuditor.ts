@@ -2,7 +2,6 @@ import * as cheerio from 'cheerio';
 import {
   SingleUrlMobileAuditResult,
   MobileIssue,
-  MobileCategoryResult,
   TestStatus,
   ViewportPreset,
 } from './types';

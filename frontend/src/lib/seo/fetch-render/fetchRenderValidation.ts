@@ -1,4 +1,4 @@
-import { FetchRenderRequestOptions, FetchRenderMode } from './fetchRenderTypes';
+import { FetchRenderMode } from './fetchRenderTypes';
 import { validateUrl } from '../safeFetch';
 import { findFetchRenderUserAgent } from './fetchRenderUserAgents';
 

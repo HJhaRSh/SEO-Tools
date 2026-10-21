@@ -4,6 +4,7 @@ import { parseHtmlHreflang } from '@/lib/seo/hreflang/parseHtml';
 import { parseHttpHeaders } from '@/lib/seo/hreflang/parseHeaders';
 import { validateHreflangCluster } from '@/lib/seo/hreflang/analyzeHreflang';
 import { HreflangSummary, HreflangUrlRequest, HreflangTestUrlResponse } from '@/lib/seo/hreflang/types';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -145,13 +146,14 @@ export async function POST(req: NextRequest) {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
     });
   } catch (err: any) {
+    const sanitized = classifyAndSanitizeError(err, 'An error occurred while inspecting the URL.');
     return NextResponse.json(
       {
         success: false,
-        error: err.message || 'An error occurred while inspecting the URL.',
+        error: sanitized.message,
       },
       {
-        status: 400,
+        status: sanitized.status,
         headers: { 'Cache-Control': 'no-store, max-age=0' },
       }
     );

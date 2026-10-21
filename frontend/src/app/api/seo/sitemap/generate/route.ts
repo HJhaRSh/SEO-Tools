@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateSitemapXml } from '@/lib/seo/sitemap/sitemapGenerator';
-import { validatePublicSitemapOptions } from '@/lib/seo/sitemap/sitemapValidation';
+import { validatePublicSitemapOptions, validateSitemapInputLimit } from '@/lib/seo/sitemap/sitemapValidation';
 import { extractUrlEntriesFromRows } from '@/lib/seo/sitemap/sitemapParser';
 import {
   storeDownload,
   createSitemapsZip,
   generateIssuesCsv
 } from '@/lib/seo/sitemap/sitemapExport';
+import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const limitCheck = validateSitemapInputLimit({ manualUrls, rows });
+    if (!limitCheck.isValid) {
+      return NextResponse.json(
+        { success: false, error: limitCheck.error },
+        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
+    }
+
     let entries: any[] = [];
 
     if (manualUrls && typeof manualUrls === 'string') {
@@ -32,10 +41,12 @@ export async function POST(req: NextRequest) {
         .map((l: string) => l.trim())
         .filter((l: string) => Boolean(l));
       entries = lines.map((url: string) => ({ loc: url }));
-    } else if (Array.isArray(rows) && mapping && formatType) {
-      entries = extractUrlEntriesFromRows(rows, mapping, formatType);
     } else if (Array.isArray(rows)) {
-      entries = rows;
+      if (mapping && formatType) {
+        entries = extractUrlEntriesFromRows(rows, mapping, formatType);
+      } else {
+        entries = rows;
+      }
     } else {
       return NextResponse.json(
         {
@@ -99,9 +110,10 @@ export async function POST(req: NextRequest) {
       }
     );
   } catch (err: any) {
+    const sanitized = classifyAndSanitizeError(err, 'Failed to generate XML sitemap.');
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to generate XML sitemap.' },
-      { status: 500, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      { success: false, error: sanitized.message },
+      { status: sanitized.status, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }
 }

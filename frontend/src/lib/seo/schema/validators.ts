@@ -1,8 +1,6 @@
 import {
   ArticleFormState,
   BreadcrumbFormState,
-  CourseFormState,
-  DatasetFormState,
   EventFormState,
   FaqFormState,
   HowToFormState,
@@ -12,12 +10,9 @@ import {
   PersonFormState,
   ProductFormState,
   RecipeFormState,
-  ServiceFormState,
-  SoftwareAppFormState,
   SupportedSchemaType,
   ValidationIssue,
   VideoFormState,
-  WebPageFormState,
   WebSiteFormState,
 } from './types';
 import { isValidDateString, isValidWebUrl, parseCleanNumber } from './fieldUtils';

@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { testRobotsTxt } from './lib/seo/robotsService';
+import { testRobotsTxt, resolveTargetUrls } from './lib/seo/robotsService';
 import { checkSitemaps, checkPageResources } from './lib/seo/resourceService';
 import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability } from './lib/seo/robotsParser';
 
@@ -317,6 +317,34 @@ Disallow: /all-blocked/
     );
     assert.strictEqual(res.ok, false);
     assert(res.error?.includes('temporarily unavailable'));
+  });
+
+  // Tests 15-19: URL Resolution & Path Input Handling (Migrated from test-comprehensive)
+  test('15. URL Resolution: Resolve root path', () => {
+    const res = resolveTargetUrls('https://example.com', '/');
+    assert.strictEqual(res.targetUrl, 'https://example.com/');
+    assert.strictEqual(res.cleanPathAndQuery, '/');
+  });
+
+  test('16. URL Resolution: Resolve path with leading slash omitted', () => {
+    const res = resolveTargetUrls('https://example.com', 'blog/article-1');
+    assert.strictEqual(res.cleanPathAndQuery, '/blog/article-1');
+  });
+
+  test('17. URL Resolution: Preserve query parameters', () => {
+    const res = resolveTargetUrls('https://example.com', '/search?q=seo+tools&sort=asc');
+    assert.strictEqual(res.cleanPathAndQuery, '/search?q=seo+tools&sort=asc');
+  });
+
+  test('18. URL Resolution: Pasted full URL with matching origin', () => {
+    const res = resolveTargetUrls('https://example.com', 'https://example.com/checkout');
+    assert.strictEqual(res.cleanPathAndQuery, '/checkout');
+  });
+
+  test('19. URL Resolution: Reject cross-origin full URL in path input', () => {
+    assert.throws(() => {
+      resolveTargetUrls('https://example.com', 'https://malicious.com/attack');
+    }, /does not match/);
   });
 
   console.log('\n=====================================================');

@@ -8,29 +8,72 @@ import {
   RenderAuditDomMetrics,
 } from './browserEvaluator';
 import { validateTargetUrlForBrowser, setupBrowserSecurityContext } from './browserSecurity';
+import { startSsrfGuardProxy, type SsrfGuardProxyInstance } from '../secureBrowserProxy';
+
+export interface RunBrowserAuditOptions {
+  url: string;
+  vpWidth?: number;
+  vpHeight?: number;
+  vpScale?: number;
+  allowLocalhostForTesting?: boolean;
+  browser?: import('playwright-core').Browser;
+  proxyUrl?: string;
+}
 
 export interface AuditMobileUrlOptions {
   url: string;
   viewportPresetId?: string;
   allowLocalhostForTesting?: boolean;
+  browser?: import('playwright-core').Browser;
+  proxyUrl?: string;
+}
+
+export interface AuditBulkUrlsOptions {
+  urls: string[];
+  viewportPresetId?: string;
+  allowLocalhostForTesting?: boolean;
+  concurrency?: number;
+  launcher?: () => Promise<import('playwright-core').Browser>;
 }
 
 /**
- * Runs a real Chromium browser session to audit a URL for mobile-friendliness.
- * Uses @sparticuz/chromium on Vercel/Lambda, Playwright's bundled Chromium in local dev.
- * Called directly — no HTTP round-trip to a separate endpoint.
+ * Concurrency runner with bounded limit for parallel audits.
  */
-async function runBrowserAudit(options: {
-  url: string;
-  vpWidth: number;
-  vpHeight: number;
-  vpScale: number;
-}): Promise<{ metrics: RenderAuditDomMetrics; screenshotBase64: string | null; finalUrl: string; statusCode: number; statusText: string }> {
-  const { url, vpWidth, vpHeight, vpScale } = options;
+async function asyncPool<T, R>(
+  items: T[],
+  limit: number,
+  iteratorFn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const ret: Promise<R>[] = [];
+  const executing: Promise<void>[] = [];
 
-  // Pre-validate target URL against SSRF threats before launch
-  await validateTargetUrlForBrowser(url);
+  for (const item of items) {
+    const p = Promise.resolve().then(() => iteratorFn(item));
+    ret.push(p);
 
+    if (limit <= items.length) {
+      const e: Promise<void> = p
+        .then(() => {
+          executing.splice(executing.indexOf(e), 1);
+        })
+        .catch(() => {
+          executing.splice(executing.indexOf(e), 1);
+        }) as Promise<void>;
+      executing.push(e);
+      if (executing.length >= limit) {
+        await Promise.race(executing);
+      }
+    }
+  }
+
+  return Promise.all(ret);
+}
+
+/**
+ * Launches a Chromium browser instance configured for Mobile-Friendly audits.
+ * Uses @sparticuz/chromium on Vercel/Lambda, Playwright's bundled Chromium in local dev.
+ */
+export async function launchMobileAuditBrowser(): Promise<import('playwright-core').Browser> {
   const isVercel = Boolean(
     process.env.VERCEL || process.env.VERCEL_ENV || process.env.NOW_REGION
   );
@@ -46,16 +89,77 @@ async function runBrowserAudit(options: {
 
   const { chromium: playwrightChromium } = await import('playwright-core');
 
-  const browser = await playwrightChromium.launch({
+  return await playwrightChromium.launch({
     executablePath,
     args: isVercel
       ? chromiumArgs
       : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     headless: true,
   });
+}
+
+/**
+ * Runs a real Chromium browser session to audit a URL for mobile-friendliness.
+ * Supports both standalone single-URL execution and batch execution with a reused browser.
+ * When a browser instance is supplied, it is reused while creating a strictly isolated
+ * BrowserContext per URL. The context is always closed in finally without closing the reused browser.
+ */
+export async function runBrowserAudit(
+  urlOrOptions: string | RunBrowserAuditOptions,
+  extraOptions?: Partial<RunBrowserAuditOptions>
+): Promise<{
+  metrics: RenderAuditDomMetrics;
+  screenshotBase64: string | null;
+  finalUrl: string;
+  statusCode: number;
+  statusText: string;
+}> {
+  const options: RunBrowserAuditOptions =
+    typeof urlOrOptions === 'string'
+      ? { url: urlOrOptions, ...extraOptions }
+      : { ...urlOrOptions, ...extraOptions };
+
+  const {
+    url,
+    vpWidth = 390,
+    vpHeight = 844,
+    vpScale = 3,
+    allowLocalhostForTesting = false,
+    browser: providedBrowser,
+    proxyUrl: providedProxyUrl,
+  } = options;
+
+  // Pre-validate target URL against SSRF threats before launch
+  await validateTargetUrlForBrowser(url);
+
+  let localProxyInstance: SsrfGuardProxyInstance | null = null;
+  let localBrowser: import('playwright-core').Browser | null = null;
+  let context: import('playwright-core').BrowserContext | null = null;
 
   try {
-    const context = await browser.newContext({
+    const isLocalDevelopment = process.env.NODE_ENV !== 'production';
+
+    // 1. Establish or reuse secure forward proxy
+    let effectiveProxyUrl = providedProxyUrl;
+    if (!effectiveProxyUrl) {
+      localProxyInstance = await startSsrfGuardProxy({
+        allowLocalhostForTesting: Boolean(allowLocalhostForTesting && isLocalDevelopment),
+      });
+      effectiveProxyUrl = localProxyInstance.proxyUrl;
+    }
+
+    // 2. Establish or reuse Chromium browser instance
+    let effectiveBrowser = providedBrowser;
+    if (
+      !effectiveBrowser ||
+      (typeof effectiveBrowser.isConnected === 'function' && !effectiveBrowser.isConnected())
+    ) {
+      localBrowser = await launchMobileAuditBrowser();
+      effectiveBrowser = localBrowser;
+    }
+
+    // 3. Create isolated BrowserContext strictly per URL
+    context = await effectiveBrowser.newContext({
       viewport: { width: vpWidth, height: vpHeight },
       deviceScaleFactor: vpScale,
       isMobile: true,
@@ -63,9 +167,12 @@ async function runBrowserAudit(options: {
       userAgent:
         'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
       acceptDownloads: false,
+      proxy: {
+        server: effectiveProxyUrl,
+      },
     });
 
-    // Attach strict browser network isolation
+    // 4. Attach strict browser network isolation (route interception)
     await setupBrowserSecurityContext(context);
 
     const page = await context.newPage();
@@ -82,10 +189,20 @@ async function runBrowserAudit(options: {
         statusCode = response.status();
         statusText = response.statusText();
         finalUrl = response.url();
+
+        // Independent validation of redirect destination
+        if (finalUrl !== url) {
+          await validateTargetUrlForBrowser(finalUrl);
+        }
       }
-    } catch (navErr: any) {
-      if (navErr?.message?.includes('net::ERR_')) {
-        throw new Error(`Navigation failed: ${navErr.message}`);
+    } catch (navErr: unknown) {
+      const navMsg = navErr instanceof Error ? navErr.message : String(navErr || '');
+      if (
+        navMsg.includes('net::ERR_') ||
+        navMsg.includes('SSRF') ||
+        navMsg.includes('BLOCKED')
+      ) {
+        throw new Error(`Navigation failed: ${navMsg}`);
       }
       // non-fatal nav errors (e.g. mixed content) — continue
     }
@@ -94,7 +211,7 @@ async function runBrowserAudit(options: {
 
     let metrics: RenderAuditDomMetrics = {} as RenderAuditDomMetrics;
     try {
-      metrics = await page.evaluate(BROWSER_AUDIT_INJECTION_SCRIPT as string) as RenderAuditDomMetrics;
+      metrics = (await page.evaluate(BROWSER_AUDIT_INJECTION_SCRIPT as string)) as RenderAuditDomMetrics;
     } catch {
       // metrics unavailable — still return screenshot
     }
@@ -113,7 +230,18 @@ async function runBrowserAudit(options: {
 
     return { metrics, screenshotBase64, finalUrl, statusCode, statusText };
   } finally {
-    await browser.close().catch(() => {});
+    // Isolated context is always closed per URL
+    if (context) {
+      await context.close().catch(() => {});
+    }
+    // Only close browser if it was spawned locally for this single call
+    if (localBrowser) {
+      await localBrowser.close().catch(() => {});
+    }
+    // Only close proxy if it was spawned locally for this single call
+    if (localProxyInstance) {
+      await localProxyInstance.close().catch(() => {});
+    }
   }
 }
 
@@ -142,6 +270,9 @@ export async function auditSingleUrl(
         vpWidth: preset.width,
         vpHeight: preset.height,
         vpScale: preset.deviceScaleFactor,
+        allowLocalhostForTesting: options.allowLocalhostForTesting,
+        browser: options.browser,
+        proxyUrl: options.proxyUrl,
       });
 
       browserResult = buildBrowserRenderedAuditResult({
@@ -154,8 +285,8 @@ export async function auditSingleUrl(
         screenshotBase64: renderData.screenshotBase64 ?? undefined,
         metrics: renderData.metrics,
       });
-    } catch (err: any) {
-      const msg = err?.message || 'Browser rendering failed';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err || 'Browser rendering failed');
       if (msg.includes('Executable') || msg.includes('Failed to launch') || msg.includes('not available')) {
         browserFailureReason = 'Chromium browser rendering unavailable in this environment';
       } else if (msg.includes('timeout') || msg.includes('Timeout')) {
@@ -189,5 +320,62 @@ export async function auditSingleUrl(
     browserAttempted,
     browserFailureReason,
   });
+}
+
+/**
+ * Audits a batch of URLs with bounded concurrency while sharing a single Chromium browser
+ * instance and validating proxy across the batch. Each URL executes in a strictly isolated
+ * BrowserContext that is cleaned up in finally.
+ */
+export async function auditBulkUrls(
+  options: AuditBulkUrlsOptions
+): Promise<SingleUrlMobileAuditResult[]> {
+  const {
+    urls,
+    viewportPresetId,
+    allowLocalhostForTesting,
+    concurrency = 3,
+    launcher,
+  } = options;
+
+  let proxyInstance: SsrfGuardProxyInstance | null = null;
+  let browser: import('playwright-core').Browser | null = null;
+
+  try {
+    if (!process.env.FORCE_STATIC_AUDIT) {
+      try {
+        const isLocalDevelopment = process.env.NODE_ENV !== 'production';
+        proxyInstance = await startSsrfGuardProxy({
+          allowLocalhostForTesting: Boolean(allowLocalhostForTesting && isLocalDevelopment),
+        });
+        browser = launcher ? await launcher() : await launchMobileAuditBrowser();
+      } catch {
+        if (proxyInstance) {
+          await proxyInstance.close().catch(() => {});
+          proxyInstance = null;
+        }
+        browser = null;
+      }
+    }
+
+    return await asyncPool(urls, concurrency, async (url) => {
+      return await auditSingleUrl({
+        url,
+        viewportPresetId,
+        allowLocalhostForTesting,
+        browser: browser ?? undefined,
+        proxyUrl: proxyInstance?.proxyUrl,
+      });
+    });
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+      browser = null;
+    }
+    if (proxyInstance) {
+      await proxyInstance.close().catch(() => {});
+      proxyInstance = null;
+    }
+  }
 }
 

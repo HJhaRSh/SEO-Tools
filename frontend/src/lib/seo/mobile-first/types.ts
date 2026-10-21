@@ -136,12 +136,6 @@ export interface HreflangInfo {
   hasXDefault: boolean;
 }
 
-export interface LinkSample {
-  href: string;
-  text: string;
-  isInternal: boolean;
-  isNofollow: boolean;
-}
 
 export interface LinksInfo {
   totalCount: number;
