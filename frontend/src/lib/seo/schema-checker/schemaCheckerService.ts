@@ -9,7 +9,7 @@ import { extractSchemaTypes } from './schemaExtractor';
 import type { SchemaCheckResult } from './types';
 
 const FETCH_OPTIONS: SafeFetchOptions = {
-  timeoutMs: 15000,
+  timeoutMs: 10000,
   maxRedirects: 5,
   maxBytes: 512 * 1024, // 512 KiB — same as default
   userAgent: 'Mozilla/5.0 (compatible; IndianMarketersBot/1.0; +https://indianmarketers.in/seo-tools)',

@@ -102,6 +102,12 @@
       }
     },
     {
+      "source": "/api/seo/schema-checker/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"

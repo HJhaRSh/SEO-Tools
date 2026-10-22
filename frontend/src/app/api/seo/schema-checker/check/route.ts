@@ -6,6 +6,7 @@ import type { SchemaCheckRequest } from '@/lib/seo/schema-checker/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const MAX_URLS = 100;
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);

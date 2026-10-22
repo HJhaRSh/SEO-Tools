@@ -110,7 +110,19 @@ export default function SchemaCheckerPage() {
         body: JSON.stringify({ urls: valid }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data: any;
+
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(
+          res.status === 504
+            ? 'The request timed out. Please try checking fewer URLs at once.'
+            : text.slice(0, 200) || `Server error (${res.status})`
+        );
+      }
 
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to check schema markup.');
