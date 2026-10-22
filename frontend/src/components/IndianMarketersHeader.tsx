@@ -19,142 +19,209 @@ export default function IndianMarketersHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full bg-white transition-all duration-300 shadow-none border-b border-transparent">
-        <div className="max-w-[1440px] w-full mx-auto px-6 sm:px-8 xl:px-12 h-[88px] flex items-center justify-between relative">
-          
-          {/* Brand Logo with white card badge matching live site */}
-          <div className="flex items-center shrink-0">
-            <a
-              href={`${MAIN_SITE_URL}/`}
-              className="inline-block transition-transform hover:scale-[1.02]"
-              aria-label="Indian Marketers Home"
-            >
-              <div className="bg-white rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.06)] border border-[#e5e7eb]/70 px-3.5 py-1.5 flex items-center justify-center">
-                <Image
-                  src={logoSrc}
-                  alt="Indian Marketers"
-                  width={246}
-                  height={160}
-                  priority
-                  unoptimized
-                  onError={() => setLogoSrc(INDIAN_MARKETERS_LOGO_FALLBACK)}
-                  className="h-[34px] w-auto object-contain"
-                  style={{ width: 'auto', height: '34px' }}
-                />
-              </div>
-            </a>
-          </div>
+      {/* Header — matches live indianmarketers.in exactly:
+          white bg, subtle border-bottom, 80px height,
+          3-column grid: logo left | nav centered | CTA right */}
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          width: '100%',
+          backgroundColor: '#ffffff',
+          borderBottom: '1px solid #e5e7eb',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '1440px',
+            margin: '0 auto',
+            padding: '0 40px',
+            height: '80px',
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr auto',
+            alignItems: 'center',
+            gap: '16px',
+          }}
+        >
+          {/* COL 1: Logo — plain image, no card wrapper */}
+          <a
+            href={`${MAIN_SITE_URL}/`}
+            aria-label="Indian Marketers Home"
+            style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}
+          >
+            <Image
+              src={logoSrc}
+              alt="Indian Marketers"
+              width={150}
+              height={54}
+              priority
+              unoptimized
+              onError={() => setLogoSrc(INDIAN_MARKETERS_LOGO_FALLBACK)}
+              style={{ height: '44px', width: 'auto', objectFit: 'contain', display: 'block' }}
+            />
+          </a>
 
-          {/* Spacer pushing nav & CTA together to the right */}
-          <div className="flex-1" />
+          {/* COL 2: Nav — centered */}
+          <nav
+            aria-label="Main Navigation"
+            className="hidden md:flex"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0,
+              fontFamily: 'var(--im-font-body, inherit)',
+              fontSize: '15px',
+              fontWeight: 500,
+              color: '#111827',
+            }}
+          >
+            {HEADER_NAV_ITEMS.map((item, index) => {
+              const isLast = index === HEADER_NAV_ITEMS.length - 1;
 
-          {/* Right Group: Desktop Navigation + Let's Talk CTA */}
-          <div className="hidden md:flex items-center gap-7 lg:gap-8">
-            <nav
-              aria-label="Main Navigation"
-              className="flex items-center font-[family-name:var(--im-font-body)] text-[16px] font-semibold text-[#111827]"
-            >
-              {HEADER_NAV_ITEMS.map((item, index) => {
-                const isLast = index === HEADER_NAV_ITEMS.length - 1;
+              const baseStyle: React.CSSProperties = {
+                color: '#111827',
+                textDecoration: 'none',
+                padding: '6px 12px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                whiteSpace: 'nowrap',
+                transition: 'color 0.15s',
+                cursor: 'pointer',
+                background: 'none',
+                border: 'none',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                fontWeight: 'inherit',
+              };
 
-                if (item.isMegaMenu) {
-                  return (
-                    <React.Fragment key={item.label}>
-                      <button
-                        ref={servicesBtnRef}
-                        type="button"
-                        id="e-n-menu-dropdown-icon-2483"
-                        aria-haspopup="true"
-                        aria-expanded={servicesMenuOpen}
-                        aria-controls="e-n-menu-content-2483"
-                        onClick={() => setServicesMenuOpen(!servicesMenuOpen)}
-                        className={`inline-flex items-center px-2 py-2 hover:text-[#47A048] transition-colors cursor-pointer ${
-                          servicesMenuOpen ? 'text-[#47A048]' : 'text-[#111827]'
-                        }`}
-                      >
-                        <span>{item.label}</span>
-                        <svg
-                          className={`w-3 h-3 ml-1.5 transition-transform duration-200 ${
-                            servicesMenuOpen ? 'rotate-180 text-[#47A048]' : 'fill-[#111827]'
-                          }`}
-                          viewBox="0 0 320 512"
-                          aria-hidden="true"
-                        >
-                          <path d="M31.3 192h257.3c17.8 0 26.7 21.5 14.1 34.1L174.1 354.8c-7.8 7.8-20.5 7.8-28.3 0L17.2 226.1C4.6 213.5 13.5 192 31.3 192z" />
-                        </svg>
-                        <span className="sr-only">
-                          {servicesMenuOpen ? 'Close Services' : 'Open Services'}
-                        </span>
-                      </button>
+              const separatorEl = !isLast ? (
+                <span
+                  key={`sep-${index}`}
+                  style={{ color: '#9ca3af', fontWeight: 300, userSelect: 'none', flexShrink: 0 }}
+                  aria-hidden="true"
+                >
+                  |
+                </span>
+              ) : null;
 
-                      {!isLast && (
-                        <span className="text-[#374151] mx-3.5 font-normal select-none" aria-hidden="true">
-                          |
-                        </span>
-                      )}
-                    </React.Fragment>
-                  );
-                }
-
+              if (item.isMegaMenu) {
                 return (
                   <React.Fragment key={item.label}>
-                    <a
-                      href={item.href}
-                      className="px-2 py-2 hover:text-[#47A048] transition-colors"
+                    <button
+                      ref={servicesBtnRef}
+                      type="button"
+                      aria-haspopup="true"
+                      aria-expanded={servicesMenuOpen}
+                      onClick={() => setServicesMenuOpen(!servicesMenuOpen)}
+                      style={{
+                        ...baseStyle,
+                        color: servicesMenuOpen ? '#47A048' : '#111827',
+                      }}
+                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = '#47A048')}
+                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = servicesMenuOpen ? '#47A048' : '#111827')}
                     >
-                      {item.label}
-                    </a>
-
-                    {!isLast && (
-                      <span className="text-[#374151] mx-3.5 font-normal select-none" aria-hidden="true">
-                        |
-                      </span>
-                    )}
+                      <span>{item.label}</span>
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 320 512"
+                        fill="currentColor"
+                        style={{
+                          marginLeft: '2px',
+                          transform: servicesMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s',
+                        }}
+                        aria-hidden="true"
+                      >
+                        <path d="M31.3 192h257.3c17.8 0 26.7 21.5 14.1 34.1L174.1 354.8c-7.8 7.8-20.5 7.8-28.3 0L17.2 226.1C4.6 213.5 13.5 192 31.3 192z" />
+                      </svg>
+                    </button>
+                    {separatorEl}
                   </React.Fragment>
                 );
-              })}
-            </nav>
+              }
 
-            {/* Desktop Right CTA: Let's Talk matching live site exact CSS */}
-            <div className="flex items-center shrink-0">
-              <a
-                href={LETS_TALK_LINK.href}
-                className="inline-flex items-center justify-center font-[family-name:var(--im-font-body)] text-[16px] font-semibold text-white shadow-none transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:opacity-90"
-                style={{
-                  backgroundImage: 'linear-gradient(135deg, #67C258 0%, #47A048 100%)',
-                  borderRadius: '100px',
-                  padding: '0.85rem 2rem',
-                  lineHeight: '1.2',
-                  border: 'none',
-                  color: '#ffffff',
-                }}
-              >
-                {LETS_TALK_LINK.label}
-              </a>
-            </div>
-          </div>
+              return (
+                <React.Fragment key={item.label}>
+                  <a
+                    href={item.href}
+                    style={baseStyle}
+                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = '#47A048')}
+                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = '#111827')}
+                  >
+                    {item.label}
+                  </a>
+                  {separatorEl}
+                </React.Fragment>
+              );
+            })}
+          </nav>
 
-          {/* Mobile Hamburger Trigger */}
-          <div className="flex md:hidden items-center">
+          {/* COL 3: CTA + mobile hamburger */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+            {/* Desktop: Let's Talk pill */}
+            <a
+              href={LETS_TALK_LINK.href}
+              className="hidden md:inline-flex"
+              style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundImage: 'linear-gradient(135deg, #67C258 0%, #47A048 100%)',
+                borderRadius: '100px',
+                padding: '11px 26px',
+                color: '#ffffff',
+                fontWeight: 600,
+                fontSize: '15px',
+                fontFamily: 'inherit',
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+                lineHeight: '1.2',
+                border: 'none',
+                transition: 'opacity 0.2s, transform 0.2s',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.opacity = '0.9';
+                (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.opacity = '1';
+                (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+              }}
+            >
+              {LETS_TALK_LINK.label}
+            </a>
+
+            {/* Mobile hamburger */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="p-2 text-black hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+              className="flex md:hidden"
+              style={{
+                padding: '8px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#111827',
+                borderRadius: '8px',
+              }}
               aria-label="Open Navigation Menu"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
           </div>
-
-          {/* Services Mega Menu Dropdown */}
-          <IndianMarketersServicesMenu
-            isOpen={servicesMenuOpen}
-            onClose={() => setServicesMenuOpen(false)}
-            triggerRef={servicesBtnRef}
-          />
         </div>
+
+        {/* Services Mega Menu Dropdown */}
+        <IndianMarketersServicesMenu
+          isOpen={servicesMenuOpen}
+          onClose={() => setServicesMenuOpen(false)}
+          triggerRef={servicesBtnRef}
+        />
       </header>
 
       {/* Mobile Drawer */}
