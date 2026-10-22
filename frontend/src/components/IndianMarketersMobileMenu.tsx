@@ -7,6 +7,7 @@ import {
   LETS_TALK_LINK,
   SERVICES_MEGA_MENU,
   MAIN_SITE_URL,
+  INDIAN_MARKETERS_LOGO_FALLBACK,
 } from '@/lib/indianMarketersNav';
 
 interface IndianMarketersMobileMenuProps {
@@ -20,6 +21,7 @@ export default function IndianMarketersMobileMenu({
 }: IndianMarketersMobileMenuProps) {
   const [servicesExpanded, setServicesExpanded] = useState(false);
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number>(0);
+  const [mobileLogoSrc, setMobileLogoSrc] = useState('/images/indian-marketers-logo.png');
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -61,13 +63,15 @@ export default function IndianMarketersMobileMenu({
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
         <a href={`${MAIN_SITE_URL}/`} onClick={onClose} className="inline-block">
           <Image
-            src="/images/indian-marketers-logo.png"
+            src={mobileLogoSrc}
             alt="Indian Marketers"
             width={120}
             height={28}
             className="h-7 w-auto object-contain"
             style={{ width: 'auto' }}
             priority
+            unoptimized
+            onError={() => setMobileLogoSrc(INDIAN_MARKETERS_LOGO_FALLBACK)}
           />
         </a>
 

@@ -8,6 +8,9 @@ const backendTarget =
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  images: {
+    unoptimized: true,
+  },
   // Prevent Next.js from bundling native-binary or node-only packages — they must be loaded at runtime
   serverExternalPackages: ['@sparticuz/chromium', 'playwright-core', 'unzipper', 'archiver'],
 

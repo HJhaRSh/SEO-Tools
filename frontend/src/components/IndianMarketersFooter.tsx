@@ -11,6 +11,7 @@ import {
   FOOTER_ADDRESS_DATA,
   FOOTER_SOCIAL_LINKS,
   FOOTER_BOTTOM_DATA,
+  INDIAN_MARKETERS_LOGO_FALLBACK,
 } from '@/lib/indianMarketersNav';
 
 export default function IndianMarketersFooter() {
@@ -184,6 +185,10 @@ export default function IndianMarketersFooter() {
                 alt="Indian Marketers"
                 width={246}
                 height={160}
+                unoptimized
+                onError={(e) => {
+                  e.currentTarget.src = INDIAN_MARKETERS_LOGO_FALLBACK;
+                }}
                 className="h-[42px] w-auto object-contain"
                 style={{ width: 'auto', height: '42px' }}
               />

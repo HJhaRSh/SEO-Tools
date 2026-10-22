@@ -6,6 +6,7 @@ import {
   HEADER_NAV_ITEMS,
   LETS_TALK_LINK,
   MAIN_SITE_URL,
+  INDIAN_MARKETERS_LOGO_FALLBACK,
 } from '@/lib/indianMarketersNav';
 import IndianMarketersServicesMenu from './IndianMarketersServicesMenu';
 import IndianMarketersMobileMenu from './IndianMarketersMobileMenu';
@@ -13,6 +14,7 @@ import IndianMarketersMobileMenu from './IndianMarketersMobileMenu';
 export default function IndianMarketersHeader() {
   const [servicesMenuOpen, setServicesMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [logoSrc, setLogoSrc] = useState('/images/indian-marketers-logo.png');
   const servicesBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
@@ -28,11 +30,13 @@ export default function IndianMarketersHeader() {
               aria-label="Indian Marketers Home"
             >
               <Image
-                src="/images/indian-marketers-logo.png"
+                src={logoSrc}
                 alt="Indian Marketers"
                 width={246}
                 height={160}
                 priority
+                unoptimized
+                onError={() => setLogoSrc(INDIAN_MARKETERS_LOGO_FALLBACK)}
                 className="h-[42px] w-auto object-contain"
                 style={{ width: 'auto', height: '42px' }}
               />
