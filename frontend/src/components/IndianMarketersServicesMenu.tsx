@@ -59,7 +59,7 @@ export default function IndianMarketersServicesMenu({
       id="e-n-menu-content-2483"
       role="region"
       aria-label="Services Mega Menu"
-      className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+8px)] w-[95vw] max-w-[1160px] bg-[#fbfbfb] border border-[#e5e7eb] rounded-2xl shadow-2xl p-6 sm:p-8 z-50 transition-all duration-200 animate-in fade-in zoom-in-95 text-[#111827]"
+      className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+8px)] w-[95vw] max-w-[1160px] bg-[#fbfbfb] border border-[#e5e7eb] rounded-2xl shadow-2xl p-6 sm:p-8 z-50 transition-all duration-200 animate-in fade-in zoom-in-95 text-[#111827] font-[family-name:var(--im-font-body)]"
     >
       <div className="flex flex-col md:flex-row gap-6 lg:gap-8 items-start">
         {/* Left column: Category tabs */}

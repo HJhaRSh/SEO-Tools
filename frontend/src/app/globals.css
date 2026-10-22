@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
 
+@theme {
+  --font-sans: var(--im-font-body), "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--im-font-body), "IBM Plex Sans", sans-serif;
+}
+
 :root {
   /* Brand colour */
   --im-primary:        #94D459;  /* lime green: brand, links, key accents */
@@ -39,7 +44,7 @@
   --foreground:        var(--im-text);
 }
 
-body {
+html, body {
   color: var(--im-text);
   background-color: var(--im-bg);
   font-family: var(--im-font-body), "IBM Plex Sans", system-ui, -apple-system, sans-serif;

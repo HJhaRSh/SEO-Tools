@@ -57,7 +57,7 @@ export default function IndianMarketersMobileMenu({
       role="dialog"
       aria-modal="true"
       aria-label="Mobile Navigation Menu"
-      className="fixed inset-0 z-50 bg-[#f9fafb] flex flex-col overflow-y-auto animate-in fade-in slide-in-from-top duration-200"
+      className="fixed inset-0 z-50 bg-[#f9fafb] flex flex-col overflow-y-auto animate-in fade-in slide-in-from-top duration-200 font-[family-name:var(--im-font-body)]"
     >
       {/* Mobile Header Bar inside drawer */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
