@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { IBM_Plex_Sans } from 'next/font/google';
+import { IBM_Plex_Sans, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/AppShell';
 
@@ -7,6 +7,13 @@ const ibmPlexSans = IBM_Plex_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--im-font-body',
+  display: 'swap',
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--im-font-jakarta',
   display: 'swap',
 });
 
@@ -21,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={ibmPlexSans.variable}>
+    <html lang="en" className={`${ibmPlexSans.variable} ${plusJakartaSans.variable}`}>
       <body className="bg-[var(--im-bg)] text-[var(--im-text)] antialiased font-sans">
         <AppShell>
           {children}

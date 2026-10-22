@@ -7,6 +7,7 @@ const backendTarget =
   (isDev ? "http://localhost:5000" : "");
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   // Prevent Next.js from bundling native-binary or node-only packages — they must be loaded at runtime
   serverExternalPackages: ['@sparticuz/chromium', 'playwright-core', 'unzipper', 'archiver'],
 
