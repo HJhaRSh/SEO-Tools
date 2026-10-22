@@ -138,14 +138,6 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
         })}
       </div>
 
-      {/* Footer shortcut */}
-      <div className="p-4 border-t border-[var(--im-border)] bg-[var(--im-bg-soft)] text-xs font-medium text-[var(--im-text-muted)] flex items-center justify-between">
-        <span>Indian Marketers Suite</span>
-        <Link href="/tools" className="font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] hover:underline">
-          View All &rarr;
-        </Link>
-      </div>
-
     </div>
   );
 
