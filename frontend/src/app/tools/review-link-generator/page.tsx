@@ -67,24 +67,27 @@ export default function ReviewLinkGeneratorPage() {
     window.open(mapsUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleGenerateSingleLink = async (e?: React.FormEvent) => {
+  const handleGenerateSingleLink = async (e?: React.FormEvent, explicitPlaceId?: string) => {
     if (e) e.preventDefault();
     setSingleError(null);
     setGeneratedReviewLink(null);
     setExtractedPlaceId(null);
     setLinkSource(null);
 
-    if (singleInputMode === 'business') {
+    const isPlaceIdMode = explicitPlaceId !== undefined || singleInputMode === 'placeId';
+    const effectivePlaceId = (explicitPlaceId !== undefined ? explicitPlaceId : (singleInputMode === 'placeId' ? placeId : '')).trim();
+
+    if (!isPlaceIdMode) {
       if (!businessName.trim()) {
         setSingleError('Please enter your Business Name to generate the review link.');
         return;
       }
     } else {
-      if (!placeId.trim()) {
+      if (!effectivePlaceId) {
         setSingleError('Please enter a valid Google Place ID (e.g. ChIJN1t_tDeuEmsRUsoyG83frY4).');
         return;
       }
-      if (!isValidPlaceId(placeId.trim())) {
+      if (!isValidPlaceId(effectivePlaceId)) {
         setSingleError('Invalid Google Place ID format. Place IDs are alphanumeric strings (15–120 characters).');
         return;
       }
@@ -96,7 +99,7 @@ export default function ReviewLinkGeneratorPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          placeId: singleInputMode === 'placeId' ? placeId.trim() : undefined,
+          placeId: isPlaceIdMode ? effectivePlaceId : undefined,
           businessName: businessName.trim() || undefined,
           location: location.trim() || undefined
         })
@@ -655,9 +658,10 @@ export default function ReviewLinkGeneratorPage() {
                     type="button"
                     disabled={!isValidPlaceId(placeId.trim())}
                     onClick={() => {
+                      const cleanId = placeId.trim();
                       setSingleInputMode('placeId');
                       setIsFinderModalOpen(false);
-                      handleGenerateSingleLink();
+                      handleGenerateSingleLink(undefined, cleanId);
                     }}
                     className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition-all cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
                   >
