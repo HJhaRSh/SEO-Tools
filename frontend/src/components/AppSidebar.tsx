@@ -113,20 +113,20 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
                         onClick={onCloseMobile}
                         className={`flex items-center justify-between px-3 py-2.5 rounded-[var(--im-radius-sm)] font-medium transition-all group ${
                           isActive
-                            ? 'bg-[var(--im-accent-tint)] text-[var(--im-secondary)] font-semibold shadow-xs'
-                            : 'text-[var(--im-text)] hover:text-[var(--im-heading)] hover:bg-[var(--im-bg-soft)]'
+                            ? 'bg-[#f0fdf4] text-[#15803d] font-semibold border-l-2 border-[#47A048]'
+                            : 'text-[#374151] hover:text-[#111827] hover:bg-[#f9fafb]'
                         }`}
                       >
                         <div className="flex items-center gap-2.5 truncate">
                           <span
                             className={`w-2 h-2 rounded-full ${
-                              isActive ? 'bg-[var(--im-primary-deep)] ring-2 ring-[var(--im-accent-tint)]' : 'bg-[var(--im-border)] group-hover:bg-[var(--im-text-muted)]'
+                              isActive ? 'bg-[#47A048] ring-2 ring-[#bbf7d0]' : 'bg-[#d1d5db] group-hover:bg-[#9ca3af]'
                             }`}
                           ></span>
                           <span className="truncate text-sm">{tool.name}</span>
                         </div>
                         {isActive && (
-                          <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#47A048]"></span>
                         )}
                       </Link>
                     );

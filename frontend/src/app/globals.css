@@ -7,37 +7,37 @@
 }
 
 :root {
-  /* Brand colour */
-  --im-primary:        #94D459;  /* lime green: brand, links, key accents */
-  --im-primary-deep:   #67C258;  /* deeper green: hover/pressed, secondary accent */
-  --im-accent-tint:    #DBF4C4;  /* pale green tint: subtle highlights, badges, selected states */
+  /* Brand colour: live site emerald green */
+  --im-primary:        #4caf50;  /* primary green: buttons, key accents */
+  --im-primary-deep:   #3fa343;  /* hover green */
+  --im-accent-tint:    #f0fdf4;  /* light green tint for active cards/tabs */
 
   /* Neutrals */
-  --im-secondary:      #0B0B0B;  /* near-black: dark sections, header/hero backgrounds */
-  --im-heading:        #111111;  /* headings on light backgrounds */
-  --im-text:           #202020;  /* body text */
-  --im-text-muted:     #747474;  /* secondary text */
-  --im-bg:             #FFFFFF;  /* page background */
-  --im-bg-soft:        #F8F8FA;  /* alternate section / subtle panel background */
-  --im-surface:        #FDFDFD;  /* card background */
-  --im-border:         #DFDFDF;  /* borders and dividers */
-  --im-on-dark:        #FFFFFF;  /* text on dark/hero sections */
+  --im-secondary:      #111827;  /* dark neutral */
+  --im-heading:        #111827;  /* headings */
+  --im-text:           #222222;  /* body text */
+  --im-text-muted:     #6b7280;  /* secondary text */
+  --im-bg:             #ffffff;  /* page background */
+  --im-bg-soft:        #f9fafb;  /* alternate section background */
+  --im-surface:        #ffffff;  /* card background */
+  --im-border:         #e5e7eb;  /* clean borders and dividers */
+  --im-on-dark:        #ffffff;  /* text on dark sections */
 
   /* Typography */
-  --im-font-heading:   var(--im-font-body, "IBM Plex Sans", sans-serif);
+  --im-font-heading:   var(--im-font-body), "IBM Plex Sans", sans-serif;
   --im-font-body:      "IBM Plex Sans", sans-serif;
   --im-font-alt:       "Nunito", sans-serif;
 
   /* Shape */
-  --im-radius-sm:      10px;     /* inputs, small cards (most common) */
-  --im-radius-md:      16px;     /* cards, panels */
-  --im-radius-lg:      40px;     /* large feature containers */
+  --im-radius-sm:      8px;      /* inputs, small buttons */
+  --im-radius-md:      14px;     /* cards, panels */
+  --im-radius-lg:      24px;     /* feature containers */
   --im-radius-pill:    999px;    /* badges, pills */
 
-  /* Shadows (all very soft) */
-  --im-shadow-sm:      0 4px 20px 0 rgba(0,0,0,0.05);
-  --im-shadow-md:      0 8px 30px 0 rgba(0,0,0,0.08);
-  --im-shadow-lg:      0 11px 63px 1px rgba(0,0,0,0.10);
+  /* Shadows */
+  --im-shadow-sm:      0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px 0 rgba(0,0,0,0.04);
+  --im-shadow-md:      0 4px 14px 0 rgba(0,0,0,0.07);
+  --im-shadow-lg:      0 10px 30px 0 rgba(0,0,0,0.10);
 
   /* Fallback aliases for background & foreground */
   --background:        var(--im-bg);
@@ -47,12 +47,22 @@
 html, body {
   color: var(--im-text);
   background-color: var(--im-bg);
-  font-family: var(--im-font-body), "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  font-family: var(--im-font-body), "IBM Plex Sans", system-ui, -apple-system, sans-serif !important;
   -webkit-font-smoothing: antialiased;
 }
 
+/* Universal font family inheritance for all form controls and interactive elements */
+input, button, select, textarea, optgroup, option {
+  font-family: var(--im-font-body), "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Preserve monospaced stack for raw technical data and code viewers */
+pre, code, kbd, samp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--im-font-heading);
+  font-family: var(--im-font-heading) !important;
 }
 
 @layer components {
@@ -60,16 +70,18 @@ h1, h2, h3, h4, h5, h6 {
     @apply inline-flex items-center justify-center px-6 py-3 font-semibold text-base transition-all duration-200 border border-transparent cursor-pointer active:scale-98;
     border-radius: var(--im-radius-sm);
     box-shadow: var(--im-shadow-sm);
+    font-family: var(--im-font-body), "IBM Plex Sans", sans-serif !important;
   }
   .btn:hover {
     box-shadow: var(--im-shadow-md);
   }
   .btn-primary {
     background-color: var(--im-primary);
-    color: var(--im-secondary);
+    color: #ffffff !important;
   }
   .btn-primary:hover {
     background-color: var(--im-primary-deep);
+    color: #ffffff !important;
   }
   .btn-secondary {
     background-color: var(--im-bg);

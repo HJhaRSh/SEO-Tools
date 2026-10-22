@@ -122,10 +122,10 @@ export default function ToolsClient() {
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`px-5 py-2.5 rounded-[var(--im-radius-pill)] text-sm font-medium transition-all duration-200 cursor-pointer ${
+            className={`px-5 py-2.5 rounded-[var(--im-radius-pill)] text-sm font-semibold transition-all duration-200 cursor-pointer ${
               activeCategory === cat 
-                ? 'bg-[var(--im-secondary)] text-[var(--im-on-dark)] shadow-[var(--im-shadow-sm)] ring-1 ring-[var(--im-secondary)]' 
-                : 'bg-[var(--im-surface)] text-[var(--im-text)] border border-[var(--im-border)] hover:border-[var(--im-primary-deep)] hover:bg-[var(--im-bg-soft)]'
+                ? 'bg-[#47A048] text-white shadow-sm ring-1 ring-[#47A048]' 
+                : 'bg-[var(--im-surface)] text-[var(--im-text)] border border-[var(--im-border)] hover:border-[#47A048] hover:bg-[var(--im-bg-soft)]'
             }`}
           >
             {cat}
