@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx src/test-security-qa.ts && tsx src/test-review-link.ts && tsx src/test-schema-generator.ts && tsx src/test-robots.ts && tsx src/test-robots-regression.ts && tsx src/test-sitemap-nextjs.ts && tsx src/test-mobile-first.ts && tsx src/test-local-search.ts"
+    "test": "tsx src/test-security-qa.ts && tsx src/test-review-link.ts && tsx src/test-schema-generator.ts && tsx src/test-robots.ts && tsx src/test-robots-regression.ts && tsx src/test-sitemap-nextjs.ts && tsx src/test-mobile-first.ts && tsx src/test-local-search.ts && tsx src/test-schema-checker.ts"
   },
   "dependencies": {
     "@sparticuz/chromium": "133.0.0",

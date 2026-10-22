@@ -60,7 +60,8 @@ const TOOLS_DATA = [
     tools: [
       { name: 'SERP Simulator', description: 'Preview title tags, meta descriptions, and rich snippets across desktop and mobile displays.', href: '/tools/serp-simulator' },
       { name: 'Knowledge Graph Search', description: 'Inspect Google Knowledge Graph entities, schema types, and topic authority scores.', href: '/tools/knowledge-graph-search' },
-      { name: 'Schema Markup Generator', description: 'Generate valid JSON-LD structured data code for Organizations, Articles, FAQs, and Products.', href: '/tools/schema-generator' }
+      { name: 'Schema Markup Generator', description: 'Generate valid JSON-LD structured data code for Organizations, Articles, FAQs, and Products.', href: '/tools/schema-generator' },
+      { name: 'Schema Checker', description: 'Check schema presence and detected schema types across single or bulk URLs.', href: '/tools/schema-checker' }
     ]
   }
 ];

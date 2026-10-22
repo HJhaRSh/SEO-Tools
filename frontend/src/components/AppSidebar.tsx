@@ -32,6 +32,8 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
     };
   }).filter(cat => cat.tools.length > 0);
 
+  const totalTools = NAVIGATION_TOOLS.reduce((acc, cat) => acc + cat.tools.length, 0);
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[var(--im-surface)] border-r border-[var(--im-border)] text-[var(--im-text)] select-none">
       
@@ -43,7 +45,7 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
           </div>
           <div>
             <span className="font-bold text-base text-[var(--im-heading)] block tracking-tight leading-tight">All SEO Tools</span>
-            <span className="text-xs text-[var(--im-text-muted)] font-medium">14 Tools Suite</span>
+            <span className="text-xs text-[var(--im-text-muted)] font-medium">{totalTools} Tools Suite</span>
           </div>
         </Link>
 

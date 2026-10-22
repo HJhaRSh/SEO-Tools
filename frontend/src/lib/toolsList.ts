@@ -53,7 +53,8 @@ export const NAVIGATION_TOOLS: ToolCategory[] = [
     tools: [
       { name: 'SERP Simulator', description: 'Preview your title and meta description in search results.', href: '/tools/serp-simulator' },
       { name: 'Knowledge Graph Search', description: 'Search and inspect Google Knowledge Graph entities.', href: '/tools/knowledge-graph-search' },
-      { name: 'Schema Markup Generator', description: 'Generate structured data JSON-LD code for your pages.', href: '/tools/schema-generator' }
+      { name: 'Schema Markup Generator', description: 'Generate structured data JSON-LD code for your pages.', href: '/tools/schema-generator' },
+      { name: 'Schema Checker', description: 'Check schema presence and detected schema types across single or bulk URLs.', href: '/tools/schema-checker', isNew: true }
     ]
   }
 ];
