@@ -18,13 +18,20 @@ function sanitizeCsvField(value: string): string {
   return value;
 }
 
+function getStatusLabel(r: SchemaCheckResult): 'Yes' | 'No' | 'Unable to check' {
+  if (r.status === 'found' || (r.schemaFound && !r.status)) return 'Yes';
+  if (r.status === 'unable_to_check') return 'Unable to check';
+  return 'No';
+}
+
 function generateCsv(results: SchemaCheckResult[]): string {
   const rows = [['URL', 'Schema Found', 'Types']];
   for (const r of results) {
+    const statusLabel = getStatusLabel(r);
     rows.push([
       r.url,
-      r.schemaFound ? 'Yes' : 'No',
-      r.types.join(', '),
+      statusLabel,
+      statusLabel === 'Yes' && r.types.length > 0 ? r.types.join(', ') : '',
     ]);
   }
   return rows.map(row => row.map(sanitizeCsvField).join(',')).join('\r\n');
@@ -111,10 +118,10 @@ export default function SchemaCheckerPage() {
       });
 
       const contentType = res.headers.get('content-type') || '';
-      let data: any;
+      let data: { success?: boolean; results?: SchemaCheckResult[]; error?: string } = {};
 
       if (contentType.includes('application/json')) {
-        data = await res.json();
+        data = (await res.json()) as { success?: boolean; results?: SchemaCheckResult[]; error?: string };
       } else {
         const text = await res.text();
         throw new Error(
@@ -124,7 +131,7 @@ export default function SchemaCheckerPage() {
         );
       }
 
-      if (!res.ok || !data.success) {
+      if (!res.ok || !data.success || !Array.isArray(data.results)) {
         throw new Error(data.error || 'Failed to check schema markup.');
       }
 
@@ -370,10 +377,15 @@ export default function SchemaCheckerPage() {
 
                     {/* Schema Found */}
                     <td className="px-5 py-3.5 whitespace-nowrap">
-                      {result.schemaFound ? (
+                      {result.status === 'found' || (result.schemaFound && !result.status) ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                           Yes
+                        </span>
+                      ) : result.status === 'unable_to_check' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          Unable to check
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--im-bg-soft)] text-[var(--im-text-muted)] border border-[var(--im-border)]">

@@ -41,16 +41,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate each URL using the existing SSRF-aware validateUrl function
+    // Validate and deduplicate each URL, stripping fragments while preserving query strings
     const validatedUrls: string[] = [];
+    const seen = new Set<string>();
+
     for (const raw of rawUrls) {
       if (typeof raw !== 'string') continue;
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+
       try {
-        const parsed = validateUrl(raw.trim());
+        const parsed = validateUrl(trimmed);
         if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) continue;
-        validatedUrls.push(parsed.href);
+
+        // Strip URL fragment/hash before deduplicating and fetching
+        parsed.hash = '';
+        const normalizedHref = parsed.href;
+
+        if (!seen.has(normalizedHref)) {
+          seen.add(normalizedHref);
+          validatedUrls.push(normalizedHref);
+        }
       } catch {
-        // Skip invalid URLs silently — they were filtered at the frontend
+        // Skip invalid URLs silently
         continue;
       }
     }
