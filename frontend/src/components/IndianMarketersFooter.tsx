@@ -17,7 +17,7 @@ import {
 export default function IndianMarketersFooter() {
   return (
     <footer className="w-full bg-white text-[#222222] border-t border-[#e5e7eb] pt-14 pb-12 transition-colors font-[family-name:var(--im-font-body)]">
-      <div className="max-w-[1520px] w-full mx-auto px-6 sm:px-10 xl:px-14">
+      <div className="max-w-[1440px] w-full mx-auto px-6 sm:px-8 xl:px-12">
         
         {/* Main 5 columns */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 lg:gap-8">
