@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ToolLayout from '@/components/ToolLayout';
 import {
   USER_AGENTS,
@@ -33,10 +33,33 @@ export default function PrerenderingTester() {
   const [results, setResults] = useState<AgentTestResult[]>([]);
   const [comparisons, setComparisons] = useState<ComparisonFieldResult[]>([]);
 
-  // Raw HTML viewer state
+  // Raw HTML viewer state & navigation
   const [viewingHtmlAgent, setViewingHtmlAgent] = useState<AgentTestResult | null>(null);
   const [copiedHtml, setCopiedHtml] = useState(false);
   const [selectionWarning, setSelectionWarning] = useState<string | null>(null);
+  const [highlightInspector, setHighlightInspector] = useState(false);
+  const htmlInspectorRef = useRef<HTMLDivElement>(null);
+  const comparisonTableRef = useRef<HTMLDivElement>(null);
+
+  const handleViewHtml = (row: AgentTestResult) => {
+    setViewingHtmlAgent(row);
+    setHighlightInspector(true);
+    // Smooth scroll down to the HTML inspector block after React paints
+    setTimeout(() => {
+      const el = htmlInspectorRef.current || document.getElementById('raw-html-inspector');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 60);
+    setTimeout(() => setHighlightInspector(false), 2000);
+  };
+
+  const handleScrollToTable = () => {
+    const el = comparisonTableRef.current || document.getElementById('comparison-table-section');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // User-Agent Selection handlers
   const toggleAgent = (id: string) => {
@@ -469,10 +492,25 @@ export default function PrerenderingTester() {
               </div>
 
               {/* CORE RESULTS COMPARISON TABLE (Matching Reference TechnicalSEO tool) */}
-              <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white mb-3">
-                  USER-AGENT RESPONSE COMPARISON TABLE
-                </h3>
+              <div id="comparison-table-section" ref={comparisonTableRef} className="scroll-mt-24">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    USER-AGENT RESPONSE COMPARISON TABLE
+                  </h3>
+                  {viewingHtmlAgent && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = htmlInspectorRef.current || document.getElementById('raw-html-inspector');
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Jump to HTML Inspector ({viewingHtmlAgent.userAgentName})</span>
+                      <span>&darr;</span>
+                    </button>
+                  )}
+                </div>
                 <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -496,11 +534,16 @@ export default function PrerenderingTester() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
                       {results.map((row) => {
                         const isSuccess = row.status === 'success';
+                        const isSelectedForHtml = viewingHtmlAgent?.userAgentId === row.userAgentId;
                         return (
                           <tr
                             key={row.userAgentId}
-                            className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${
-                              !isSuccess ? 'bg-rose-50/40 dark:bg-rose-950/10' : ''
+                            className={`transition-colors ${
+                              isSelectedForHtml
+                                ? 'bg-emerald-500/15 dark:bg-emerald-950/40 ring-1 ring-inset ring-emerald-500/40'
+                                : !isSuccess
+                                ? 'bg-rose-50/40 dark:bg-rose-950/10 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
                             }`}
                           >
                             {/* User Agent */}
@@ -651,10 +694,15 @@ export default function PrerenderingTester() {
                               {row.rawHtml ? (
                                 <button
                                   type="button"
-                                  onClick={() => setViewingHtmlAgent(row)}
-                                  className="text-[11px] font-sans font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200"
+                                  onClick={() => handleViewHtml(row)}
+                                  className={`text-[11px] font-sans font-bold px-2.5 py-1 rounded transition-all cursor-pointer shadow-xs ${
+                                    isSelectedForHtml
+                                      ? 'bg-emerald-600 text-white hover:bg-emerald-700 ring-2 ring-emerald-400/60'
+                                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                                  }`}
+                                  title={`Jump to HTML source for ${row.userAgentName}`}
                                 >
-                                  View HTML
+                                  {isSelectedForHtml ? 'Viewing HTML ↓' : 'View HTML'}
                                 </button>
                               ) : (
                                 <span className="text-rose-500 font-sans text-[11px]">Failed</span>
@@ -725,14 +773,25 @@ export default function PrerenderingTester() {
 
               {/* RAW HTML INSPECTOR MODAL / DRAWER */}
               {viewingHtmlAgent && (
-                <div className="p-6 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-900 text-slate-100 space-y-4">
+                <div
+                  id="raw-html-inspector"
+                  ref={htmlInspectorRef}
+                  className={`p-6 rounded-2xl border transition-all duration-300 bg-slate-900 text-slate-100 space-y-4 scroll-mt-24 shadow-2xl ${
+                    highlightInspector
+                      ? 'border-emerald-400 ring-4 ring-emerald-500/50 scale-[1.005]'
+                      : 'border-slate-700 ring-1 ring-emerald-500/30'
+                  }`}
+                >
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-4">
                     <div>
-                      <h4 className="text-base font-bold text-white flex items-center gap-2">
-                        <span>Raw HTML Response:</span>
-                        <span className="text-emerald-400 font-mono">{viewingHtmlAgent.userAgentName}</span>
-                      </h4>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <h4 className="text-base font-bold text-white flex items-center gap-2">
+                          <span>Raw HTML Response:</span>
+                          <span className="text-emerald-400 font-mono">{viewingHtmlAgent.userAgentName}</span>
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
                         HTTP {viewingHtmlAgent.statusCode} | Byte size:{' '}
                         {((viewingHtmlAgent.htmlSize || 0) / 1024).toFixed(1)} KB | MD5:{' '}
                         <span className="font-mono">{viewingHtmlAgent.md5}</span>
@@ -744,25 +803,36 @@ export default function PrerenderingTester() {
                         )}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleScrollToTable}
+                        className="btn btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 cursor-pointer"
+                        title="Scroll back up to the comparison table"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                        </svg>
+                        Back to Table
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleCopyRawHtml(viewingHtmlAgent.rawHtml || '')}
-                        className="btn btn-secondary text-xs py-1.5 px-3"
+                        className="btn btn-secondary text-xs py-1.5 px-3 cursor-pointer"
                       >
                         {copiedHtml ? 'Copied!' : 'Copy Source'}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDownloadRawHtml(viewingHtmlAgent)}
-                        className="btn btn-secondary text-xs py-1.5 px-3"
+                        className="btn btn-secondary text-xs py-1.5 px-3 cursor-pointer"
                       >
                         Download HTML
                       </button>
                       <button
                         type="button"
                         onClick={() => setViewingHtmlAgent(null)}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors cursor-pointer"
                       >
                         Close
                       </button>
