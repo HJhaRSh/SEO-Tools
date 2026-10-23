@@ -14,6 +14,7 @@ import {
   HreflangItem,
 } from './types';
 import { parseLinkHeaders } from '../hreflang/parseHeaders';
+import { extractSchemaTypes } from '../schema-checker/schemaExtractor';
 
 /**
  * Normalizes an object's keys recursively to allow deterministic comparison
@@ -384,6 +385,40 @@ export function extractSeoSignals(
   const parseErrors: string[] = [];
   let jsonLdBlocksCount = 0;
 
+  const processEntity = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return;
+
+    if (obj['@type']) {
+      const rawTypes = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
+      for (const t of rawTypes) {
+        if (typeof t === 'string' && !schemaTypes.includes(t)) {
+          schemaTypes.push(t);
+        }
+      }
+      const primaryType = typeof rawTypes[0] === 'string' ? rawTypes[0] : 'Thing';
+
+      const normalized = normalizeObjectKeys(obj);
+      const rawNormalizedJson = JSON.stringify(normalized);
+
+      schemaEntities.push({
+        type: primaryType,
+        id: typeof obj['@id'] === 'string' ? obj['@id'] : undefined,
+        name: extractSchemaProp(obj.name),
+        headline: extractSchemaProp(obj.headline),
+        description: extractSchemaProp(obj.description),
+        author: extractSchemaProp(obj.author),
+        publisher: extractSchemaProp(obj.publisher),
+        rawNormalizedJson,
+      });
+    }
+
+    if (Array.isArray(obj['@graph'])) {
+      for (const item of obj['@graph']) {
+        processEntity(item);
+      }
+    }
+  };
+
   $('script[type="application/ld+json" i]').each((_, el) => {
     jsonLdBlocksCount++;
     const text = $(el).text().trim();
@@ -391,40 +426,6 @@ export function extractSeoSignals(
 
     try {
       const parsed = JSON.parse(text);
-
-      const processEntity = (obj: any) => {
-        if (!obj || typeof obj !== 'object') return;
-
-        if (obj['@type']) {
-          const rawTypes = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
-          for (const t of rawTypes) {
-            if (typeof t === 'string' && !schemaTypes.includes(t)) {
-              schemaTypes.push(t);
-            }
-          }
-          const primaryType = typeof rawTypes[0] === 'string' ? rawTypes[0] : 'Thing';
-
-          const normalized = normalizeObjectKeys(obj);
-          const rawNormalizedJson = JSON.stringify(normalized);
-
-          schemaEntities.push({
-            type: primaryType,
-            id: typeof obj['@id'] === 'string' ? obj['@id'] : undefined,
-            name: extractSchemaProp(obj.name),
-            headline: extractSchemaProp(obj.headline),
-            description: extractSchemaProp(obj.description),
-            author: extractSchemaProp(obj.author),
-            publisher: extractSchemaProp(obj.publisher),
-            rawNormalizedJson,
-          });
-        }
-
-        if (Array.isArray(obj['@graph'])) {
-          for (const item of obj['@graph']) {
-            processEntity(item);
-          }
-        }
-      };
 
       if (Array.isArray(parsed)) {
         for (const item of parsed) {
@@ -463,12 +464,67 @@ export function extractSeoSignals(
     }
   });
 
+  // Next.js script payloads (__next_s, __NEXT_DATA__, and inline ld+json)
+  $('script').each((_, el) => {
+    const raw = $(el).html();
+    if (!raw) return;
+
+    // Next.js (self.__next_s=self.__next_s||[]).push(...)
+    const nextSMatch = raw.match(/\(self\.__next_s=self\.__next_s\|\|\[\]\)\.push\(\[[^,]+,\s*(\{[\s\S]*?\})\s*\]\)/);
+    if (nextSMatch) {
+      try {
+        const payload = JSON.parse(nextSMatch[1]);
+        if (payload && (payload.type === 'application/ld+json' || String(payload.type).includes('application/ld+json'))) {
+          const content = payload.children || payload.dangerouslySetInnerHTML?.__html;
+          if (content) {
+            const inner = typeof content === 'string' ? JSON.parse(content) : content;
+            if (Array.isArray(inner)) {
+              for (const item of inner) processEntity(item);
+            } else {
+              processEntity(inner);
+            }
+            jsonLdBlocksCount++;
+          }
+        }
+      } catch {
+        // Silently continue
+      }
+    }
+
+    // Next.js __NEXT_DATA__
+    if ($(el).attr('id') === '__NEXT_DATA__') {
+      try {
+        const nextData = JSON.parse(raw.trim());
+        if (Array.isArray(nextData)) {
+          for (const item of nextData) processEntity(item);
+        } else {
+          processEntity(nextData);
+        }
+      } catch {
+        // Silently continue
+      }
+    }
+  });
+
+  // Comprehensive Schema.org extraction using shared schema-checker logic
+  const allDetectedTypes = extractSchemaTypes(html);
+  for (const t of allDetectedTypes) {
+    if (!schemaTypes.includes(t)) {
+      schemaTypes.push(t);
+    }
+    if (!schemaEntities.some((e) => e.type.toLowerCase() === t.toLowerCase())) {
+      schemaEntities.push({
+        type: t,
+      });
+    }
+  }
+
   const structuredData: StructuredDataInfo = {
     hasStructuredData: schemaTypes.length > 0 || schemaEntities.length > 0,
     types: schemaTypes.sort(),
-    entityCount: schemaEntities.length,
+    entityCount: Math.max(schemaEntities.length, schemaTypes.length),
     entities: schemaEntities,
-    jsonLdBlocksCount,
+    jsonLdBlocksCount: Math.max(jsonLdBlocksCount, schemaTypes.length > 0 ? 1 : 0),
     microdataItemTypes,
     rdfaTypes,
     parseErrors,

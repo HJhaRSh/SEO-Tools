@@ -1137,8 +1137,12 @@ export function compareDesktopAndMobile(
   } else if (!dSchema.hasStructuredData && mSchema.hasStructuredData) {
     schemaStatus = 'Difference';
   } else {
-    const missingOnMobile = dSchema.types.filter((t) => !mSchema.types.includes(t));
-    const mobileOnly = mSchema.types.filter((t) => !dSchema.types.includes(t));
+    const missingOnMobile = dSchema.types.filter(
+      (t) => !mSchema.types.some((mt) => mt.toLowerCase() === t.toLowerCase())
+    );
+    const mobileOnly = mSchema.types.filter(
+      (t) => !dSchema.types.some((dt) => dt.toLowerCase() === t.toLowerCase())
+    );
 
     if (missingOnMobile.length > 0) {
       schemaStatus = 'Warning';
@@ -1174,6 +1178,13 @@ export function compareDesktopAndMobile(
     }
   }
 
+  const missingOnMobileForDetails = dSchema.types.filter(
+    (t) => !mSchema.types.some((mt) => mt.toLowerCase() === t.toLowerCase())
+  );
+  const mobileOnlyForDetails = mSchema.types.filter(
+    (t) => !dSchema.types.some((dt) => dt.toLowerCase() === t.toLowerCase())
+  );
+
   comparisonTable.push({
     category: 'Structured Data',
     element: 'Schema Markup (JSON-LD / Microdata)',
@@ -1182,7 +1193,19 @@ export function compareDesktopAndMobile(
     status: schemaStatus,
     details:
       schemaStatus === 'Match'
-        ? 'Structured data types match across both versions.'
+        ? (dSchema.types.length > 0
+            ? `Structured data types match across both versions (${dSchema.types.join(', ')}).`
+            : 'Structured data types match across both versions.')
+        : schemaStatus === 'Both Missing'
+        ? 'No structured data detected on either desktop or mobile.'
+        : schemaStatus === 'Critical'
+        ? 'Structured data present on desktop but completely missing on mobile.'
+        : schemaStatus === 'Warning'
+        ? (missingOnMobileForDetails.length > 0
+            ? `Schema types missing on mobile: ${missingOnMobileForDetails.join(', ')}.`
+            : 'Structured data discrepancy between desktop and mobile.')
+        : mobileOnlyForDetails.length > 0
+        ? `Additional schema types present only on mobile: ${mobileOnlyForDetails.join(', ')}.`
         : 'Structured data discrepancy between desktop and mobile.',
     isImportant: true,
   });
