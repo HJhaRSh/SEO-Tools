@@ -21,7 +21,8 @@ import {
   WebPageFormState,
   WebSiteFormState,
 } from '@/lib/seo/schema/types';
-import { ORGANIZATION_SUBTYPES } from '@/lib/seo/schema/constants';
+import { LOCAL_BUSINESS_SUBTYPES, ORGANIZATION_SUBTYPES } from '@/lib/seo/schema/constants';
+import CustomSelectDropdown from '@/components/schema/CustomSelectDropdown';
 import { generateRowId } from '@/lib/seo/schema/fieldUtils';
 
 interface SchemaFormFieldsProps {
@@ -481,19 +482,11 @@ export default function SchemaFormFields({ schemaType, state, onChange }: Schema
       <div className="grid md:grid-cols-2 gap-4 mt-6">
         <div className="input-group">
           <label className="label">Specific Subtype</label>
-          <select
-            className="select"
+          <CustomSelectDropdown
             value={data.subType || (schemaType === 'Restaurant' ? 'Restaurant' : 'LocalBusiness')}
-            onChange={(e) => onChange('subType', e.target.value)}
-          >
-            <option value="LocalBusiness">LocalBusiness (General)</option>
-            <option value="Restaurant">Restaurant</option>
-            <option value="Store">Store</option>
-            <option value="Dentist">Dentist</option>
-            <option value="MedicalClinic">MedicalClinic</option>
-            <option value="ProfessionalService">ProfessionalService</option>
-            <option value="AutomotiveBusiness">AutomotiveBusiness</option>
-          </select>
+            options={LOCAL_BUSINESS_SUBTYPES}
+            onChange={(val) => onChange('subType', val)}
+          />
         </div>
 
         <div className="input-group">
@@ -699,17 +692,11 @@ export default function SchemaFormFields({ schemaType, state, onChange }: Schema
       <div className="grid md:grid-cols-2 gap-4 mt-6">
         <div className="input-group md:col-span-2">
           <label className="label">Specific Subtype</label>
-          <select
-            className="select"
+          <CustomSelectDropdown
             value={data.subType || 'Organization'}
-            onChange={(e) => onChange('subType', e.target.value)}
-          >
-            {ORGANIZATION_SUBTYPES.map((sub) => (
-              <option key={sub.value} value={sub.value}>
-                {sub.label}
-              </option>
-            ))}
-          </select>
+            options={ORGANIZATION_SUBTYPES}
+            onChange={(val) => onChange('subType', val)}
+          />
         </div>
 
         <div className="input-group">

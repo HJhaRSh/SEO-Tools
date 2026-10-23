@@ -207,3 +207,14 @@ export const ORGANIZATION_SUBTYPES: { value: OrganizationSubType; label: string 
   { value: 'Consortium', label: 'Consortium' },
 ];
 
+export const LOCAL_BUSINESS_SUBTYPES: { value: string; label: string }[] = [
+  { value: 'LocalBusiness', label: 'LocalBusiness (General)' },
+  { value: 'Restaurant', label: 'Restaurant' },
+  { value: 'Store', label: 'Store / Retail Shop' },
+  { value: 'Dentist', label: 'Dentist' },
+  { value: 'MedicalClinic', label: 'MedicalClinic' },
+  { value: 'ProfessionalService', label: 'ProfessionalService' },
+  { value: 'AutomotiveBusiness', label: 'AutomotiveBusiness' },
+];
+
+
