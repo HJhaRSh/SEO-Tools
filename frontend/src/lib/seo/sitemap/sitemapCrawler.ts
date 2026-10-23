@@ -585,7 +585,7 @@ export async function crawlWebsiteForSitemap(
       // Check robots.txt first
       const robotsUrl = `${baseOrigin}/robots.txt`;
       const robotsRes = await safeFetch(robotsUrl, {
-        timeoutMs: 4000,
+        timeoutMs: 2500,
         maxBytes: 128 * 1024,
         allowLocalhostForTesting
       }).catch(() => null);
@@ -594,23 +594,16 @@ export async function crawlWebsiteForSitemap(
         const parsedRobots = parseRobotsTxt(robotsRes.body);
         if (parsedRobots.sitemaps && parsedRobots.sitemaps.length > 0) {
           for (const sm of parsedRobots.sitemaps) {
-            if (sm.url && !candidateSitemaps.includes(sm.url)) {
+            if (sm.url && !candidateSitemaps.includes(sm.url) && candidateSitemaps.length < 2) {
               candidateSitemaps.push(sm.url);
             }
           }
         }
       }
 
-      // Probe default sitemap paths on both baseOrigin and alternate www/apex
-      const bareHost = baseHostname.replace(/^www\./i, '');
-      const altOrigin = baseHostname.startsWith('www.') ? `https://${bareHost}` : `https://www.${bareHost}`;
-
-      const defaultPaths = ['/sitemap.xml', '/sitemap_index.xml'];
-      for (const p of defaultPaths) {
-        const u1 = `${baseOrigin}${p}`;
-        if (!candidateSitemaps.includes(u1)) candidateSitemaps.push(u1);
-        const u2 = `${altOrigin}${p}`;
-        if (!candidateSitemaps.includes(u2)) candidateSitemaps.push(u2);
+      // Only probe default /sitemap.xml if robots.txt did not declare a sitemap
+      if (candidateSitemaps.length === 0) {
+        candidateSitemaps.push(`${baseOrigin}/sitemap.xml`);
       }
 
       // Parse all discovered candidate sitemaps and nested sitemaps without artificial slice

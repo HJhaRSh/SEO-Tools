@@ -520,6 +520,9 @@ export default function SitemapGenerator() {
    * Complete crawl and generate standard XML Sitemap from crawled entries
    */
   const finishAndGenerateSitemap = async (entries: any[]) => {
+    if (accumulatedReportRef.current.size > 0) {
+      setCrawlReport(Array.from(accumulatedReportRef.current.values()));
+    }
     if (!entries || entries.length === 0) {
       setErrorMessage('No valid, indexable pages were discovered on the specified website.');
       setStatus('error');
@@ -1532,9 +1535,11 @@ export default function SitemapGenerator() {
                 </pre>
               </div>
             )}
+          </div>
+        )}
 
-            {/* CRAWL & EXCLUSION AUDIT REPORT */}
-            {crawlReport.length > 0 && (() => {
+        {/* CRAWL & EXCLUSION AUDIT REPORT */}
+        {crawlReport.length > 0 && (() => {
               const indexedCount = crawlReport.filter(r => r.status === 'indexed').length;
               const excludedCount = crawlReport.filter(r => r.status === 'excluded').length;
               const redirectedCount = crawlReport.filter(r => r.status === 'redirected').length;
@@ -1777,8 +1782,6 @@ export default function SitemapGenerator() {
                 </div>
               );
             })()}
-          </div>
-        )}
       </div>
     </ToolLayout>
   );
