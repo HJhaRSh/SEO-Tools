@@ -5,7 +5,6 @@ import ToolLayout from '@/components/ToolLayout';
 import {
   generateLocalSearchResults,
   LocalSearchResult,
-  CURATED_LOCATIONS,
   POPULAR_COUNTRIES,
   POPULAR_LANGUAGES
 } from '@/lib/seo/localSearchService';
@@ -52,13 +51,6 @@ export default function LocalSearchTool() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An error occurred while formulating search targets.');
     }
-  };
-
-  const handleSelectCuratedLocation = (curated: typeof CURATED_LOCATIONS[0]) => {
-    setLocation(curated.name);
-    setCountryCode(curated.countryCode);
-    setLanguageCode(curated.languageCode);
-    setError(null);
   };
 
   const handleCopy = async (text: string, type: 'search' | 'maps') => {
@@ -122,8 +114,8 @@ export default function LocalSearchTool() {
       breadcrumbs={[{ label: 'Local Search Results Tool' }]}
       aboutText="Search engine results pages (SERPs) vary significantly based on where a user searches from. Google tailors organic results, Local Map Packs, Knowledge Panels, and local business citations according to location signals. This free tool lets technical SEOs, local marketers, and business owners formulate authentic localized Google search URLs equipped with official canonical location parameters (Google UULE), country market bias (gl), language controls (hl), and reduced personalization (pws=0). You can inspect the live results directly in the embedded interactive browser pane or open them in external browser tabs."
       howItWorks={[
-        "Enter your search keyword or phrase (e.g. 'best restaurants in Mumbai', 'dentist near me', 'digital marketing agency').",
-        "Specify the search location (e.g. 'Mumbai, Maharashtra, India' or select from quick suggestions).",
+        "Enter your search keyword or phrase (e.g. 'dentist near me', 'SEO services', 'digital marketing agency').",
+        "Specify the search location (e.g. 'Mumbai, Maharashtra, India').",
         "Adjust advanced options if needed: target country (gl), interface language (hl), and personalization reduction (pws=0).",
         "Click 'Generate & Inspect Local Search'.",
         "View the live Google Search or Google Maps results directly in the embedded pane below, toggle between desktop and mobile viewport containers, or open in a new tab."
@@ -171,7 +163,7 @@ export default function LocalSearchTool() {
               id="local-search-query"
               type="text"
               className="input font-medium"
-              placeholder="e.g. best restaurants in Mumbai, dentist near me, SEO services"
+              placeholder="e.g. dentist near me, SEO services, coffee shop"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -205,29 +197,6 @@ export default function LocalSearchTool() {
             <p className="text-xs text-slate-500 mt-1.5">
               💡 <strong>Pro-Tip for Google UULE:</strong> Google&apos;s location database requires full canonical format: <code>City, State, Country</code> (e.g. <strong>Ahmednagar, Maharashtra, India</strong>). Appending the country ensures Google overrides your physical IP instead of falling back to your local city.
             </p>
-
-            {/* Quick Pick Curated Locations */}
-            <div className="mt-3">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                Quick-Select Target Markets:
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {CURATED_LOCATIONS.slice(0, 10).map((loc) => (
-                  <button
-                    key={loc.name}
-                    type="button"
-                    onClick={() => handleSelectCuratedLocation(loc)}
-                    className={`text-xs px-2.5 py-1 rounded-lg border transition-all font-medium ${
-                      location === loc.name
-                        ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    📍 {loc.name.split(',')[0]}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* ADVANCED SETTINGS ACCORDION */}
