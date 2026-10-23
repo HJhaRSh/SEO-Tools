@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useId } from 'react';
+import React, { useState, useMemo, useId, useRef, useEffect } from 'react';
 import ToolLayout from '@/components/ToolLayout';
 import {
   SerpDevice,
@@ -35,9 +35,55 @@ export default function SerpSimulator() {
   const [fetchSuccess, setFetchSuccess] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  React.useEffect(() => {
+  // Auto-scaling ref and states to zoom out preview seamlessly without horizontal sliders
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number>(1);
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
+
+  useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Update scale factor whenever container width or card dimensions change
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const updateDimensions = () => {
+      if (!containerRef.current) return;
+      const availableWidth = containerRef.current.clientWidth;
+      const targetWidth = SERP_LIMITS[device].previewContainerPx;
+
+      if (cardRef.current) {
+        setCardHeight(cardRef.current.offsetHeight);
+      }
+
+      if (availableWidth > 0 && availableWidth < targetWidth) {
+        // Zoom out smoothly so the card fits completely within the container
+        const computedScale = Math.min(1, Math.max(0.35, availableWidth / targetWidth));
+        setScale(computedScale);
+      } else {
+        setScale(1);
+      }
+    };
+
+    updateDimensions();
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => {
+        updateDimensions();
+      });
+      if (containerRef.current) ro.observe(containerRef.current);
+      if (cardRef.current) ro.observe(cardRef.current);
+    }
+
+    window.addEventListener('resize', updateDimensions);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', updateDimensions);
+    };
+  }, [isMounted, device, title, description, showRating, rating, reviewCount, url, query]);
 
   // Accessible IDs
   const titleInputId = useId();
@@ -529,8 +575,13 @@ export default function SerpSimulator() {
                 <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">
                   Live SERP Preview
                 </h2>
-                <p className="text-xs text-slate-500">
-                  Simulated Google search result ({device === 'desktop' ? 'desktop view · 600px content width' : 'mobile view · 380px device width'})
+                <p className="text-xs text-slate-500 flex items-center flex-wrap gap-2">
+                  <span>Simulated Google search result ({device === 'desktop' ? 'desktop view · 600px content width' : 'mobile view · 380px device width'})</span>
+                  {scale < 0.98 && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                      🔍 {Math.round(scale * 100)}% zoom to fit
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -569,160 +620,179 @@ export default function SerpSimulator() {
               </div>
             </div>
 
-            {/* Container representing Google SERP Viewport */}
-            <div className="bg-slate-100/70 dark:bg-slate-950/40 p-4 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-x-auto">
-              <div className="min-w-fit flex justify-center py-1">
-                {/* DESKTOP SERP RESULT */}
-                {device === 'desktop' ? (
+            {/* Container representing Google SERP Viewport (Auto-scaled without horizontal scrollbars) */}
+            <div className="bg-slate-100/70 dark:bg-slate-950/40 p-3 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex justify-center items-center overflow-hidden">
+              <div ref={containerRef} className="w-full flex justify-center items-center overflow-hidden">
+                <div
+                  style={{
+                    width: scale < 1 ? `${Math.round(limits.previewContainerPx * scale)}px` : `${limits.previewContainerPx}px`,
+                    height: cardHeight && scale < 1 ? `${Math.round(cardHeight * scale)}px` : undefined,
+                  }}
+                  className="relative flex items-start justify-center overflow-hidden transition-[width,height] duration-150"
+                >
                   <div
-                    className="shrink-0 bg-white rounded-xl px-[26px] py-5 shadow-sm border border-slate-200/80 transition-all font-sans text-left"
-                    style={{ width: `${SERP_LIMITS.desktop.previewContainerPx}px`, minWidth: `${SERP_LIMITS.desktop.previewContainerPx}px` }}
+                    ref={cardRef}
+                    style={{
+                      width: `${limits.previewContainerPx}px`,
+                      minWidth: `${limits.previewContainerPx}px`,
+                      transform: scale < 1 ? `scale(${scale})` : undefined,
+                      transformOrigin: 'top center',
+                    }}
+                    className="shrink-0 transition-transform duration-150"
                   >
-                    {/* Google Brand / URL line */}
-                    <div className="flex items-center gap-3 mb-1.5">
-                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200/60 overflow-hidden">
-                        <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="2" y1="12" x2="22" y2="12" />
-                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                        </svg>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[14px] text-[#202124] leading-tight font-medium truncate">
-                          {parsedUrl.hostname}
-                        </div>
-                        <div className="text-[12px] text-[#4d5156] leading-tight truncate">
-                          {parsedUrl.formattedDisplay}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Title Link */}
-                    <div className="mb-1.5">
-                      <h3
-                        className="text-[20px] text-[#1a0dab] hover:underline cursor-pointer leading-[1.3] font-normal"
-                        style={{
-                          fontFamily: 'Arial, sans-serif',
-                          width: `${SERP_LIMITS.desktop.titlePx}px`,
-                          maxWidth: `${SERP_LIMITS.desktop.titlePx}px`,
-                          wordBreak: 'break-word',
-                        }}
+                    {/* DESKTOP SERP RESULT */}
+                    {device === 'desktop' ? (
+                      <div
+                        className="shrink-0 bg-white rounded-xl px-[26px] py-5 shadow-sm border border-slate-200/80 transition-all font-sans text-left"
+                        style={{ width: `${SERP_LIMITS.desktop.previewContainerPx}px`, minWidth: `${SERP_LIMITS.desktop.previewContainerPx}px` }}
                       >
-                        {highlightQueryMatches(
-                          titleMetrics.isTruncated ? titleMetrics.truncatedText : (title || 'Example Title for Your Webpage'),
-                          query
-                        )}
-                      </h3>
-                    </div>
+                        {/* Google Brand / URL line */}
+                        <div className="flex items-center gap-3 mb-1.5">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200/60 overflow-hidden">
+                            <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="2" y1="12" x2="22" y2="12" />
+                              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[14px] text-[#202124] leading-tight font-medium truncate">
+                              {parsedUrl.hostname}
+                            </div>
+                            <div className="text-[12px] text-[#4d5156] leading-tight truncate">
+                              {parsedUrl.formattedDisplay}
+                            </div>
+                          </div>
+                        </div>
 
-                    {/* Optional Rating Line */}
-                    {showRating && (
-                      <div className="flex items-center gap-1.5 text-[12px] text-[#4d5156] mb-1.5">
-                        <span className="text-[#fbbc04] font-bold text-sm tracking-tighter">
-                          {'★'.repeat(Math.round(ratingValueNum))}
-                          {'☆'.repeat(Math.max(0, 5 - Math.round(ratingValueNum)))}
-                        </span>
-                        <span className="font-semibold text-[#202124]">Rating: {ratingValueNum.toFixed(1)}</span>
-                        <span>·</span>
-                        <span>{reviewCountNum.toLocaleString()} reviews</span>
+                        {/* Title Link */}
+                        <div className="mb-1.5">
+                          <h3
+                            className="text-[20px] text-[#1a0dab] hover:underline cursor-pointer leading-[1.3] font-normal"
+                            style={{
+                              fontFamily: 'Arial, sans-serif',
+                              width: `${SERP_LIMITS.desktop.titlePx}px`,
+                              maxWidth: `${SERP_LIMITS.desktop.titlePx}px`,
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {highlightQueryMatches(
+                              titleMetrics.isTruncated ? titleMetrics.truncatedText : (title || 'Example Title for Your Webpage'),
+                              query
+                            )}
+                          </h3>
+                        </div>
+
+                        {/* Optional Rating Line */}
+                        {showRating && (
+                          <div className="flex items-center gap-1.5 text-[12px] text-[#4d5156] mb-1.5">
+                            <span className="text-[#fbbc04] font-bold text-sm tracking-tighter">
+                              {'★'.repeat(Math.round(ratingValueNum))}
+                              {'☆'.repeat(Math.max(0, 5 - Math.round(ratingValueNum)))}
+                            </span>
+                            <span className="font-semibold text-[#202124]">Rating: {ratingValueNum.toFixed(1)}</span>
+                            <span>·</span>
+                            <span>{reviewCountNum.toLocaleString()} reviews</span>
+                          </div>
+                        )}
+
+                        {/* Description Snippet with true Google 600px 2-line clamping */}
+                        <div
+                          className="text-[14px] text-[#4d5156] leading-[22px]"
+                          style={{
+                            fontFamily: 'Arial, sans-serif',
+                            width: `${SERP_LIMITS.desktop.descriptionLineWidthPx}px`,
+                            maxWidth: `${SERP_LIMITS.desktop.descriptionLineWidthPx}px`,
+                            display: '-webkit-box',
+                            WebkitBoxOrient: 'vertical',
+                            WebkitLineClamp: SERP_LIMITS.desktop.descriptionLines,
+                            overflow: 'hidden',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {highlightQueryMatches(fullDescriptionText, query)}
+                        </div>
+                      </div>
+                    ) : (
+                      /* MOBILE SERP RESULT */
+                      <div
+                        className="shrink-0 bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 transition-all font-sans text-left"
+                        style={{ width: `${SERP_LIMITS.mobile.previewContainerPx}px`, minWidth: `${SERP_LIMITS.mobile.previewContainerPx}px` }}
+                      >
+                        {/* Simulated Mobile Top Device Indicator */}
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 text-[10px] text-slate-400 font-medium">
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            Mobile SERP (380px)
+                          </span>
+                          <span>Google Search</span>
+                        </div>
+
+                        {/* Google Brand / URL line (Mobile layout) */}
+                        <div className="flex items-center gap-2.5 mb-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200/60 overflow-hidden">
+                            <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="2" y1="12" x2="22" y2="12" />
+                              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[12px] font-bold text-[#202124] leading-tight truncate">
+                              {parsedUrl.hostname}
+                            </div>
+                            <div className="text-[11px] text-[#4d5156] leading-tight truncate">
+                              {parsedUrl.formattedDisplay}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Title Link (Mobile) */}
+                        <div className="mb-2">
+                          <h3
+                            className="text-[18px] text-[#1a0dab] leading-[1.3] font-normal"
+                            style={{
+                              fontFamily: 'Roboto, Arial, sans-serif',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {highlightQueryMatches(
+                              titleMetrics.isTruncated ? titleMetrics.truncatedText : (title || 'Example Title for Your Webpage'),
+                              query
+                            )}
+                          </h3>
+                        </div>
+
+                        {/* Optional Rating Line */}
+                        {showRating && (
+                          <div className="flex items-center gap-1.5 text-[12px] text-[#4d5156] mb-1.5">
+                            <span className="text-[#fbbc04] font-bold text-sm tracking-tighter">
+                              {'★'.repeat(Math.round(ratingValueNum))}
+                              {'☆'.repeat(Math.max(0, 5 - Math.round(ratingValueNum)))}
+                            </span>
+                            <span className="font-semibold text-[#202124]">{ratingValueNum.toFixed(1)}</span>
+                            <span>({reviewCountNum})</span>
+                          </div>
+                        )}
+
+                        {/* Description Snippet (Mobile ~3 lines) */}
+                        <div
+                          className="text-[14px] text-[#4d5156] leading-[20px]"
+                          style={{
+                            fontFamily: 'Roboto, Arial, sans-serif',
+                            display: '-webkit-box',
+                            WebkitBoxOrient: 'vertical',
+                            WebkitLineClamp: SERP_LIMITS.mobile.descriptionLines,
+                            overflow: 'hidden',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {highlightQueryMatches(fullDescriptionText, query)}
+                        </div>
                       </div>
                     )}
-
-                    {/* Description Snippet with true Google 600px 2-line clamping */}
-                    <div
-                      className="text-[14px] text-[#4d5156] leading-[22px]"
-                      style={{
-                        fontFamily: 'Arial, sans-serif',
-                        width: `${SERP_LIMITS.desktop.descriptionLineWidthPx}px`,
-                        maxWidth: `${SERP_LIMITS.desktop.descriptionLineWidthPx}px`,
-                        display: '-webkit-box',
-                        WebkitBoxOrient: 'vertical',
-                        WebkitLineClamp: SERP_LIMITS.desktop.descriptionLines,
-                        overflow: 'hidden',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {highlightQueryMatches(fullDescriptionText, query)}
-                    </div>
                   </div>
-                ) : (
-                  /* MOBILE SERP RESULT */
-                  <div
-                    className="shrink-0 bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 transition-all font-sans text-left"
-                    style={{ width: `${SERP_LIMITS.mobile.previewContainerPx}px`, minWidth: `${SERP_LIMITS.mobile.previewContainerPx}px` }}
-                  >
-                    {/* Simulated Mobile Top Device Indicator */}
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 text-[10px] text-slate-400 font-medium">
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        Mobile SERP (380px)
-                      </span>
-                      <span>Google Search</span>
-                    </div>
-
-                    {/* Google Brand / URL line (Mobile layout) */}
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200/60 overflow-hidden">
-                        <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="2" y1="12" x2="22" y2="12" />
-                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                        </svg>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[12px] font-bold text-[#202124] leading-tight truncate">
-                          {parsedUrl.hostname}
-                        </div>
-                        <div className="text-[11px] text-[#4d5156] leading-tight truncate">
-                          {parsedUrl.formattedDisplay}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Title Link (Mobile) */}
-                    <div className="mb-2">
-                      <h3
-                        className="text-[18px] text-[#1a0dab] leading-[1.3] font-normal"
-                        style={{
-                          fontFamily: 'Roboto, Arial, sans-serif',
-                          wordBreak: 'break-word',
-                        }}
-                      >
-                        {highlightQueryMatches(
-                          titleMetrics.isTruncated ? titleMetrics.truncatedText : (title || 'Example Title for Your Webpage'),
-                          query
-                        )}
-                      </h3>
-                    </div>
-
-                    {/* Optional Rating Line */}
-                    {showRating && (
-                      <div className="flex items-center gap-1.5 text-[12px] text-[#4d5156] mb-1.5">
-                        <span className="text-[#fbbc04] font-bold text-sm tracking-tighter">
-                          {'★'.repeat(Math.round(ratingValueNum))}
-                          {'☆'.repeat(Math.max(0, 5 - Math.round(ratingValueNum)))}
-                        </span>
-                        <span className="font-semibold text-[#202124]">{ratingValueNum.toFixed(1)}</span>
-                        <span>({reviewCountNum})</span>
-                      </div>
-                    )}
-
-                    {/* Description Snippet (Mobile ~3 lines) */}
-                    <div
-                      className="text-[14px] text-[#4d5156] leading-[20px]"
-                      style={{
-                        fontFamily: 'Roboto, Arial, sans-serif',
-                        display: '-webkit-box',
-                        WebkitBoxOrient: 'vertical',
-                        WebkitLineClamp: SERP_LIMITS.mobile.descriptionLines,
-                        overflow: 'hidden',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {highlightQueryMatches(fullDescriptionText, query)}
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
 
