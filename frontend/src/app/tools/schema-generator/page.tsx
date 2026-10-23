@@ -23,6 +23,7 @@ import {
 import { validateSchema } from '@/lib/seo/schema/validators';
 import { importExistingJsonLd } from '@/lib/seo/schema/importer';
 import SchemaFormFields from '@/components/schema/SchemaFormFields';
+import SchemaTypeDropdown from '@/components/schema/SchemaTypeDropdown';
 import SchemaValidationPanel from '@/components/schema/SchemaValidationPanel';
 
 export default function SchemaGenerator() {
@@ -235,17 +236,10 @@ export default function SchemaGenerator() {
         {/* Schema Type Selector */}
         <div className="input-group">
           <label className="label">Schema Type</label>
-          <select
-            className="select font-medium"
+          <SchemaTypeDropdown
             value={schemaType}
-            onChange={(e) => setSchemaType(e.target.value as SupportedSchemaType)}
-          >
-            {SUPPORTED_SCHEMA_TYPES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label} ({t.group})
-              </option>
-            ))}
-          </select>
+            onChange={(type) => setSchemaType(type)}
+          />
         </div>
 
         {/* Dynamic Form Controls for the selected schema */}

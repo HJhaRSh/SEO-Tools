@@ -1,26 +1,37 @@
 import { RichResultMeta, SupportedSchemaType } from './types';
 
-export const SUPPORTED_SCHEMA_TYPES: { id: SupportedSchemaType; label: string; group: string }[] = [
-  // Core & Content
-  { id: 'Organization', label: 'Organization', group: 'Entity & Brand' },
-  { id: 'LocalBusiness', label: 'Local Business', group: 'Entity & Brand' },
-  { id: 'Restaurant', label: 'Restaurant', group: 'Entity & Brand' },
-  { id: 'Person', label: 'Person', group: 'Entity & Brand' },
-  { id: 'Product', label: 'Product', group: 'Commerce & Jobs' },
-  { id: 'JobPosting', label: 'Job Posting', group: 'Commerce & Jobs' },
-  { id: 'Article', label: 'Article / Blog Posting / News', group: 'Content & Editorial' },
-  { id: 'FAQPage', label: 'FAQ Page', group: 'Content & Editorial' },
-  { id: 'HowTo', label: 'How-To (Schema.org)', group: 'Content & Editorial' },
-  { id: 'Recipe', label: 'Recipe', group: 'Content & Editorial' },
-  { id: 'VideoObject', label: 'Video Object', group: 'Media & Creative' },
-  { id: 'Event', label: 'Event', group: 'Events & Places' },
-  { id: 'BreadcrumbList', label: 'Breadcrumb List', group: 'Navigation & Site' },
-  { id: 'WebSite', label: 'WebSite (Sitelinks Searchbox)', group: 'Navigation & Site' },
-  { id: 'WebPage', label: 'WebPage', group: 'Navigation & Site' },
-  { id: 'SoftwareApplication', label: 'Software Application', group: 'Specialized' },
-  { id: 'Course', label: 'Course', group: 'Specialized' },
-  { id: 'Dataset', label: 'Dataset', group: 'Specialized' },
-  { id: 'Service', label: 'Service', group: 'Entity & Brand' },
+export const SUPPORTED_SCHEMA_TYPES: { id: SupportedSchemaType; label: string; group: string; description?: string }[] = [
+  // Entity & Brand
+  { id: 'Organization', label: 'Organization', group: 'Entity & Brand', description: 'Brand identity, company logo, and Knowledge Panel' },
+  { id: 'LocalBusiness', label: 'Local Business', group: 'Entity & Brand', description: 'Store, clinic, agency with physical location & hours' },
+  { id: 'Person', label: 'Person', group: 'Entity & Brand', description: 'Author, executive, consultant, or public figure' },
+  { id: 'Service', label: 'Service', group: 'Entity & Brand', description: 'Professional, consulting, or business services' },
+
+  // Content & Editorial
+  { id: 'Article', label: 'Article / Blog Posting / News', group: 'Content & Editorial', description: 'Blog posts, news articles, and editorials' },
+  { id: 'FAQPage', label: 'FAQ Page', group: 'Content & Editorial', description: 'Frequently asked questions with rich accordion answers' },
+  { id: 'HowTo', label: 'How-To (Schema.org)', group: 'Content & Editorial', description: 'Step-by-step instructional guides' },
+  { id: 'Recipe', label: 'Recipe', group: 'Content & Editorial', description: 'Culinary recipes with ingredients and cooking times' },
+
+  // Commerce & Jobs
+  { id: 'Product', label: 'Product', group: 'Commerce & Jobs', description: 'E-commerce items with prices, ratings, and stock' },
+  { id: 'JobPosting', label: 'Job Posting', group: 'Commerce & Jobs', description: 'Employment opportunities, salary, and remote status' },
+
+  // Navigation & Site
+  { id: 'BreadcrumbList', label: 'Breadcrumb List', group: 'Navigation & Site', description: 'URL hierarchy trail shown in search snippets' },
+  { id: 'WebSite', label: 'WebSite (Sitelinks Searchbox)', group: 'Navigation & Site', description: 'Site identity & Google Sitelinks Searchbox' },
+  { id: 'WebPage', label: 'WebPage', group: 'Navigation & Site', description: 'Web page entity and primary subject' },
+
+  // Media & Creative
+  { id: 'VideoObject', label: 'Video Object', group: 'Media & Creative', description: 'Video media with thumbnail, upload date, and duration' },
+
+  // Events & Places
+  { id: 'Event', label: 'Event', group: 'Events & Places', description: 'Concerts, webinars, conferences, and festivals' },
+
+  // Specialized
+  { id: 'SoftwareApplication', label: 'Software Application', group: 'Specialized', description: 'Web, mobile, desktop software and SaaS apps' },
+  { id: 'Course', label: 'Course', group: 'Specialized', description: 'Educational courses and learning curricula' },
+  { id: 'Dataset', label: 'Dataset', group: 'Specialized', description: 'Public or scientific data tables and repositories' },
 ];
 
 export const RICH_RESULT_META_MAP: Record<SupportedSchemaType, RichResultMeta> = {
