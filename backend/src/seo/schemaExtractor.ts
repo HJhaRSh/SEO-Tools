@@ -177,7 +177,9 @@ function isJsonLdMime(typeAttr: string | undefined): boolean {
  * 4. Inline <script> tags containing serialized JSON-LD or schema.org payloads
  * Silently skips malformed blocks and continues checking others.
  */
-function extractJsonLdTypes($: cheerio.CheerioAPI): string[] {
+type CheerioDoc = ReturnType<typeof cheerio.load>;
+
+function extractJsonLdTypes($: CheerioDoc): string[] {
   const found: string[] = [];
 
   $('script').each((_i, el) => {
@@ -253,7 +255,7 @@ function extractJsonLdTypes($: cheerio.CheerioAPI): string[] {
  * Extracts schema types from Microdata (itemscope + itemtype attributes).
  * Only extracts top-level items (elements without itemprop) with valid schema.org itemtype URLs.
  */
-function extractMicrodataTypes($: cheerio.CheerioAPI): string[] {
+function extractMicrodataTypes($: CheerioDoc): string[] {
   const found: string[] = [];
 
   $('[itemscope][itemtype]:not([itemprop])').each((_i, el) => {
@@ -281,7 +283,7 @@ function extractMicrodataTypes($: cheerio.CheerioAPI): string[] {
  * Extracts schema types from RDFa attributes.
  * Checks for top-level typeof (without property) with clear Schema.org vocab or URLs.
  */
-function extractRdfaTypes($: cheerio.CheerioAPI): string[] {
+function extractRdfaTypes($: CheerioDoc): string[] {
   const found: string[] = [];
 
   $('[typeof]:not([property])').each((_i, el) => {
