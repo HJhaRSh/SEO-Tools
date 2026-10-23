@@ -210,29 +210,28 @@ export default function KnowledgeGraphSearch() {
       breadcrumbs={[{ label: 'Knowledge Graph Search' }]}
       aboutText="Google's Knowledge Graph organizes information about real-world entities (people, places, organizations, things). This tool connects directly to Google's official Knowledge Graph Search API, allowing SEOs and content strategists to inspect recognized entities, verify Freebase/Wikidata Machine Identifiers (MIDs), inspect Schema.org entity categories, and evaluate API match scores."
       howItWorks={[
-        "Choose 'Search by Name' to discover an entity's Machine Identifier (MID) via Google's official API, or 'Search by Entity ID' to inspect a known MID.",
-        "Official Method: Query Google's Knowledge Graph Search API by name (using 'Search by Name' tab). Google checks its internal Knowledge Vault and returns the official MID (@id), even if no Knowledge Panel appears in Google search results.",
-        "If an entity has an established record in Wikidata (the open source Google seeded its graph from), its MID is registered under Property P2671 ('Google Knowledge Graph ID').",
-        "Optionally filter by Schema.org types (Organization, Person, Place, etc.) and target language.",
-        "Click 'Search' to query the Google Knowledge Graph Search API.",
-        "Inspect entity MIDs, Schema types, Wikipedia descriptions, and export the dataset as CSV."
+        "Choose 'Search by Name' to find an entity by its name, or 'Search by Entity ID' if you already have an ID.",
+        "How to get an Entity ID: Just use the 'Search by Name' tab above! Type your brand or name, and if Google recognizes it, you'll see the Entity ID in the results.",
+        "You can also find an Entity ID on Wikidata.org by searching your brand and looking for 'Google Knowledge Graph ID'.",
+        "Optional: Filter results by category (Organization, Person, Place, etc.) and language.",
+        "Click 'Search' to view entity details, official IDs, descriptions, and download results as CSV."
       ]}
       faq={[
         {
-          question: "What is the official way to get or find an entity's Google Knowledge Graph ID (MID)?",
-          answer: "The official Google method to discover an entity's Machine Identifier (MID) is using Google's official Knowledge Graph Search API (https://kgsearch.googleapis.com/v1/entities:search). You query an entity name, and Google checks its internal Knowledge Vault to return the official entity object with its permanent '@id' (MID). This works programmatically whether or not a visual Knowledge Panel box shows up on google.com. The 'Search by Name' tab in this tool queries this official Google API directly. Additionally, Wikidata records catalog official Google Knowledge Graph IDs under Property P2671."
+          question: "How do I find an entity's Google Knowledge Graph ID (MID)?",
+          answer: "The easiest way is to use the 'Search by Name' tab right here in this tool! Just type in your brand, company, or person name. If Google has recognized your entity, this tool will find and show your official Entity ID (like /m/045c7b or /g/11b6tq5_3y). You can also search your brand on Wikidata.org and look for the 'Google Knowledge Graph ID' field."
         },
         {
-          question: "What is a Google Knowledge Graph ID (MID)?",
-          answer: "A Machine ID (MID, typically starting with /m/ or /g/) is Google's internal unique identifier for a discrete entity in its Knowledge Vault and Knowledge Graph. MIDs remain permanent even if entity names or URLs change."
+          question: "What is an Entity ID (MID)?",
+          answer: "An Entity ID (also called a Machine ID or MID) is a unique permanent ID that Google assigns to a real-world person, company, place, or brand. It usually starts with /m/ or /g/."
         },
         {
           question: "What does the API Relevance Score mean?",
-          answer: "The resultScore is an indicator returned by Google's Knowledge Graph Search API measuring how strictly an entity matched your query constraints. It is NOT an SEO rank, domain authority, or page score."
+          answer: "The resultScore is a number from Google indicating how closely an entity matched what you searched for. It is an internal match score, not an SEO ranking or domain authority score."
         },
         {
-          question: "How do I get an entity into Google's Knowledge Graph?",
-          answer: "Build entity clarity through structured data (SameAs pointing to Wikidata, Wikipedia, and official profiles), maintain a verified Google Business Profile for local entities, and ensure consistent brand citations across authoritative databases."
+          question: "What if my entity doesn't show up in search?",
+          answer: "If Google doesn't return an Entity ID for your brand, that means Google hasn't officially recognized it as an entity yet. You can help Google recognize your brand by adding Schema markup (Organization or Person) to your website, creating a Wikidata page, and getting consistent mentions on trusted websites."
         },
         {
           question: "Why does the tool show 'Google Knowledge Graph API credentials are not configured'?",
@@ -362,39 +361,32 @@ export default function KnowledgeGraphSearch() {
                 </p>
               </div>
 
-              {/* Official Google Method to Discover Entity ID Guide */}
-              <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl text-xs space-y-2.5">
+              {/* Simple Guide: How to find an Entity ID */}
+              <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl text-xs space-y-2">
                 <div className="flex items-center gap-2 font-bold text-emerald-900 dark:text-emerald-200 text-sm">
                   <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  Official Ways to Discover an Entity ID (MID)
+                  How to find your Entity ID:
                 </div>
                 <div className="text-slate-600 dark:text-slate-300 space-y-2 leading-relaxed">
-                  <div>
-                    <strong className="text-slate-900 dark:text-white block mb-0.5">1. Google Knowledge Graph Search API (Official Programmatic Method):</strong>
-                    <p>
-                      An entity does <em>not</em> need to have a visual Knowledge Panel box in Google Search for it to have an official MID. Google&apos;s authoritative method to check if an entity exists in its Knowledge Vault is querying the{' '}
-                      <code className="bg-emerald-100/80 dark:bg-emerald-900/50 px-1 py-0.5 rounded text-emerald-800 dark:text-emerald-200 font-mono">entities:search</code> API endpoint by name. You can use the{' '}
-                      <button
-                        type="button"
-                        onClick={() => setSearchMode('query')}
-                        className="text-green-700 dark:text-green-400 font-bold underline hover:no-underline cursor-pointer"
-                      >
-                        Search by Name
-                      </button>{' '}
-                      tab in this tool to query Google&apos;s official API directly and copy the recognized MID.
-                    </p>
-                  </div>
-                  <div>
-                    <strong className="text-slate-900 dark:text-white block mb-0.5">2. Wikidata Mapping (Property P2671):</strong>
-                    <p>
-                      Google originally seeded its Knowledge Graph from Freebase and syncs entity mappings with Wikidata. Any entity on Wikidata with a recognized Google Knowledge Graph presence lists its official MID under statement <strong>P2671 (&quot;Google Knowledge Graph ID&quot;)</strong>.
-                    </p>
-                  </div>
-                  <div className="pt-1.5 border-t border-emerald-200/50 dark:border-emerald-800/40 text-[11px] text-slate-500 dark:text-slate-400">
-                    💡 <em>If Google&apos;s API returns no match for your entity name, Google has not yet synthesized an independent Knowledge Graph node for your brand. The official way to get Google to create one is publishing Schema.org structured data (<code className="font-mono">Organization</code> or <code className="font-mono">Person</code>) with <code className="font-mono">sameAs</code> references to Wikidata and verified business registries.</em>
-                  </div>
+                  <p>
+                    <strong>1. Use this tool (Easiest):</strong> Switch to the{' '}
+                    <button
+                      type="button"
+                      onClick={() => setSearchMode('query')}
+                      className="text-green-700 dark:text-green-400 font-bold underline hover:no-underline cursor-pointer"
+                    >
+                      Search by Name
+                    </button>{' '}
+                    tab above. Type your brand or name and click Search. If Google recognizes it, your Entity ID will appear in the results.
+                  </p>
+                  <p>
+                    <strong>2. From Wikidata:</strong> Go to <span className="font-semibold text-slate-800 dark:text-slate-200">Wikidata.org</span>, search for your company or person, and look for the item called <strong>&quot;Google Knowledge Graph ID&quot;</strong>.
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/40">
+                    💡 <em>Don&apos;t see your entity? That means Google hasn&apos;t added your brand to its Knowledge Graph yet. Adding Schema markup to your website and creating a Wikidata page helps Google recognize your entity.</em>
+                  </p>
                 </div>
               </div>
 
