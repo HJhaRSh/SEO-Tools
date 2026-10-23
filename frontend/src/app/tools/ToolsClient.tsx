@@ -89,27 +89,24 @@ export default function ToolsClient() {
   }).filter(categoryData => categoryData.tools.length > 0);
 
   return (
-    <div className="w-full pt-2 pb-10">
+    <div className="w-full pb-10">
       
-      {/* Hero Section */}
-      <div className="text-center max-w-4xl mx-auto mb-10 relative bg-[var(--im-secondary)] text-[var(--im-on-dark)] p-8 sm:p-12 rounded-[var(--im-radius-lg)] shadow-[var(--im-shadow-md)]">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-[var(--im-on-dark)] mb-4 leading-tight">
-          Professional <span className="text-[var(--im-primary)] relative inline-block">
-            SEO Tools
-          </span>
+      {/* Header & Search Bar */}
+      <div className="text-center max-w-3xl mx-auto mb-6">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--im-heading)] mb-4">
+          Professional <span className="text-[var(--im-primary)]">SEO Tools</span>
         </h1>
-        <p className="text-base sm:text-lg text-[var(--im-on-dark)]/85 mb-8 leading-relaxed font-normal max-w-2xl mx-auto">
-          The ultimate suite of production-grade SEO tools to test crawlability, debug technical indexing issues, and boost search performance.
-        </p>
 
         {/* Search Bar */}
         <div className="relative max-w-2xl mx-auto group">
-          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-[var(--im-text-muted)] group-focus-within:text-[var(--im-primary-deep)] transition-colors">
-            <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <div className="absolute inset-y-0 left-0 pl-4 sm:pl-5 flex items-center pointer-events-none text-[var(--im-text-muted)] group-focus-within:text-[var(--im-primary-deep)] transition-colors">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </div>
           <input
             type="text"
-            className="w-full pl-14 pr-5 py-3.5 rounded-[var(--im-radius-md)] bg-[var(--im-surface)] border border-[var(--im-border)] focus:border-[var(--im-primary-deep)] focus:ring-4 focus:ring-[var(--im-accent-tint)] shadow-[var(--im-shadow-sm)] text-base text-[var(--im-text)] font-medium transition-all placeholder:text-[var(--im-text-muted)] focus:outline-none"
+            className="w-full pl-12 sm:pl-14 pr-5 py-3 sm:py-3.5 rounded-[var(--im-radius-md)] bg-[var(--im-surface)] border border-[var(--im-border)] focus:border-[var(--im-primary)] focus:ring-4 focus:ring-[var(--im-accent-tint)] shadow-[var(--im-shadow-sm)] text-base text-[var(--im-text)] font-medium transition-all placeholder:text-[var(--im-text-muted)] focus:outline-none"
             placeholder="Search for an SEO tool (e.g. robots.txt, sitemap, hreflang)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -118,7 +115,7 @@ export default function ToolsClient() {
       </div>
 
       {/* Category Tabs */}
-      <div className="flex flex-wrap gap-2.5 justify-center mb-10">
+      <div className="flex flex-wrap gap-2.5 justify-center mb-8">
         {categories.map(cat => (
           <button
             key={cat}

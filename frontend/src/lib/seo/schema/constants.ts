@@ -216,5 +216,3 @@ export const LOCAL_BUSINESS_SUBTYPES: { value: string; label: string }[] = [
   { value: 'ProfessionalService', label: 'ProfessionalService' },
   { value: 'AutomotiveBusiness', label: 'AutomotiveBusiness' },
 ];
-
-
