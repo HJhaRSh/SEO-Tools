@@ -12,6 +12,16 @@ interface GeneratedFile {
   downloadId: string;
 }
 
+export interface CrawlReportEntry {
+  url: string;
+  statusCode: number;
+  status: 'indexed' | 'excluded' | 'redirected' | 'error';
+  inSitemap: boolean;
+  destinationUrl?: string;
+  canonicalUrl?: string;
+  reason: string;
+}
+
 interface GenerationSummary {
   submittedRows: number;
   validUrls: number;
@@ -49,6 +59,12 @@ export default function SitemapGenerator() {
 
   const crawlAbortRef = useRef<AbortController | null>(null);
   const accumulatedEntriesRef = useRef<any[]>([]);
+
+  // Crawl & Exclusion Audit Report state
+  const [crawlReport, setCrawlReport] = useState<CrawlReportEntry[]>([]);
+  const [reportFilter, setReportFilter] = useState<'all' | 'indexed' | 'excluded' | 'redirected' | 'error'>('all');
+  const [reportSearch, setReportSearch] = useState<string>('');
+  const accumulatedReportRef = useRef<Map<string, CrawlReportEntry>>(new Map());
 
   // Manual URL entry
   const [manualText, setManualText] = useState<string>(
@@ -95,6 +111,10 @@ export default function SitemapGenerator() {
     setXmlPreview('');
     setIsPreviewTruncated(false);
     setCopiedXml(false);
+    setCrawlReport([]);
+    setReportFilter('all');
+    setReportSearch('');
+    accumulatedReportRef.current.clear();
   };
 
   /**
@@ -158,6 +178,39 @@ export default function SitemapGenerator() {
     } else if (reportDownloadId) {
       window.location.href = `/api/seo/sitemap/download/${reportDownloadId}`;
     }
+  };
+
+  const downloadCrawlReportCsv = () => {
+    if (crawlReport.length === 0) return;
+    const headers = [
+      'URL',
+      'HTTP Status',
+      'Indexation Status',
+      'In Sitemap',
+      'Final / Redirect URL',
+      'Canonical URL',
+      'Reason / Directives'
+    ];
+    const rows = crawlReport.map(entry => [
+      `"${(entry.url || '').replace(/"/g, '""')}"`,
+      entry.statusCode ?? '',
+      (entry.status || '').toUpperCase(),
+      entry.inSitemap ? 'YES' : 'NO',
+      `"${(entry.destinationUrl || '').replace(/"/g, '""')}"`,
+      `"${(entry.canonicalUrl || '').replace(/"/g, '""')}"`,
+      `"${(entry.reason || '').replace(/"/g, '""')}"`
+    ].join(','));
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crawl-and-exclusion-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   /**
@@ -535,6 +588,9 @@ export default function SitemapGenerator() {
       crawlAbortRef.current = null;
     }
     setIsCrawling(false);
+    if (accumulatedReportRef.current.size > 0) {
+      setCrawlReport(Array.from(accumulatedReportRef.current.values()));
+    }
     if (accumulatedEntriesRef.current.length > 0) {
       finishAndGenerateSitemap([...accumulatedEntriesRef.current]);
     } else {
@@ -571,6 +627,7 @@ export default function SitemapGenerator() {
       logs: []
     });
     accumulatedEntriesRef.current = [];
+    accumulatedReportRef.current.clear();
 
     const controller = new AbortController();
     crawlAbortRef.current = controller;
@@ -605,6 +662,9 @@ export default function SitemapGenerator() {
           throw new Error(jsonRes.error || 'Failed to crawl website.');
         }
 
+        if (jsonRes.crawlReport && Array.isArray(jsonRes.crawlReport)) {
+          setCrawlReport(jsonRes.crawlReport);
+        }
         accumulatedEntriesRef.current = jsonRes.validEntries || [];
         await finishAndGenerateSitemap(accumulatedEntriesRef.current);
         return;
@@ -634,6 +694,10 @@ export default function SitemapGenerator() {
             try {
               const eventType = eventMatch ? eventMatch[1] : 'message';
               const data = JSON.parse(dataMatch[1]);
+
+              if (data.reportEntry) {
+                accumulatedReportRef.current.set(data.reportEntry.url, data.reportEntry);
+              }
 
               if (eventType === 'url_discovered') {
                 if (data.discoveredUrl) {
@@ -685,6 +749,10 @@ export default function SitemapGenerator() {
                   currentUrl: data.currentUrl || prev.currentUrl
                 }));
               } else if (eventType === 'complete') {
+                const finalReport = data.crawlReport || Array.from(accumulatedReportRef.current.values());
+                if (finalReport.length > 0) {
+                  setCrawlReport(finalReport);
+                }
                 const finalEntries = data.validEntries || accumulatedEntriesRef.current;
                 await finishAndGenerateSitemap(finalEntries);
                 return;
@@ -701,6 +769,9 @@ export default function SitemapGenerator() {
       }
 
       // If stream ended without explicit complete event:
+      if (accumulatedReportRef.current.size > 0) {
+        setCrawlReport(Array.from(accumulatedReportRef.current.values()));
+      }
       if (accumulatedEntriesRef.current.length > 0) {
         await finishAndGenerateSitemap(accumulatedEntriesRef.current);
       } else {
@@ -1377,6 +1448,17 @@ export default function SitemapGenerator() {
                 </button>
               )}
 
+              {crawlReport.length > 0 && (
+                <button
+                  type="button"
+                  onClick={downloadCrawlReportCsv}
+                  className="w-full sm:w-auto px-6 py-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm transition-all shadow-md hover:shadow-emerald-600/25 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                  Download Crawl &amp; Exclusion Audit (CSV)
+                </button>
+              )}
+
               {(reportCsv || reportDownloadId) && (
                 <button
                   type="button"
@@ -1450,6 +1532,251 @@ export default function SitemapGenerator() {
                 </pre>
               </div>
             )}
+
+            {/* CRAWL & EXCLUSION AUDIT REPORT */}
+            {crawlReport.length > 0 && (() => {
+              const indexedCount = crawlReport.filter(r => r.status === 'indexed').length;
+              const excludedCount = crawlReport.filter(r => r.status === 'excluded').length;
+              const redirectedCount = crawlReport.filter(r => r.status === 'redirected').length;
+              const errorCount = crawlReport.filter(r => r.status === 'error').length;
+
+              const filteredEntries = crawlReport.filter(entry => {
+                if (reportFilter === 'indexed' && entry.status !== 'indexed') return false;
+                if (reportFilter === 'excluded' && entry.status !== 'excluded') return false;
+                if (reportFilter === 'redirected' && entry.status !== 'redirected') return false;
+                if (reportFilter === 'error' && entry.status !== 'error') return false;
+                if (reportSearch.trim()) {
+                  const q = reportSearch.toLowerCase().trim();
+                  return (
+                    entry.url.toLowerCase().includes(q) ||
+                    (entry.reason && entry.reason.toLowerCase().includes(q)) ||
+                    (entry.destinationUrl && entry.destinationUrl.toLowerCase().includes(q)) ||
+                    (entry.canonicalUrl && entry.canonicalUrl.toLowerCase().includes(q)) ||
+                    String(entry.statusCode).includes(q)
+                  );
+                }
+                return true;
+              });
+
+              return (
+                <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                          Crawl &amp; Exclusion Audit Report
+                        </h3>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                          {crawlReport.length} Total Crawled
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        Detailed audit trail showing why each discovered URL was included in the sitemap, redirected, or excluded (meta robots noindex, non-canonical, 404, etc.).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={downloadCrawlReportCsv}
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm self-start sm:self-auto cursor-pointer"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                      Download CSV Audit
+                    </button>
+                  </div>
+
+                  {/* Filter Tabs & Search Bar */}
+                  <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 mb-4">
+                    <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setReportFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                          reportFilter === 'all'
+                            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        All ({crawlReport.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReportFilter('indexed')}
+                        className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                          reportFilter === 'indexed'
+                            ? 'bg-emerald-600 text-white shadow-sm font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        In Sitemap ({indexedCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReportFilter('excluded')}
+                        className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                          reportFilter === 'excluded'
+                            ? 'bg-amber-600 text-white shadow-sm font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                        Excluded ({excludedCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReportFilter('redirected')}
+                        className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                          reportFilter === 'redirected'
+                            ? 'bg-blue-600 text-white shadow-sm font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                        Redirected ({redirectedCount})
+                      </button>
+                      {errorCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setReportFilter('error')}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                            reportFilter === 'error'
+                              ? 'bg-red-600 text-white shadow-sm font-bold'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                          Errors ({errorCount})
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="relative min-w-[240px]">
+                      <input
+                        type="text"
+                        placeholder="Search URL, status, or reason..."
+                        value={reportSearch}
+                        onChange={e => setReportSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <svg
+                        className="w-4 h-4 absolute left-3 top-2.5 text-slate-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle cx="11" cy="11" r="8" strokeWidth="2" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" strokeWidth="2" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Audit Report Table */}
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                          <th className="py-3 px-3">Discovered URL</th>
+                          <th className="py-3 px-2 w-20 text-center">HTTP</th>
+                          <th className="py-3 px-2 w-28 text-center">In Sitemap</th>
+                          <th className="py-3 px-3">Redirect / Canonical Target</th>
+                          <th className="py-3 px-3">Reason / Indexing Directives</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
+                        {filteredEntries.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center text-slate-400 font-sans">
+                              No URLs match the selected filter.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredEntries.slice(0, 200).map((entry, idx) => (
+                            <tr
+                              key={idx}
+                              className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                            >
+                              <td className="py-2.5 px-3 max-w-[340px]">
+                                <a
+                                  href={entry.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 truncate block font-sans text-xs"
+                                  title={entry.url}
+                                >
+                                  {entry.url}
+                                </a>
+                              </td>
+                              <td className="py-2.5 px-2 text-center">
+                                <span
+                                  className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    entry.statusCode >= 200 && entry.statusCode < 300
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                      : entry.statusCode >= 300 && entry.statusCode < 400
+                                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                      : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                                  }`}
+                                >
+                                  {entry.statusCode || '-'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-2 text-center">
+                                {entry.inSitemap ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+                                    YES
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                    NO
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 max-w-[260px] truncate text-[11px] text-slate-500 font-sans">
+                                {entry.destinationUrl && entry.destinationUrl !== entry.url ? (
+                                  <span className="text-blue-600 dark:text-blue-400 truncate block" title={`Redirect target: ${entry.destinationUrl}`}>
+                                    ↳ {entry.destinationUrl}
+                                  </span>
+                                ) : entry.canonicalUrl && entry.canonicalUrl !== entry.url ? (
+                                  <span className="text-amber-600 dark:text-amber-400 truncate block" title={`Canonical: ${entry.canonicalUrl}`}>
+                                    ⊚ {entry.canonicalUrl}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">-</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-[11px] font-sans text-slate-600 dark:text-slate-300">
+                                <span
+                                  className={`inline-block px-2.5 py-1 rounded text-xs ${
+                                    entry.status === 'indexed'
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-900/60'
+                                      : entry.status === 'redirected'
+                                      ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/60'
+                                      : entry.status === 'error'
+                                      ? 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200/60 dark:border-red-900/60'
+                                      : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/60'
+                                  }`}
+                                >
+                                  {entry.reason}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                    {filteredEntries.length > 200 && (
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/40 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800">
+                        Showing first 200 of {filteredEntries.length} entries. Download the CSV audit report for the full list.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

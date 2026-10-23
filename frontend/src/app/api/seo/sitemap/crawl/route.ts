@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
       {
         success: result.success,
         validEntries: result.validEntries,
+        crawlReport: result.crawlReport,
         summary: result.summary,
         errors: result.errors
       },

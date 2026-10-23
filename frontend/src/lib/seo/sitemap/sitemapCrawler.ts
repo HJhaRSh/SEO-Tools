@@ -23,6 +23,56 @@ import { safeFetch, SafeFetchResult } from '../safeFetch';
 import { parseRobotsTxt } from '../robotsParser';
 import { SitemapUrlEntry } from './sitemapTypes';
 
+export interface CrawlReportEntry {
+  url: string;
+  status: 'indexed' | 'excluded' | 'redirected' | 'error';
+  inSitemap: boolean;
+  statusCode: number;
+  finalUrl?: string;
+  destinationUrl?: string;
+  canonicalUrl?: string;
+  reason: string;
+  depth?: number;
+  lastmod?: string | null;
+}
+
+export function generateCrawlReportCsv(report: CrawlReportEntry[]): string {
+  const headers = [
+    'URL',
+    'Status',
+    'In Sitemap',
+    'HTTP Status Code',
+    'Destination / Redirected To',
+    'Canonical URL',
+    'Reason / Directives',
+    'Depth',
+    'Last Modified'
+  ];
+
+  const escapeCsv = (val: any) => {
+    if (val === undefined || val === null) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows = report.map(r => [
+    escapeCsv(r.url),
+    escapeCsv(r.status.toUpperCase()),
+    escapeCsv(r.inSitemap ? 'YES' : 'NO'),
+    escapeCsv(r.statusCode),
+    escapeCsv(r.finalUrl || r.destinationUrl || ''),
+    escapeCsv(r.canonicalUrl || ''),
+    escapeCsv(r.reason),
+    escapeCsv(r.depth ?? 0),
+    escapeCsv(r.lastmod || '')
+  ].join(','));
+
+  return [headers.join(','), ...rows].join('\r\n');
+}
+
 export interface SitemapCrawlOptions {
   maxPages?: number; // Maximum pages to crawl (defaults to 50000 for full website crawl)
   maxDepth?: number; // Maximum link depth from root (defaults to 50)
@@ -49,7 +99,9 @@ export interface CrawlProgressEvent {
     isIndexable: boolean;
     skipReason?: string;
   };
+  reportEntry?: CrawlReportEntry;
   validEntries?: SitemapUrlEntry[];
+  crawlReport?: CrawlReportEntry[];
   summary?: {
     totalPagesCrawled: number;
     validUrlsFound: number;
@@ -442,6 +494,7 @@ export async function crawlWebsiteForSitemap(
 ): Promise<{
   success: boolean;
   validEntries: SitemapUrlEntry[];
+  crawlReport: CrawlReportEntry[];
   summary: {
     totalPagesCrawled: number;
     validUrlsFound: number;
@@ -469,6 +522,7 @@ export async function crawlWebsiteForSitemap(
     return {
       success: false,
       validEntries: [],
+      crawlReport: [],
       summary: { totalPagesCrawled: 0, validUrlsFound: 0, skippedUrls: 0, durationMs: 0 },
       errors: [err.message || 'Invalid seed URL provided.']
     };
@@ -501,6 +555,7 @@ export async function crawlWebsiteForSitemap(
   const normalizedSeedUrl = normalizeCrawlUrl(seedUrl, baseOrigin, baseHostname, includeSubdomains) || seedUrl;
 
   const validEntriesMap = new Map<string, SitemapUrlEntry>();
+  const crawlReportMap = new Map<string, CrawlReportEntry>();
   const visitedUrls = new Set<string>();
   const crawlQueue: { url: string; depth: number }[] = [{ url: normalizedSeedUrl, depth: 0 }];
   const queuedUrls = new Set<string>([normalizedSeedUrl]);
@@ -609,6 +664,16 @@ export async function crawlWebsiteForSitemap(
       });
     } catch (err: any) {
       skippedUrls++;
+      const repEntry: CrawlReportEntry = {
+        url,
+        status: 'error',
+        inSitemap: false,
+        statusCode: 0,
+        reason: err.message || 'Fetch failed',
+        depth
+      };
+      crawlReportMap.set(url, repEntry);
+
       options.onProgress?.({
         type: 'url_skipped',
         crawledCount: totalPagesCrawled,
@@ -621,7 +686,8 @@ export async function crawlWebsiteForSitemap(
           statusCode: 0,
           isIndexable: false,
           skipReason: err.message || 'Fetch failed'
-        }
+        },
+        reportEntry: repEntry
       });
       continue;
     }
@@ -629,6 +695,24 @@ export async function crawlWebsiteForSitemap(
     // Check status code
     if (!fetchRes || fetchRes.statusCode !== 200) {
       skippedUrls++;
+      const isRedir = Boolean(fetchRes && [301, 302, 307, 308].includes(fetchRes.statusCode));
+      const isErr = !fetchRes || fetchRes.statusCode >= 400;
+      const statusType: CrawlReportEntry['status'] = isRedir ? 'redirected' : (isErr ? 'error' : 'excluded');
+      const reasonMsg = fetchRes
+        ? (isRedir ? `Redirected (${fetchRes.statusCode}) to ${fetchRes.finalUrl}` : `HTTP status ${fetchRes.statusCode}`)
+        : 'HTTP Error (No response)';
+
+      const repEntry: CrawlReportEntry = {
+        url,
+        status: statusType,
+        inSitemap: false,
+        statusCode: fetchRes ? fetchRes.statusCode : 0,
+        finalUrl: fetchRes && fetchRes.finalUrl !== url ? fetchRes.finalUrl : undefined,
+        reason: reasonMsg,
+        depth
+      };
+      crawlReportMap.set(url, repEntry);
+
       // If redirect, enqueue the final redirected destination
       if (fetchRes && (fetchRes.statusCode === 301 || fetchRes.statusCode === 302)) {
         const dest = normalizeCrawlUrl(fetchRes.finalUrl, baseOrigin, baseHostname, includeSubdomains);
@@ -649,8 +733,9 @@ export async function crawlWebsiteForSitemap(
           depth,
           statusCode: fetchRes ? fetchRes.statusCode : 0,
           isIndexable: false,
-          skipReason: `HTTP status ${fetchRes ? fetchRes.statusCode : 'Error'}`
-        }
+          skipReason: reasonMsg
+        },
+        reportEntry: repEntry
       });
       continue;
     }
@@ -659,6 +744,16 @@ export async function crawlWebsiteForSitemap(
     const contentType = (fetchRes.contentType || '').toLowerCase();
     if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
       skippedUrls++;
+      const repEntry: CrawlReportEntry = {
+        url,
+        status: 'excluded',
+        inSitemap: false,
+        statusCode: fetchRes.statusCode,
+        reason: `Non-HTML content type (${contentType})`,
+        depth
+      };
+      crawlReportMap.set(url, repEntry);
+
       options.onProgress?.({
         type: 'url_skipped',
         crawledCount: totalPagesCrawled,
@@ -671,7 +766,8 @@ export async function crawlWebsiteForSitemap(
           statusCode: fetchRes.statusCode,
           isIndexable: false,
           skipReason: `Non-HTML content type (${contentType})`
-        }
+        },
+        reportEntry: repEntry
       });
       continue;
     }
@@ -680,6 +776,16 @@ export async function crawlWebsiteForSitemap(
     const xRobotsTag = (fetchRes.headers['x-robots-tag'] || '').toLowerCase();
     if (xRobotsTag.includes('noindex')) {
       skippedUrls++;
+      const repEntry: CrawlReportEntry = {
+        url,
+        status: 'excluded',
+        inSitemap: false,
+        statusCode: fetchRes.statusCode,
+        reason: 'HTTP header X-Robots-Tag specifies noindex',
+        depth
+      };
+      crawlReportMap.set(url, repEntry);
+
       options.onProgress?.({
         type: 'url_skipped',
         crawledCount: totalPagesCrawled,
@@ -692,7 +798,8 @@ export async function crawlWebsiteForSitemap(
           statusCode: fetchRes.statusCode,
           isIndexable: false,
           skipReason: 'X-Robots-Tag noindex'
-        }
+        },
+        reportEntry: repEntry
       });
       continue;
     }
@@ -704,6 +811,18 @@ export async function crawlWebsiteForSitemap(
     if (wasRedirected && normFinalUrl) {
       // 1. The requested `url` was a redirect hop. Exclude it from sitemap per Google guidelines.
       skippedUrls++;
+      const redirectStatusCode = fetchRes.redirectHistory?.[0]?.statusCode || 301;
+      const redirReport: CrawlReportEntry = {
+        url,
+        status: 'redirected',
+        inSitemap: false,
+        statusCode: redirectStatusCode,
+        finalUrl: normFinalUrl,
+        reason: `Redirected (${redirectStatusCode}) to ${normFinalUrl}`,
+        depth
+      };
+      crawlReportMap.set(url, redirReport);
+
       options.onProgress?.({
         type: 'url_skipped',
         crawledCount: totalPagesCrawled,
@@ -713,10 +832,11 @@ export async function crawlWebsiteForSitemap(
         discoveredUrl: {
           loc: url,
           depth,
-          statusCode: fetchRes.redirectHistory?.[0]?.statusCode || 301,
+          statusCode: redirectStatusCode,
           isIndexable: false,
           skipReason: `Redirected to ${normFinalUrl}`
-        }
+        },
+        reportEntry: redirReport
       });
 
       // 2. Evaluate the live destination page `normFinalUrl` directly using the response body
@@ -754,6 +874,18 @@ export async function crawlWebsiteForSitemap(
             };
             validEntriesMap.set(normFinalUrl, destEntry);
 
+            const destRepEntry: CrawlReportEntry = {
+              url: normFinalUrl,
+              status: 'indexed',
+              inSitemap: true,
+              statusCode: 200,
+              canonicalUrl: destParsed.canonicalUrl || normFinalUrl,
+              reason: 'Indexable (HTTP 200, self-canonical, noindex absent)',
+              depth,
+              lastmod: destLastmod
+            };
+            crawlReportMap.set(normFinalUrl, destRepEntry);
+
             options.onProgress?.({
               type: 'url_discovered',
               crawledCount: totalPagesCrawled,
@@ -766,7 +898,36 @@ export async function crawlWebsiteForSitemap(
                 statusCode: 200,
                 lastmod: destLastmod,
                 isIndexable: true
-              }
+              },
+              reportEntry: destRepEntry
+            });
+          } else {
+            const destExcludedRep: CrawlReportEntry = {
+              url: normFinalUrl,
+              status: 'excluded',
+              inSitemap: false,
+              statusCode: 200,
+              canonicalUrl: destParsed.canonicalUrl,
+              reason: destParsed.skipReason || 'Page marked non-indexable',
+              depth,
+              lastmod: destLastmod
+            };
+            crawlReportMap.set(normFinalUrl, destExcludedRep);
+
+            options.onProgress?.({
+              type: 'url_skipped',
+              crawledCount: totalPagesCrawled,
+              queueCount: crawlQueue.length,
+              validUrlsCount: validEntriesMap.size,
+              currentUrl: normFinalUrl,
+              discoveredUrl: {
+                loc: normFinalUrl,
+                depth,
+                statusCode: 200,
+                isIndexable: false,
+                skipReason: destParsed.skipReason
+              },
+              reportEntry: destExcludedRep
             });
           }
 
@@ -779,6 +940,16 @@ export async function crawlWebsiteForSitemap(
               }
             }
           }
+        } else {
+          const destNoindexRep: CrawlReportEntry = {
+            url: normFinalUrl,
+            status: 'excluded',
+            inSitemap: false,
+            statusCode: 200,
+            reason: 'HTTP header X-Robots-Tag specifies noindex',
+            depth
+          };
+          crawlReportMap.set(normFinalUrl, destNoindexRep);
         }
       }
 
@@ -818,6 +989,18 @@ export async function crawlWebsiteForSitemap(
       };
       validEntriesMap.set(url, entry);
 
+      const repEntry: CrawlReportEntry = {
+        url,
+        status: 'indexed',
+        inSitemap: true,
+        statusCode: 200,
+        canonicalUrl: parsedData.canonicalUrl || url,
+        reason: 'Indexable (HTTP 200, self-canonical, noindex absent)',
+        depth,
+        lastmod: finalLastmod
+      };
+      crawlReportMap.set(url, repEntry);
+
       options.onProgress?.({
         type: 'url_discovered',
         crawledCount: totalPagesCrawled,
@@ -830,10 +1013,23 @@ export async function crawlWebsiteForSitemap(
           statusCode: 200,
           lastmod: finalLastmod,
           isIndexable: true
-        }
+        },
+        reportEntry: repEntry
       });
     } else {
       skippedUrls++;
+      const repEntry: CrawlReportEntry = {
+        url,
+        status: 'excluded',
+        inSitemap: false,
+        statusCode: 200,
+        canonicalUrl: parsedData.canonicalUrl,
+        reason: parsedData.skipReason || 'Page marked non-indexable',
+        depth,
+        lastmod: finalLastmod
+      };
+      crawlReportMap.set(url, repEntry);
+
       options.onProgress?.({
         type: 'url_skipped',
         crawledCount: totalPagesCrawled,
@@ -846,7 +1042,8 @@ export async function crawlWebsiteForSitemap(
           statusCode: 200,
           isIndexable: false,
           skipReason: parsedData.skipReason
-        }
+        },
+        reportEntry: repEntry
       });
     }
 
@@ -872,6 +1069,7 @@ export async function crawlWebsiteForSitemap(
 
   const durationMs = Date.now() - startTime;
   const validEntries = Array.from(validEntriesMap.values());
+  const crawlReport = Array.from(crawlReportMap.values());
 
   const summary = {
     totalPagesCrawled,
@@ -886,12 +1084,14 @@ export async function crawlWebsiteForSitemap(
     queueCount: 0,
     validUrlsCount: validEntries.length,
     validEntries,
+    crawlReport,
     summary
   });
 
   return {
     success: true,
     validEntries,
+    crawlReport,
     summary,
     errors
   };

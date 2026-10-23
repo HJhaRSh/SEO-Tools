@@ -10,7 +10,7 @@ import { GET as downloadGet } from './app/api/seo/sitemap/download/[downloadId]/
 import { MAX_ALLOWED_ROWS } from './lib/seo/sitemap/sitemapParser';
 import { validateSitemapInputLimit } from './lib/seo/sitemap/sitemapValidation';
 import { storeDownload } from './lib/seo/sitemap/sitemapExport';
-import { normalizeCrawlUrl } from './lib/seo/sitemap/sitemapCrawler';
+import { normalizeCrawlUrl, generateCrawlReportCsv, CrawlReportEntry } from './lib/seo/sitemap/sitemapCrawler';
 
 let passed = 0;
 let failed = 0;
@@ -333,6 +333,47 @@ async function run() {
   );
   assert(metaDiff.isIndexable === false, 'Genuinely different canonical is correctly marked isIndexable === false');
   assert(metaDiff.links.includes('https://www.example.com/main-project'), 'Canonical target is included in links for crawler discovery');
+
+  // Test Crawl & Exclusion Report Generation
+  const sampleReport: CrawlReportEntry[] = [
+    {
+      url: 'https://www.example.com/',
+      statusCode: 200,
+      status: 'indexed',
+      inSitemap: true,
+      reason: 'Indexable (HTTP 200, self-canonical, noindex absent)'
+    },
+    {
+      url: 'https://www.example.com/old-page',
+      statusCode: 301,
+      status: 'redirected',
+      inSitemap: false,
+      destinationUrl: 'https://www.example.com/new-page',
+      reason: 'Redirected (301) to https://www.example.com/new-page'
+    },
+    {
+      url: 'https://www.example.com/landing-promo',
+      statusCode: 200,
+      status: 'excluded',
+      inSitemap: false,
+      reason: 'Page has meta robots noindex (noindex, nofollow)'
+    },
+    {
+      url: 'https://www.example.com/duplicate',
+      statusCode: 200,
+      status: 'excluded',
+      inSitemap: false,
+      canonicalUrl: 'https://www.example.com/original',
+      reason: 'Canonical points to another URL: https://www.example.com/original'
+    }
+  ];
+
+  const generatedCsv = generateCrawlReportCsv(sampleReport);
+  assert(generatedCsv.includes('URL,Status,In Sitemap,HTTP Status Code,Destination / Redirected To,Canonical URL,Reason / Directives'), 'CSV report includes expected audit column headers');
+  assert(generatedCsv.includes('https://www.example.com/,INDEXED,YES,200'), 'CSV report includes indexable homepage with inSitemap: YES');
+  assert(generatedCsv.includes('https://www.example.com/old-page,REDIRECTED,NO,301,https://www.example.com/new-page'), 'CSV report includes redirect with destination URL');
+  assert(generatedCsv.includes('Page has meta robots noindex (noindex, nofollow)'), 'CSV report captures explicit noindex reason');
+  assert(generatedCsv.includes('Canonical points to another URL'), 'CSV report captures canonical mismatch reason');
 
   console.log('\n=====================================================');
   console.log(`TOTAL NEXT.JS ROUTE TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
