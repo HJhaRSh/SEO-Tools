@@ -42,6 +42,8 @@ export interface HreflangValidationItem {
   canonicalStatus: 'self' | 'different' | 'missing' | 'malformed' | 'unknown';
   detectedLanguage: string | null;
   htmlLang: string | null;
+  htmlLangStatus?: 'match' | 'mismatch' | 'missing' | 'untested';
+  htmlLangDetails?: string;
   contentLanguageMeta: string | null;
   contentLanguageHeader: string | null;
   issues: HreflangIssue[];
@@ -70,6 +72,11 @@ export interface HreflangTestUrlResponse {
   contentType: string;
   pageSignals: {
     htmlLang: string | null;
+    htmlLangValidation?: {
+      isValid: boolean;
+      status: 'valid' | 'missing' | 'invalid' | 'mismatch';
+      message: string;
+    };
     metaContentLanguage: string | null;
     headerContentLanguage: string | null;
     canonicalUrl: string | null;
@@ -79,6 +86,9 @@ export interface HreflangTestUrlResponse {
   };
   summary: HreflangSummary;
   results: HreflangValidationItem[];
+  sitemapAutoDiscovered?: boolean;
+  discoveredSitemapUrl?: string | null;
+  detectedSitemaps?: string[];
   message?: string;
   error?: string;
 }

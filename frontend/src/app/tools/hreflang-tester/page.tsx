@@ -68,7 +68,7 @@ export default function HreflangTester() {
     reader.readAsText(file);
   };
 
-  const handleTest = async (e?: React.FormEvent) => {
+  const handleTest = async (e?: React.FormEvent, overrideUrl?: string) => {
     if (e) e.preventDefault();
 
     if (abortControllerRef.current) {
@@ -87,15 +87,21 @@ export default function HreflangTester() {
       let endpoint = '/api/seo/hreflang/test-url';
       let payload: any = {};
 
-      if (mode === 'url') {
-        const trimmed = url.trim();
+      if (mode === 'url' || overrideUrl !== undefined) {
+        if (overrideUrl !== undefined) {
+          setUrl(overrideUrl);
+          setMode('url');
+        }
+        const rawUrl = overrideUrl !== undefined ? overrideUrl : url;
+        const trimmed = rawUrl.trim();
         if (!trimmed) {
           setStatus('error');
           setErrorMessage('Please enter a website URL to test.');
           return;
         }
+        const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
         payload = {
-          url: trimmed,
+          url: normalized,
           checkReturnTags,
           userAgent,
         };
@@ -300,16 +306,41 @@ export default function HreflangTester() {
               <div className="input-group">
                 <label className="label">Webpage URL to Test</label>
                 <input
-                  type="url"
+                  type="text"
                   className="input"
-                  placeholder="https://example.com/en-us/"
+                  placeholder="e.g. apple.com or samsung.com/ae"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   required
                 />
                 <p className="text-xs text-slate-500 mt-1.5">
-                  Enter an absolute URL. The tool extracts hreflang from HTML &lt;head&gt; and HTTP response headers.
+                  Enter any website or webpage URL (e.g. <code>apple.com</code>, <code>samsung.com/ae</code>, or <code>microsoft.com</code>). The tool extracts hreflang from HTML head, HTTP headers, or automatically discovers them from XML Sitemaps.
                 </p>
+
+                {/* Quick Test Presets */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Try Live Examples:</span>
+                  {[
+                    { label: 'Apple', url: 'apple.com', badge: 'HTML' },
+                    { label: 'Samsung', url: 'samsung.com/ae', badge: 'Sitemap' },
+                    { label: 'Microsoft', url: 'microsoft.com', badge: 'HTML' },
+                    { label: 'Shopify', url: 'shopify.com', badge: 'HTML' },
+                    { label: 'IKEA', url: 'ikea.com', badge: '116 Locales' },
+                    { label: 'Adobe', url: 'adobe.com', badge: 'Sitemap' },
+                    { label: 'Slack', url: 'slack.com', badge: 'HTML' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      disabled={status === 'loading'}
+                      onClick={() => handleTest(undefined, preset.url)}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-green-50 hover:text-green-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <span className="font-semibold">{preset.label}</span>
+                      <span className="text-[10px] opacity-75 font-mono">({preset.badge})</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -492,13 +523,32 @@ export default function HreflangTester() {
               </button>
             </div>
 
-            {/* Message Banner for Bounded Audits / Sitemap Indices */}
-            {responseData.message && (
+            {/* Sitemap Auto-Discovery Banner */}
+            {responseData.sitemapAutoDiscovered && (
+              <div className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-3">
+                <div className="p-1.5 bg-emerald-100 dark:bg-emerald-900/60 rounded-lg text-emerald-700 dark:text-emerald-300 font-bold shrink-0 mt-0.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-bold text-sm text-emerald-950 dark:text-emerald-200 mb-0.5">
+                    Hreflang Auto-Discovered from XML Sitemap
+                  </div>
+                  <p className="leading-relaxed text-emerald-800 dark:text-emerald-300">
+                    This website (like Samsung) specifies international hreflang targeting via <strong>XML Sitemaps</strong> rather than inline HTML tags. We automatically crawled the site&apos;s sitemap registry and located <strong>{responseData.summary.totalAnnotations}</strong> hreflang annotations for this URL in: <code className="font-mono font-bold bg-white/70 dark:bg-slate-900/60 px-1.5 py-0.5 rounded break-all">{responseData.discoveredSitemapUrl}</code>.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Standard Notice Banner (e.g. for bounded audits or detected sitemaps) */}
+            {responseData.message && !responseData.sitemapAutoDiscovered && (
               <div className="mb-6 p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2.5">
                 <svg className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>{responseData.message}</span>
+                <span className="leading-relaxed">{responseData.message}</span>
               </div>
             )}
 
@@ -563,14 +613,32 @@ export default function HreflangTester() {
               </div>
             </div>
 
-            {/* Page Signals Bar (HTML Lang, Canonical, Robots) */}
+            {/* Page Signals Bar (HTML Lang with validation, Canonical, Robots) */}
             {responseData.pageSignals && (
               <div className="p-3 bg-slate-100/70 dark:bg-slate-800/40 rounded-xl text-xs flex flex-wrap items-center gap-x-6 gap-y-2 border border-slate-200 dark:border-slate-700">
-                <div>
+                <div className="inline-flex items-center gap-1.5">
                   <span className="text-slate-500 font-semibold">HTML lang:</span>{' '}
                   <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                    {responseData.pageSignals.htmlLang || 'None declared'}
+                    {responseData.pageSignals.htmlLang ? `<html lang="${responseData.pageSignals.htmlLang}">` : 'None declared'}
                   </span>
+                  {responseData.pageSignals.htmlLangValidation && (
+                    <span
+                      title={responseData.pageSignals.htmlLangValidation.message}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        responseData.pageSignals.htmlLangValidation.status === 'valid'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                          : responseData.pageSignals.htmlLangValidation.status === 'mismatch'
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                      }`}
+                    >
+                      {responseData.pageSignals.htmlLangValidation.status === 'valid'
+                        ? '✓ Valid ISO'
+                        : responseData.pageSignals.htmlLangValidation.status === 'mismatch'
+                        ? '⚠ Lang Mismatch'
+                        : '⚠ Missing Lang'}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-slate-500 font-semibold">Declared Canonical:</span>{' '}
@@ -589,28 +657,75 @@ export default function HreflangTester() {
               </div>
             )}
 
-            {/* Zero Annotations Explanatory Callout */}
+            {/* Zero Annotations Explanatory Diagnostic Card */}
             {responseData.summary.totalAnnotations === 0 && (
-              <div className="mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50/80 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200">
-                <div className="font-bold flex items-center gap-1.5 text-sm mb-1 text-amber-800 dark:text-amber-300">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  No hreflang annotations found in this resource
+              <div className="mt-4 p-5 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/90 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="font-bold flex items-center gap-2 text-sm text-amber-900 dark:text-amber-200">
+                    <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Page Successfully Audited: No Hreflang Tags Declared</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-semibold text-[11px]">
+                    HTTP {responseData.pageStatus} OK
+                  </span>
                 </div>
-                <p className="leading-relaxed">
-                  {responseData.mode === 'url' ? (
-                    <>
-                      The tested page returned <strong>HTTP {responseData.pageStatus} OK</strong>, but contains no <code>&lt;link rel=&quot;alternate&quot; hreflang=&quot;...&quot;&gt;</code> tags in its HTML <code>&lt;head&gt;</code> and no hreflang declarations in its HTTP response headers.
-                    </>
-                  ) : (
-                    <>
-                      The XML sitemap was parsed successfully ({responseData.summary.urlsAnalyzed.toLocaleString()} URLs checked), but none of the <code>&lt;url&gt;</code> entries declare international <code>&lt;xhtml:link rel=&quot;alternate&quot; hreflang=&quot;...&quot; href=&quot;...&quot;&gt;</code> tags.
-                    </>
-                  )}
-                </p>
-                <div className="mt-2 text-[11px] text-amber-700 dark:text-amber-400">
-                  Tip: To test international SEO hreflang clusters, try testing a multi-language site such as <code>https://www.apple.com/</code> or an international sitemap declaring alternate language variations.
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                  <div className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-amber-200/60 dark:border-amber-800/50">
+                    <div className="font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+                      <span className="text-emerald-600 font-bold">✓</span> HTML &lt;head&gt;
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      Scanned page markup. Zero <code>&lt;link rel=&quot;alternate&quot; hreflang=&quot;...&quot;&gt;</code> tags exist in the HTML document.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-amber-200/60 dark:border-amber-800/50">
+                    <div className="font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+                      <span className="text-emerald-600 font-bold">✓</span> HTTP Headers
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      Inspected server response headers. No <code>Link: &lt;...&gt;; rel=&quot;alternate&quot;; hreflang=&quot;...&quot;</code> headers found.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-amber-200/60 dark:border-amber-800/50">
+                    <div className="font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+                      <span className="text-emerald-600 font-bold">✓</span> XML Sitemaps
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      {responseData.detectedSitemaps && responseData.detectedSitemaps.length > 0
+                        ? `Scanned robots.txt sitemaps. Found ${responseData.detectedSitemaps.length} sitemaps, but none declare hreflang alternates for this URL.`
+                        : 'Checked robots.txt and standard sitemap locations. No hreflang sitemaps found for this URL.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-100/60 dark:bg-amber-900/30 rounded-xl text-[11px] leading-relaxed text-amber-950 dark:text-amber-200">
+                  <div className="font-semibold mb-0.5">Why does this occur on major websites?</div>
+                  Many well-known international domains (such as Google homepage, Netflix, Nike, Spotify, or Wikipedia) do <strong>not</strong> implement Google-style hreflang tags. Instead, they handle internationalization via IP-based geo-redirection, country-code top-level domains (ccTLDs), or user country-selector menus. Without hreflang, search engines rely entirely on automated algorithmic content detection.
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="text-[11px] font-bold text-amber-900 dark:text-amber-200">Test Multi-Regional Sites with Hreflang:</span>
+                  {[
+                    { label: 'Apple (HTML)', url: 'apple.com' },
+                    { label: 'Samsung (Sitemap)', url: 'samsung.com/ae' },
+                    { label: 'Microsoft (HTML)', url: 'microsoft.com' },
+                    { label: 'Shopify (HTML)', url: 'shopify.com' },
+                    { label: 'IKEA (116 Locales)', url: 'ikea.com' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => handleTest(undefined, preset.url)}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-green-50 hover:text-green-700 text-slate-700 dark:text-slate-300 border border-amber-300 dark:border-amber-700 font-medium transition-colors cursor-pointer"
+                    >
+                      {preset.label} →
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -641,7 +756,7 @@ export default function HreflangTester() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm mb-4">
                 <div>
                   <div className="text-xs text-slate-500 font-semibold">Target Hreflang &amp; Locale</div>
                   <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
@@ -666,6 +781,39 @@ export default function HreflangTester() {
                 </div>
 
                 <div>
+                  <div className="text-xs text-slate-500 font-semibold">Target Page HTML &lt;lang&gt;</div>
+                  <div className="mt-0.5 text-xs font-semibold flex items-center gap-1.5 flex-wrap">
+                    {selectedItem.htmlLang ? (
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        &lt;html lang=&quot;{selectedItem.htmlLang}&quot;&gt;
+                      </span>
+                    ) : selectedItem.htmlLangStatus === 'untested' ? (
+                      <span className="text-slate-400">Untested / Live check disabled</span>
+                    ) : (
+                      <span className="text-amber-600 font-bold">Missing &lt;html lang&gt;</span>
+                    )}
+                    {selectedItem.htmlLangStatus && selectedItem.htmlLangStatus !== 'untested' && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        selectedItem.htmlLangStatus === 'match'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                          : selectedItem.htmlLangStatus === 'mismatch'
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                      }`}>
+                        {selectedItem.htmlLangStatus === 'match'
+                          ? '✓ Matches Hreflang'
+                          : selectedItem.htmlLangStatus === 'mismatch'
+                          ? '✗ Language Mismatch'
+                          : 'Missing Lang'}
+                      </span>
+                    )}
+                  </div>
+                  {selectedItem.htmlLangDetails && (
+                    <div className="text-[11px] text-slate-500 mt-0.5">{selectedItem.htmlLangDetails}</div>
+                  )}
+                </div>
+
+                <div>
                   <div className="text-xs text-slate-500 font-semibold">Return Tag Status</div>
                   <div className="mt-0.5 font-semibold text-xs">
                     {selectedItem.returnTagFound === true ? (
@@ -685,6 +833,19 @@ export default function HreflangTester() {
                   <div className="mt-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
                     {selectedItem.statusCode ? `HTTP ${selectedItem.statusCode}` : 'Not fetched'}{' '}
                     • Indexability: {selectedItem.indexability.toUpperCase()}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-slate-500 font-semibold">Canonical Alignment</div>
+                  <div className="mt-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    {selectedItem.canonicalUrl ? (
+                      <span className={selectedItem.canonicalStatus === 'self' ? 'text-emerald-600' : 'text-amber-600'}>
+                        {selectedItem.canonicalStatus === 'self' ? '✓ Self-canonical' : '⚠ Non-self canonical'}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">None detected</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -781,6 +942,7 @@ export default function HreflangTester() {
                     <th className="p-3.5">Hreflang</th>
                     <th className="p-3.5">Language / Region</th>
                     <th className="p-3.5">Alternate URL</th>
+                    <th className="p-3.5">HTML &lt;lang&gt;</th>
                     <th className="p-3.5">Source</th>
                     <th className="p-3.5">Return Tag</th>
                     <th className="p-3.5">Status</th>
@@ -790,7 +952,7 @@ export default function HreflangTester() {
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {displayedItems.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-500">
+                      <td colSpan={8} className="p-8 text-center text-slate-500">
                         {responseData.results.length === 0
                           ? 'No hreflang annotations found in this resource.'
                           : 'No hreflang annotations match your search and filter criteria.'}
@@ -819,6 +981,25 @@ export default function HreflangTester() {
                           </td>
                           <td className="p-3.5 max-w-xs sm:max-w-sm truncate text-xs font-mono text-slate-700 dark:text-slate-300">
                             <span title={item.annotation.href}>{item.annotation.href}</span>
+                          </td>
+                          <td className="p-3.5 text-xs font-mono">
+                            {item.htmlLang ? (
+                              <span className={`inline-flex items-center gap-1 font-semibold ${
+                                item.htmlLangStatus === 'match'
+                                  ? 'text-emerald-600'
+                                  : item.htmlLangStatus === 'mismatch'
+                                  ? 'text-rose-600'
+                                  : 'text-slate-700 dark:text-slate-300'
+                              }`}>
+                                {item.htmlLang}
+                                {item.htmlLangStatus === 'match' && <span className="text-[10px]">✓</span>}
+                                {item.htmlLangStatus === 'mismatch' && <span className="text-[10px] font-bold">⚠</span>}
+                              </span>
+                            ) : item.htmlLangStatus === 'untested' ? (
+                              <span className="text-slate-400 text-[11px]">-</span>
+                            ) : (
+                              <span className="text-amber-600 text-[11px]">none</span>
+                            )}
                           </td>
                           <td className="p-3.5">
                             <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">

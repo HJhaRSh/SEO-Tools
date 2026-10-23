@@ -149,8 +149,11 @@ export async function safeFetch(
     uaString = options.userAgent.trim();
   }
 
+  const trimmedUrl = (targetUrl || '').trim();
+  const normalizedTarget = trimmedUrl.includes('://') ? trimmedUrl : `https://${trimmedUrl}`;
+
   try {
-    const res = await baseSafeFetch(targetUrl, {
+    const res = await baseSafeFetch(normalizedTarget, {
       timeoutMs,
       maxRedirects,
       maxBytes,

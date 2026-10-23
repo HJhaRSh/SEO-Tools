@@ -3,6 +3,8 @@ import { safeFetch } from '@/lib/seo/hreflang/safeFetch';
 import { parseHtmlHreflang } from '@/lib/seo/hreflang/parseHtml';
 import { parseHttpHeaders } from '@/lib/seo/hreflang/parseHeaders';
 import { validateHreflangCluster } from '@/lib/seo/hreflang/analyzeHreflang';
+import { validateHtmlLang, compareHreflangWithHtmlLang } from '@/lib/seo/hreflang/validateLocale';
+import { discoverSitemapHreflang } from '@/lib/seo/hreflang/sitemapDiscovery';
 import { HreflangSummary, HreflangUrlRequest, HreflangTestUrlResponse } from '@/lib/seo/hreflang/types';
 import { classifyAndSanitizeError } from '@/lib/seo/errorSanitizer';
 
@@ -12,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body: HreflangUrlRequest = await req.json().catch(() => ({ url: '' }));
-    const rawUrl = (body.url || '').trim();
+    let rawUrl = (body.url || '').trim();
 
     if (!rawUrl) {
       return NextResponse.json(
@@ -22,6 +24,11 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Auto-normalize scheme if omitted (e.g. "samsung.com" -> "https://samsung.com")
+    if (!/^https?:\/\//i.test(rawUrl)) {
+      rawUrl = `https://${rawUrl}`;
     }
 
     // 1. Fetch primary webpage safely with SSRF protections
@@ -40,14 +47,61 @@ export async function POST(req: NextRequest) {
     const headerParsed = parseHttpHeaders(pageFetch.headers, finalPageUrl);
 
     // Combine annotations from HTML and HTTP headers
-    const allAnnotations = [
+    let allAnnotations = [
       ...htmlParsed.annotations,
       ...headerParsed.annotations,
     ];
 
+    // Sitemap auto-discovery fallback if page has 0 HTML or HTTP header hreflangs
+    let sitemapAutoDiscovered = false;
+    let discoveredSitemapUrl: string | null = null;
+    let detectedSitemaps: string[] = [];
+    let customNoticeMessage: string | undefined = undefined;
+
+    if (allAnnotations.length === 0) {
+      try {
+        const sitemapDiscovery = await discoverSitemapHreflang(finalPageUrl, body.userAgent, pageFetch.body);
+        detectedSitemaps = sitemapDiscovery.detectedSitemaps;
+        discoveredSitemapUrl = sitemapDiscovery.discoveredSitemapUrl;
+
+        if (sitemapDiscovery.annotations.length > 0) {
+          allAnnotations = sitemapDiscovery.annotations;
+          sitemapAutoDiscovered = true;
+          customNoticeMessage = `Discovered ${sitemapDiscovery.annotations.length} international hreflang annotations for this URL in XML Sitemap: ${sitemapDiscovery.discoveredSitemapUrl}`;
+        } else if (detectedSitemaps.length > 0) {
+          customNoticeMessage = `No hreflang tags found in HTML <head> or HTTP headers. Found ${detectedSitemaps.length} XML sitemap(s) in robots.txt (e.g. ${detectedSitemaps.slice(0, 2).join(', ')}). Websites like Samsung often define hreflang in XML sitemaps rather than HTML tags.`;
+        }
+      } catch {
+        // Non-blocking sitemap discovery fallback
+      }
+    }
+
+    // Validate HTML <html lang="..."> attribute on source page
+    const htmlLangValidationResult = validateHtmlLang(htmlParsed.htmlLang);
+
+    // Check if self-referencing hreflang tag matches source <html lang="...">
+    let htmlLangMatchStatus: 'valid' | 'missing' | 'invalid' | 'mismatch' = htmlLangValidationResult.status;
+    let htmlLangValidationMessage = htmlLangValidationResult.message;
+
+    if (allAnnotations.length > 0) {
+      const selfAnn = allAnnotations.find((a) => a.isSelfReference || a.href === finalPageUrl);
+      if (selfAnn && htmlParsed.htmlLang) {
+        const selfCheck = compareHreflangWithHtmlLang(selfAnn.hreflang, htmlParsed.htmlLang, finalPageUrl);
+        if (!selfCheck.isCompatible) {
+          htmlLangMatchStatus = 'mismatch';
+          htmlLangValidationMessage = selfCheck.message;
+        }
+      }
+    }
+
     // Combine page signals
     const pageSignals = {
       htmlLang: htmlParsed.htmlLang,
+      htmlLangValidation: {
+        isValid: htmlLangMatchStatus === 'valid',
+        status: htmlLangMatchStatus,
+        message: htmlLangValidationMessage,
+      },
       metaContentLanguage: htmlParsed.metaContentLanguage,
       headerContentLanguage: headerParsed.contentLanguageHeader,
       canonicalUrl: headerParsed.canonicalUrl || htmlParsed.canonicalUrl,
@@ -139,6 +193,10 @@ export async function POST(req: NextRequest) {
       pageSignals,
       summary,
       results: validationItems,
+      sitemapAutoDiscovered,
+      discoveredSitemapUrl,
+      detectedSitemaps,
+      message: customNoticeMessage,
     };
 
     return NextResponse.json(responsePayload, {

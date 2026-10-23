@@ -248,3 +248,162 @@ export function validateHreflangCode(rawCode: string): ParsedLocale {
     issues,
   };
 }
+
+export interface HtmlLangValidationResult {
+  isValid: boolean;
+  status: 'valid' | 'missing' | 'invalid';
+  language: string | null;
+  region: string | null;
+  message: string;
+  issues: HreflangIssue[];
+}
+
+/**
+ * Validates the <html lang="..."> attribute according to W3C and Google SEO guidelines.
+ */
+export function validateHtmlLang(htmlLang: string | null | undefined): HtmlLangValidationResult {
+  const issues: HreflangIssue[] = [];
+
+  if (!htmlLang || !htmlLang.trim()) {
+    issues.push({
+      code: 'MISSING_HTML_LANG',
+      severity: 'warning',
+      message: 'The <html> tag is missing a "lang" attribute (e.g. <html lang="en">). W3C and search engines recommend specifying the document language.',
+    });
+    return {
+      isValid: false,
+      status: 'missing',
+      language: null,
+      region: null,
+      message: 'Missing lang attribute on <html> element.',
+      issues,
+    };
+  }
+
+  const locale = validateHreflangCode(htmlLang);
+
+  if (!locale.isValid || !locale.language) {
+    issues.push({
+      code: 'INVALID_HTML_LANG',
+      severity: 'warning',
+      message: `The <html> tag specifies an invalid or non-standard language code: "${htmlLang}". Ensure it uses a valid ISO 639-1 language code.`,
+    });
+    return {
+      isValid: false,
+      status: 'invalid',
+      language: locale.language,
+      region: locale.region,
+      message: `Invalid language code in <html lang="${htmlLang}">.`,
+      issues,
+    };
+  }
+
+  return {
+    isValid: true,
+    status: 'valid',
+    language: locale.language,
+    region: locale.region,
+    message: `Valid ISO language declaration (<html lang="${htmlLang}">).`,
+    issues: [],
+  };
+}
+
+export interface HreflangHtmlLangComparison {
+  status: 'match' | 'mismatch' | 'missing' | 'untested';
+  message: string;
+  isCompatible: boolean;
+  issues: HreflangIssue[];
+}
+
+/**
+ * Compares an hreflang declaration against the destination page's <html lang="..."> attribute.
+ * Detects language mismatches (e.g., hreflang="ar-AE" pointing to a page with <html lang="en">).
+ */
+export function compareHreflangWithHtmlLang(
+  hreflang: string,
+  htmlLang: string | null | undefined,
+  targetUrl?: string
+): HreflangHtmlLangComparison {
+  const issues: HreflangIssue[] = [];
+
+  if (!htmlLang || !htmlLang.trim()) {
+    issues.push({
+      code: 'MISSING_HTML_LANG_ALTERNATE',
+      severity: 'warning',
+      message: `Target page "${targetUrl || ''}" is missing a "lang" attribute in its <html> tag.`,
+      alternateUrl: targetUrl,
+      hreflang,
+    });
+    return {
+      status: 'missing',
+      message: 'Missing lang attribute in <html> tag.',
+      isCompatible: false,
+      issues,
+    };
+  }
+
+  const cleanHreflang = hreflang.trim().toLowerCase();
+  const cleanHtmlLang = htmlLang.trim().toLowerCase();
+
+  // x-default is a fallback / country selector and can contain any language
+  if (cleanHreflang === 'x-default') {
+    return {
+      status: 'match',
+      message: `x-default fallback page specifies <html lang="${htmlLang}">.`,
+      isCompatible: true,
+      issues: [],
+    };
+  }
+
+  // Parse hreflang code
+  const hrefLocale = validateHreflangCode(cleanHreflang);
+  const htmlLocale = validateHreflangCode(cleanHtmlLang);
+
+  const hrefLang = hrefLocale.language?.toLowerCase() || '';
+  const htmlLangCode = htmlLocale.language?.toLowerCase() || '';
+
+  // Language subtag mismatch (e.g., 'ar' vs 'en')
+  if (hrefLang && htmlLangCode && hrefLang !== htmlLangCode) {
+    const errorMsg = `Language mismatch: hreflang specifies "${hreflang}" (${hrefLocale.languageName || hrefLang}), but the target page declares <html lang="${htmlLang}"> (${htmlLocale.languageName || htmlLangCode}).`;
+    issues.push({
+      code: 'HTML_LANG_MISMATCH',
+      severity: 'error',
+      message: errorMsg,
+      alternateUrl: targetUrl,
+      hreflang,
+    });
+    return {
+      status: 'mismatch',
+      message: errorMsg,
+      isCompatible: false,
+      issues,
+    };
+  }
+
+  // Regional conflict (e.g., hreflang="en-GB" but <html lang="en-US">)
+  const hrefRegion = hrefLocale.region?.toLowerCase();
+  const htmlRegion = htmlLocale.region?.toLowerCase();
+  if (hrefRegion && htmlRegion && hrefRegion !== htmlRegion) {
+    const warningMsg = `Regional targeting divergence: hreflang targets "${hrefLocale.regionName || hrefRegion.toUpperCase()}" (${hreflang}), but target page specifies region "${htmlLocale.regionName || htmlRegion.toUpperCase()}" (<html lang="${htmlLang}">).`;
+    issues.push({
+      code: 'HTML_LANG_REGION_MISMATCH',
+      severity: 'warning',
+      message: warningMsg,
+      alternateUrl: targetUrl,
+      hreflang,
+    });
+    return {
+      status: 'mismatch',
+      message: warningMsg,
+      isCompatible: false,
+      issues,
+    };
+  }
+
+  return {
+    status: 'match',
+    message: `<html lang="${htmlLang}"> is consistent with hreflang="${hreflang}".`,
+    isCompatible: true,
+    issues: [],
+  };
+}

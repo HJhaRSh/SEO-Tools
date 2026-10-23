@@ -2,6 +2,7 @@ import { HreflangAnnotation, HreflangIssue, HreflangValidationItem } from './typ
 import { safeFetch, SafeFetchResult } from './safeFetch';
 import { parseHtmlHreflang } from './parseHtml';
 import { parseHttpHeaders } from './parseHeaders';
+import { compareHreflangWithHtmlLang } from './validateLocale';
 
 export interface ReturnTagCheckOptions {
   checkLiveUrls?: boolean;
@@ -109,6 +110,14 @@ export async function validateHreflangCluster(
       });
     }
 
+    // Check HTML lang consistency for self-referencing annotation
+    if (ann.isSelfReference && initialHtmlResult?.htmlLang) {
+      const sourceHtmlLangCheck = compareHreflangWithHtmlLang(ann.hreflang, initialHtmlResult.htmlLang, sourceUrl);
+      if (!sourceHtmlLangCheck.isCompatible) {
+        itemIssues.push(...sourceHtmlLangCheck.issues);
+      }
+    }
+
     // Live validation
     let statusCode: number | null = null;
     let finalUrl: string | null = null;
@@ -119,6 +128,8 @@ export async function validateHreflangCluster(
     let indexability: 'pass' | 'warning' | 'fail' | 'unknown' = 'unknown';
     let indexabilityDetails: string | undefined;
     let htmlLang: string | null = null;
+    let htmlLangStatus: 'match' | 'mismatch' | 'missing' | 'untested' | undefined = undefined;
+    let htmlLangDetails: string | undefined = undefined;
     let contentLanguageMeta: string | null = null;
     let contentLanguageHeader: string | null = null;
     let returnTagDetails: { expectedUrl: string; foundHreflang?: string; foundUrl?: string } | null = null;
@@ -135,6 +146,8 @@ export async function validateHreflangCluster(
         canonicalStatus: 'unknown',
         detectedLanguage: null,
         htmlLang: null,
+        htmlLangStatus: 'untested',
+        htmlLangDetails: 'Live check disabled',
         contentLanguageMeta: null,
         contentLanguageHeader: null,
         issues: itemIssues,
@@ -212,6 +225,14 @@ export async function validateHreflangCluster(
       contentLanguageMeta = htmlParsed.metaContentLanguage;
       const metaRobots = htmlParsed.robotsMeta || '';
       canonicalUrl = headerParsed.canonicalUrl || htmlParsed.canonicalUrl;
+
+      // Validate alternate page's <html lang="..."> against this annotation's hreflang
+      const langComparison = compareHreflangWithHtmlLang(ann.hreflang, htmlLang, ann.href);
+      htmlLangStatus = langComparison.status;
+      htmlLangDetails = langComparison.message;
+      if (langComparison.issues.length > 0) {
+        itemIssues.push(...langComparison.issues);
+      }
 
       // Canonical evaluation
       if (canonicalUrl) {
@@ -329,6 +350,8 @@ export async function validateHreflangCluster(
       canonicalStatus,
       detectedLanguage: null,
       htmlLang,
+      htmlLangStatus,
+      htmlLangDetails,
       contentLanguageMeta,
       contentLanguageHeader,
       issues: itemIssues,
