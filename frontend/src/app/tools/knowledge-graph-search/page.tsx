@@ -210,13 +210,19 @@ export default function KnowledgeGraphSearch() {
       breadcrumbs={[{ label: 'Knowledge Graph Search' }]}
       aboutText="Google's Knowledge Graph organizes information about real-world entities (people, places, organizations, things). This tool connects directly to Google's official Knowledge Graph Search API, allowing SEOs and content strategists to inspect recognized entities, verify Freebase/Wikidata Machine Identifiers (MIDs), inspect Schema.org entity categories, and evaluate API match scores."
       howItWorks={[
-        "Choose between entity keyword search or direct Knowledge Graph ID lookup.",
-        "Enter your entity name (e.g. 'Sundar Pichai', 'Alphabet Inc.', 'Taj Mahal') or MID (/m/0dl567).",
+        "Choose between 'Search by Name' (keyword search) or 'Search by Entity ID' (direct MID lookup).",
+        "If you don't know the Entity ID, start with 'Search by Name' — this tool will query Google and display the official MID.",
+        "Alternatively, find an entity's MID on Google by clicking the Share button on its Knowledge Panel and copying the 'kgmid=' value.",
+        "Enter your entity name (e.g. 'Sundar Pichai', 'Alphabet Inc.', 'Taj Mahal') or MID (/m/0dl567 or /g/11b6tq5_3y).",
         "Optionally filter by Schema.org types (Organization, Person, Place, etc.) and target language.",
         "Click 'Search' to query the Google Knowledge Graph Search API.",
         "Inspect entity MIDs, Schema types, Wikipedia descriptions, and export the dataset as CSV."
       ]}
       faq={[
+        {
+          question: "Where can I find an entity's Google Knowledge Graph ID (MID)?",
+          answer: "You can find an entity's Google Knowledge Graph ID (MID) in 4 reliable ways: 1) Use the 'Search by Name' tab above — this tool queries Google directly and displays the exact MID for any entity. 2) On Google Search, locate the entity's Knowledge Panel on the right, click the Share icon (three connected dots), and inspect the copied link — the MID is the value after 'kgmid=' (e.g. kgmid=/m/045c7b). 3) Search Wikidata.org for the entity and check the 'Google Knowledge Graph ID' property (P2671). 4) Right-click Google's Knowledge Panel, inspect element, and search for the 'data-mid' attribute."
+        },
         {
           question: "What is a Google Knowledge Graph ID (MID)?",
           answer: "A Machine ID (MID, typically starting with /m/ or /g/) is Google's internal unique identifier for a discrete entity in its Knowledge Vault and Knowledge Graph. MIDs remain permanent even if entity names or URLs change."
@@ -355,6 +361,38 @@ export default function KnowledgeGraphSearch() {
                 <p className="text-xs text-slate-500 mt-1.5">
                   Valid formats: <code>/m/...</code>, <code>/g/...</code>, <code>kg:/m/...</code>
                 </p>
+              </div>
+
+              {/* Where to find an Entity ID Guide */}
+              <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl text-xs space-y-2.5">
+                <div className="flex items-center gap-2 font-bold text-emerald-900 dark:text-emerald-200 text-sm">
+                  <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Where to get your Entity ID (MID)?
+                </div>
+                <ul className="text-slate-600 dark:text-slate-300 space-y-1.5 leading-relaxed list-disc list-inside">
+                  <li>
+                    <strong>Method 1 (Easiest):</strong> Use{' '}
+                    <button
+                      type="button"
+                      onClick={() => setSearchMode('query')}
+                      className="text-green-700 dark:text-green-400 font-bold underline hover:no-underline cursor-pointer"
+                    >
+                      Search by Name
+                    </button>{' '}
+                    above to find any entity and copy its official MID instantly.
+                  </li>
+                  <li>
+                    <strong>Method 2 (Google Knowledge Panel):</strong> Search Google for your entity. Click the <strong>Share</strong> button on its Knowledge Panel (right side on desktop) and copy the link. The MID is the value following <code className="bg-emerald-100/80 dark:bg-emerald-900/50 px-1 py-0.5 rounded text-emerald-800 dark:text-emerald-200 font-mono">kgmid=</code> (e.g. <code className="font-mono">kgmid=/m/045c7b</code>).
+                  </li>
+                  <li>
+                    <strong>Method 3 (Wikidata):</strong> Search the entity on <strong>Wikidata.org</strong> and check the <strong>&quot;Google Knowledge Graph ID&quot;</strong> statement (Property P2671).
+                  </li>
+                  <li>
+                    <strong>Method 4 (Inspect Source):</strong> Right-click Google&apos;s Knowledge Panel &gt; Inspect Element &gt; search HTML for the <code className="font-mono">data-mid</code> attribute.
+                  </li>
+                </ul>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
