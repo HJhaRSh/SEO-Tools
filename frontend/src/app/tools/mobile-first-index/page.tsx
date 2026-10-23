@@ -115,6 +115,48 @@ export default function MobileFirstIndexPage() {
     }
   };
 
+  const renderCellContent = (text: string, element: string) => {
+    if (
+      element.includes('Schema') &&
+      text &&
+      text !== '(None detected)' &&
+      text !== '(None)' &&
+      !text.startsWith('Desktop:') &&
+      !text.startsWith('Mobile:')
+    ) {
+      const match = text.match(/^(.*?)(\s*\(\d+\s+entities\))?$/);
+      const typesStr = match ? match[1] : text;
+      const suffix = match && match[2] ? match[2].trim() : null;
+      const types = typesStr.split(',').map((s) => s.trim()).filter(Boolean);
+
+      if (types.length > 0 && !types[0].startsWith('(')) {
+        return (
+          <div className="flex flex-wrap items-center gap-1.5 py-0.5 max-w-sm">
+            {types.map((t, i) => (
+              <span
+                key={i}
+                className="inline-block px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-mono text-[11px] whitespace-normal break-words"
+              >
+                {t}
+              </span>
+            ))}
+            {suffix && (
+              <span className="text-[10px] text-slate-400 font-sans font-medium block w-full mt-0.5">
+                {suffix}
+              </span>
+            )}
+          </div>
+        );
+      }
+    }
+
+    return (
+      <span className="break-words whitespace-normal leading-relaxed block max-w-sm">
+        {text}
+      </span>
+    );
+  };
+
   const filteredDiscrepancies = auditData
     ? severityFilter === 'ALL'
       ? auditData.discrepancies
@@ -498,20 +540,20 @@ export default function MobileFirstIndexPage() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {auditData.comparisonTable.map((item, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                          <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
+                          <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 align-top min-w-[150px]">
                             {item.element}
                             <span className="block text-[10px] font-normal text-slate-400">{item.category}</span>
                           </td>
-                          <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300 max-w-xs truncate" title={item.desktop}>
-                            {item.desktop}
+                          <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300 align-top min-w-[180px]" title={item.desktop}>
+                            {renderCellContent(item.desktop, item.element)}
                           </td>
-                          <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300 max-w-xs truncate" title={item.mobile}>
-                            {item.mobile}
+                          <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300 align-top min-w-[180px]" title={item.mobile}>
+                            {renderCellContent(item.mobile, item.element)}
                           </td>
-                          <td className="py-3 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3 whitespace-nowrap align-top">
                             {getStatusBadge(item.status)}
                           </td>
-                          <td className="py-3 px-3 text-slate-500 dark:text-slate-400 max-w-xs text-[11px]">
+                          <td className="py-3 px-3 text-slate-500 dark:text-slate-400 max-w-xs text-[11px] break-words whitespace-normal leading-relaxed align-top">
                             {item.details || '—'}
                           </td>
                         </tr>
