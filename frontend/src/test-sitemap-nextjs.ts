@@ -256,6 +256,84 @@ async function run() {
   const malformedCrawlRes = await crawlPost(malformedCrawlReq);
   assert(malformedCrawlRes.status === 400, 'POST /api/seo/sitemap/crawl with malformed domain returns 400');
 
+  // 16. Canonical Comparison & Self-Canonical Normalization
+  const { cleanForCompare, extractPageMetadataAndLinks } = await import('./lib/seo/sitemap/sitemapCrawler');
+
+  // Trailing space handling in canonical href
+  const comp1 = cleanForCompare('https://www.example.com/blog/my-post ');
+  const comp2 = cleanForCompare('https://example.com/blog/my-post');
+  assert(comp1 === comp2, 'cleanForCompare matches URL despite trailing whitespace in canonical and www difference');
+
+  // Casing insensitivity handling
+  const compCase1 = cleanForCompare('https://www.example.com/Projects/Sol-De-Alibaug');
+  const compCase2 = cleanForCompare('https://www.example.com/projects/sol-de-alibaug');
+  assert(compCase1 === compCase2, 'cleanForCompare matches URL despite casing variations in pathname');
+
+  // Trailing slash normalization
+  const compSlash1 = cleanForCompare('https://www.example.com/about-us/');
+  const compSlash2 = cleanForCompare('https://www.example.com/about-us');
+  assert(compSlash1 === compSlash2, 'cleanForCompare matches URL regardless of trailing slash');
+
+  // extractPageMetadataAndLinks: Page with trailing space in canonical tag remains indexable
+  const htmlWithSpacedCanonical = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Test Page</title>
+        <link rel="canonical" href="https://www.example.com/blog/land-investment " />
+        <meta name="robots" content="index, follow" />
+      </head>
+      <body><h1>Hello</h1></body>
+    </html>
+  `;
+  const metaSpaced = extractPageMetadataAndLinks(
+    htmlWithSpacedCanonical,
+    'https://www.example.com/blog/land-investment',
+    'https://www.example.com',
+    'www.example.com'
+  );
+  assert(metaSpaced.isIndexable === true, 'Page with trailing whitespace in canonical tag is NOT marked unindexable');
+
+  // extractPageMetadataAndLinks: Page with casing difference in canonical tag remains indexable
+  const htmlWithCasedCanonical = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Test Page</title>
+        <link rel="canonical" href="https://www.example.com/sustainability-and-Impact" />
+        <meta name="robots" content="index, follow" />
+      </head>
+      <body><h1>Hello</h1></body>
+    </html>
+  `;
+  const metaCased = extractPageMetadataAndLinks(
+    htmlWithCasedCanonical,
+    'https://www.example.com/sustainability-and-impact',
+    'https://www.example.com',
+    'www.example.com'
+  );
+  assert(metaCased.isIndexable === true, 'Page with letter casing difference in canonical tag is NOT marked unindexable');
+
+  // extractPageMetadataAndLinks: Genuinely non-canonical page is correctly identified
+  const htmlWithDifferentCanonical = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Test Page</title>
+        <link rel="canonical" href="https://www.example.com/main-project" />
+      </head>
+      <body><h1>Hello</h1></body>
+    </html>
+  `;
+  const metaDiff = extractPageMetadataAndLinks(
+    htmlWithDifferentCanonical,
+    'https://www.example.com/campaign-landing-cw1',
+    'https://www.example.com',
+    'www.example.com'
+  );
+  assert(metaDiff.isIndexable === false, 'Genuinely different canonical is correctly marked isIndexable === false');
+  assert(metaDiff.links.includes('https://www.example.com/main-project'), 'Canonical target is included in links for crawler discovery');
+
   console.log('\n=====================================================');
   console.log(`TOTAL NEXT.JS ROUTE TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
   console.log('=====================================================');

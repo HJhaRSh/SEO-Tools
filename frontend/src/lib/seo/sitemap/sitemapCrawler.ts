@@ -170,6 +170,31 @@ export function normalizeCrawlUrl(
 }
 
 /**
+ * Normalizes a URL for canonical and self-reference comparisons:
+ * - Trims whitespaces and decodes encoded URI components
+ * - Ignores www. prefix differences
+ * - Strips trailing slashes from pathnames (keeping root /)
+ * - Normalizes letter casing across hostname and pathname
+ * - Strips protocol differences (http vs https)
+ * - Normalizes query string
+ */
+export function cleanForCompare(u: string): string {
+  if (!u || typeof u !== 'string') return '';
+  try {
+    const trimmed = u.trim();
+    const p = new URL(trimmed);
+    const host = p.hostname.toLowerCase().replace(/^www\./i, '');
+    let pathname = decodeURIComponent(p.pathname || '/');
+    pathname = pathname.replace(/\/+$/, '').trim().toLowerCase();
+    if (!pathname) pathname = '/';
+    const search = p.search ? p.search.toLowerCase() : '';
+    return `${host}${pathname}${search}`;
+  } catch {
+    return u.trim().replace(/\/+$/, '').toLowerCase();
+  }
+}
+
+/**
  * Parses HTML to extract:
  * 1. Internal links (<a href>, canonical, alternate, script manifests)
  * 2. Canonical tag (<link rel="canonical">)
@@ -195,7 +220,7 @@ export function extractPageMetadataAndLinks(
 
   // 1. Check robots meta tags (e.g. <meta name="robots" content="noindex">)
   let isNoindex = false;
-  $('meta[name="robots" i], meta[name="googlebot" i]').each((_, el) => {
+  $('meta[name="robots" i], meta[name="googlebot" i], meta[name="bingbot" i]').each((_, el) => {
     const content = ($(el).attr('content') || '').toLowerCase();
     if (content.includes('noindex')) {
       isNoindex = true;
@@ -207,26 +232,18 @@ export function extractPageMetadataAndLinks(
     skipReason = 'Page has meta robots noindex';
   }
 
-  // 2. Check canonical tag
+  // 2. Check canonical tag (robust whitespace trimming and URL normalization)
   let canonicalUrl: string | undefined = undefined;
-  const canonicalHref = $('link[rel="canonical" i]').attr('href');
-  if (canonicalHref) {
-    const normalizedCanonical = normalizeCrawlUrl(canonicalHref, baseOrigin, baseHostname, includeSubdomains);
-    if (normalizedCanonical) {
-      canonicalUrl = normalizedCanonical;
+  const rawCanonicalHref = $('link[rel="canonical" i]').attr('href');
+  if (rawCanonicalHref && typeof rawCanonicalHref === 'string') {
+    const trimmedCanonical = rawCanonicalHref.trim();
+    if (trimmedCanonical) {
+      const normalizedCanonical = normalizeCrawlUrl(trimmedCanonical, baseOrigin, baseHostname, includeSubdomains);
+      if (normalizedCanonical) {
+        canonicalUrl = normalizedCanonical;
+      }
     }
   }
-
-  // Robust canonical comparison ignoring www and trailing slash differences
-  const cleanForCompare = (u: string) => {
-    try {
-      const p = new URL(u);
-      p.hostname = p.hostname.replace(/^www\./i, '');
-      return p.origin + p.pathname.replace(/\/+$/, '') + p.search;
-    } catch {
-      return u.replace(/\/+$/, '');
-    }
-  };
 
   let isIndexable = !isNoindex;
   if (isIndexable && canonicalUrl && cleanForCompare(canonicalUrl) !== cleanForCompare(currentUrl)) {
@@ -459,6 +476,28 @@ export async function crawlWebsiteForSitemap(
 
   let baseOrigin = seedParsed.origin;
   let baseHostname = seedParsed.hostname.toLowerCase();
+
+  // Fast probe to detect apex-to-www or www-to-apex canonical domain redirects on root
+  try {
+    const probeRes = await safeFetch(seedUrl, {
+      timeoutMs: 5000,
+      maxRedirects: 3,
+      allowLocalhostForTesting
+    }).catch(() => null);
+
+    if (probeRes && probeRes.finalUrl) {
+      const probeParsed = new URL(probeRes.finalUrl);
+      const bareProbe = probeParsed.hostname.toLowerCase().replace(/^www\./i, '');
+      const bareSeed = seedParsed.hostname.toLowerCase().replace(/^www\./i, '');
+      if (bareProbe === bareSeed) {
+        baseOrigin = probeParsed.origin;
+        baseHostname = probeParsed.hostname.toLowerCase();
+      }
+    }
+  } catch {
+    // Keep initial baseOrigin / baseHostname
+  }
+
   const normalizedSeedUrl = normalizeCrawlUrl(seedUrl, baseOrigin, baseHostname, includeSubdomains) || seedUrl;
 
   const validEntriesMap = new Map<string, SitemapUrlEntry>();
@@ -504,10 +543,16 @@ export async function crawlWebsiteForSitemap(
         }
       }
 
-      // Fallback: If robots.txt did not declare a sitemap, probe default sitemap paths
-      if (candidateSitemaps.length === 0) {
-        candidateSitemaps.push(`${baseOrigin}/sitemap.xml`);
-        candidateSitemaps.push(`${baseOrigin}/sitemap_index.xml`);
+      // Probe default sitemap paths on both baseOrigin and alternate www/apex
+      const bareHost = baseHostname.replace(/^www\./i, '');
+      const altOrigin = baseHostname.startsWith('www.') ? `https://${bareHost}` : `https://www.${bareHost}`;
+
+      const defaultPaths = ['/sitemap.xml', '/sitemap_index.xml'];
+      for (const p of defaultPaths) {
+        const u1 = `${baseOrigin}${p}`;
+        if (!candidateSitemaps.includes(u1)) candidateSitemaps.push(u1);
+        const u2 = `${altOrigin}${p}`;
+        if (!candidateSitemaps.includes(u2)) candidateSitemaps.push(u2);
       }
 
       // Parse all discovered candidate sitemaps and nested sitemaps without artificial slice
@@ -649,6 +694,94 @@ export async function crawlWebsiteForSitemap(
           skipReason: 'X-Robots-Tag noindex'
         }
       });
+      continue;
+    }
+
+    // Handle redirect when safeFetch followed redirect(s) to a different final URL
+    const normFinalUrl = normalizeCrawlUrl(fetchRes.finalUrl, baseOrigin, baseHostname, includeSubdomains);
+    const wasRedirected = Boolean(normFinalUrl && cleanForCompare(normFinalUrl) !== cleanForCompare(url));
+
+    if (wasRedirected && normFinalUrl) {
+      // 1. The requested `url` was a redirect hop. Exclude it from sitemap per Google guidelines.
+      skippedUrls++;
+      options.onProgress?.({
+        type: 'url_skipped',
+        crawledCount: totalPagesCrawled,
+        queueCount: crawlQueue.length,
+        validUrlsCount: validEntriesMap.size,
+        currentUrl: url,
+        discoveredUrl: {
+          loc: url,
+          depth,
+          statusCode: fetchRes.redirectHistory?.[0]?.statusCode || 301,
+          isIndexable: false,
+          skipReason: `Redirected to ${normFinalUrl}`
+        }
+      });
+
+      // 2. Evaluate the live destination page `normFinalUrl` directly using the response body
+      if (!visitedUrls.has(normFinalUrl)) {
+        visitedUrls.add(normFinalUrl);
+
+        const destXRobots = (fetchRes.headers['x-robots-tag'] || '').toLowerCase();
+        if (!destXRobots.includes('noindex')) {
+          const destParsed = extractPageMetadataAndLinks(
+            fetchRes.body,
+            normFinalUrl,
+            baseOrigin,
+            baseHostname,
+            includeSubdomains
+          );
+
+          let destLastmod = destParsed.lastmod;
+          if (!destLastmod && fetchRes.headers['last-modified']) {
+            try {
+              const d = new Date(fetchRes.headers['last-modified']);
+              if (!isNaN(d.getTime())) {
+                destLastmod = d.toISOString().split('T')[0];
+              }
+            } catch {}
+          }
+          if (!destLastmod && (sitemapDates.has(normFinalUrl) || sitemapDates.has(url))) {
+            destLastmod = sitemapDates.get(normFinalUrl) || sitemapDates.get(url);
+          }
+
+          if (destParsed.isIndexable) {
+            const destEntry: SitemapUrlEntry = {
+              loc: normFinalUrl,
+              lastmod: destLastmod || null,
+              alternates: destParsed.alternates.length > 0 ? destParsed.alternates : undefined
+            };
+            validEntriesMap.set(normFinalUrl, destEntry);
+
+            options.onProgress?.({
+              type: 'url_discovered',
+              crawledCount: totalPagesCrawled,
+              queueCount: crawlQueue.length,
+              validUrlsCount: validEntriesMap.size,
+              currentUrl: normFinalUrl,
+              discoveredUrl: {
+                loc: normFinalUrl,
+                depth,
+                statusCode: 200,
+                lastmod: destLastmod,
+                isIndexable: true
+              }
+            });
+          }
+
+          // Enqueue outgoing links from the destination page
+          if (depth < maxDepth) {
+            for (const nextLink of destParsed.links) {
+              if (!queuedUrls.has(nextLink) && !visitedUrls.has(nextLink)) {
+                queuedUrls.add(nextLink);
+                crawlQueue.push({ url: nextLink, depth: depth + 1 });
+              }
+            }
+          }
+        }
+      }
+
       continue;
     }
 
