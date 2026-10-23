@@ -88,7 +88,10 @@ export async function validateAndResolveHost(hostname: string, allowLocalhostFor
       }
     }
 
-    return lookupResult[0].address;
+    // In cloud serverless environments (AWS Lambda / Vercel), outbound IPv6 is typically unrouted
+    // and causes socket ENETUNREACH or timeouts. Prefer IPv4 record for outbound egress compatibility.
+    const ipv4Record = lookupResult.find(r => r.family === 4 || !r.address.includes(':'));
+    return ipv4Record ? ipv4Record.address : lookupResult[0].address;
   } catch (err: any) {
     if (err.message && err.message.includes('resolves to blocked')) {
       throw err;

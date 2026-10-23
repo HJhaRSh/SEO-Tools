@@ -4,6 +4,7 @@ import { validateSitemapUrl } from '@/lib/seo/sitemap/sitemapValidation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Up to 60s timeout for serverless crawling on Vercel
 
 export async function POST(req: NextRequest) {
   try {

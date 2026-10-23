@@ -209,7 +209,10 @@ export async function validateAndResolveHost(
       }
     }
 
-    return lookupResult[0].address;
+    // In cloud serverless environments (AWS Lambda / Vercel), outbound IPv6 is typically unrouted
+    // and causes socket ENETUNREACH or timeouts. Prefer IPv4 record for outbound egress compatibility.
+    const ipv4Record = lookupResult.find(r => r.family === 4 || !r.address.includes(':'));
+    return ipv4Record ? ipv4Record.address : lookupResult[0].address;
   } catch (err: any) {
     if (err.message && (err.message.includes('resolves to blocked') || err.message.includes('timed out'))) {
       throw err;
@@ -256,7 +259,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
-  const customUserAgent = options.userAgent || 'Mozilla/5.0 (compatible; IndianMarketersBot/1.0; +https://indianmarketers.in/seo-tools)';
+  const customUserAgent = options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 (compatible; IndianMarketersBot/1.0; +https://indianmarketers.in/seo-tools)';
   const allowLocalhostForTesting = Boolean(options.allowLocalhostForTesting && process.env.NODE_ENV !== 'production');
 
   const redirectHistory: { from: string; to: string; statusCode: number }[] = [];
@@ -316,6 +319,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
         path: parsedUrl.pathname + parsedUrl.search,
         method: 'GET',
+        servername: parsedUrl.hostname, // Explicit TLS SNI for CDNs/Cloudflare
         // Pin connection to validated IP to prevent DNS rebinding (TOCTOU attacks)
         lookup: (_hostname: string, optionsOrCallback: any, maybeCallback?: any) => {
           const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;

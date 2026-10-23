@@ -403,7 +403,7 @@ async function discoverAndParseSitemaps(
   const visitedSitemaps = new Set<string>();
   const queue = [...candidateUrls];
 
-  while (queue.length > 0) {
+  while (queue.length > 0 && visitedSitemaps.size < 10) {
     if (signal?.aborted) break;
     const smUrl = queue.shift();
     if (!smUrl || visitedSitemaps.has(smUrl)) continue;
@@ -411,9 +411,12 @@ async function discoverAndParseSitemaps(
 
     try {
       const res = await safeFetch(smUrl, {
-        timeoutMs: 4000,
+        timeoutMs: 3000,
         maxBytes: 5 * 1024 * 1024,
-        allowLocalhostForTesting
+        allowLocalhostForTesting,
+        headers: {
+          'Accept': 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,*/*;q=0.8'
+        }
       }).catch(() => null);
 
       if (!res || res.statusCode !== 200 || !res.body) continue;
@@ -427,7 +430,7 @@ async function discoverAndParseSitemaps(
           const locMatch = smBlock.match(/<loc>\s*([^<>\s]+)\s*<\/loc>/i);
           if (locMatch) {
             const childSmUrl = locMatch[1].trim();
-            if (!visitedSitemaps.has(childSmUrl)) {
+            if (!visitedSitemaps.has(childSmUrl) && visitedSitemaps.size + queue.length < 15) {
               queue.push(childSmUrl);
             }
           }
@@ -659,7 +662,9 @@ export async function crawlWebsiteForSitemap(
         maxBytes: 1024 * 1024, // 1MB HTML limit
         allowLocalhostForTesting,
         headers: {
-          'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8'
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Upgrade-Insecure-Requests': '1'
         }
       });
     } catch (err: any) {
