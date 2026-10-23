@@ -22,12 +22,14 @@ export const metadata: Metadata = {
   description: 'Free and practical tools to analyse, troubleshoot and improve your website\'s SEO.',
   icons: {
     icon: [
+      { url: '/tools/icon.svg', type: 'image/svg+xml' },
       { url: '/icon.svg', type: 'image/svg+xml' },
-      { url: '/images/indian-marketers-logo.png', type: 'image/png' },
+      { url: '/tools/images/indian-marketers-logo.png', type: 'image/png' },
+      { url: '/tools/favicon.ico', sizes: 'any' },
       { url: '/favicon.ico', sizes: 'any' },
     ],
-    shortcut: '/icon.svg',
-    apple: '/images/indian-marketers-logo.png',
+    shortcut: '/tools/icon.svg',
+    apple: '/tools/images/indian-marketers-logo.png',
   },
 };
 
