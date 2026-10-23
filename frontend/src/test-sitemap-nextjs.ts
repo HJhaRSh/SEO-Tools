@@ -4,11 +4,13 @@ import * as path from 'path';
 import * as os from 'os';
 import { POST as parsePost } from './app/api/seo/sitemap/parse/route';
 import { POST as generatePost } from './app/api/seo/sitemap/generate/route';
+import { POST as crawlPost } from './app/api/seo/sitemap/crawl/route';
 import { GET as templateGet } from './app/api/seo/sitemap/templates/[type]/route';
 import { GET as downloadGet } from './app/api/seo/sitemap/download/[downloadId]/route';
 import { MAX_ALLOWED_ROWS } from './lib/seo/sitemap/sitemapParser';
 import { validateSitemapInputLimit } from './lib/seo/sitemap/sitemapValidation';
 import { storeDownload } from './lib/seo/sitemap/sitemapExport';
+import { normalizeCrawlUrl } from './lib/seo/sitemap/sitemapCrawler';
 
 let passed = 0;
 let failed = 0;
@@ -202,6 +204,57 @@ async function run() {
   const explicitXml = explicitOverrideJson.files[0].content;
   assert(explicitXml.includes('<priority>0.9</priority>'), 'Explicit priority 0.9 preserved from delimited input');
   assert(explicitXml.includes('<changefreq>daily</changefreq>'), 'Explicit changefreq daily preserved from delimited input');
+
+  // 12. Crawler URL Normalization & Scope Confinement
+  const normBase = 'https://example.com';
+  const normHost = 'example.com';
+  
+  const cleanUrl = normalizeCrawlUrl('https://example.com/about#team', normBase, normHost);
+  assert(cleanUrl === 'https://example.com/about', 'Crawler strips URL hash fragments');
+
+  const utmUrl = normalizeCrawlUrl('https://example.com/blog?utm_source=twitter&utm_medium=social', normBase, normHost);
+  assert(utmUrl === 'https://example.com/blog', 'Crawler strips tracking parameters (utm_*)');
+
+  const assetUrl = normalizeCrawlUrl('https://example.com/assets/report.pdf', normBase, normHost);
+  assert(assetUrl === null, 'Crawler excludes non-HTML assets (.pdf)');
+
+  const crossDomainUrl = normalizeCrawlUrl('https://otherdomain.com/page', normBase, normHost);
+  assert(crossDomainUrl === null, 'Crawler excludes external cross-domain URLs');
+
+  const relativeUrl = normalizeCrawlUrl('/pricing', normBase, normHost);
+  assert(relativeUrl === 'https://example.com/pricing', 'Crawler resolves relative internal links');
+
+  const wwwUrl = normalizeCrawlUrl('https://www.example.com/products', normBase, normHost);
+  assert(wwwUrl === 'https://example.com/products', 'Crawler unifies www. and apex domain into target hostname');
+
+  const apexWithWwwBase = normalizeCrawlUrl('https://example.com/products', 'https://www.example.com', 'www.example.com');
+  assert(apexWithWwwBase === 'https://www.example.com/products', 'Crawler unifies apex to www. target hostname');
+
+  // 13. POST /api/seo/sitemap/crawl without URL
+  const emptyCrawlReq = new NextRequest('http://localhost:3000/api/seo/sitemap/crawl', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  const emptyCrawlRes = await crawlPost(emptyCrawlReq);
+  assert(emptyCrawlRes.status === 400, 'POST /api/seo/sitemap/crawl with empty body returns 400');
+  const emptyCrawlJson = await emptyCrawlRes.json();
+  assert(emptyCrawlJson.success === false, 'Empty crawl reports success === false');
+
+  // 14. POST /api/seo/sitemap/crawl with invalid URL
+  const invalidCrawlReq = new NextRequest('http://localhost:3000/api/seo/sitemap/crawl', {
+    method: 'POST',
+    body: JSON.stringify({ url: 'javascript:alert(1)' })
+  });
+  const invalidCrawlRes = await crawlPost(invalidCrawlReq);
+  assert(invalidCrawlRes.status === 400, 'POST /api/seo/sitemap/crawl with invalid URL scheme returns 400');
+
+  // 15. POST /api/seo/sitemap/crawl with malformed domain
+  const malformedCrawlReq = new NextRequest('http://localhost:3000/api/seo/sitemap/crawl', {
+    method: 'POST',
+    body: JSON.stringify({ url: 'not-a-valid-url' })
+  });
+  const malformedCrawlRes = await crawlPost(malformedCrawlReq);
+  assert(malformedCrawlRes.status === 400, 'POST /api/seo/sitemap/crawl with malformed domain returns 400');
 
   console.log('\n=====================================================');
   console.log(`TOTAL NEXT.JS ROUTE TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);

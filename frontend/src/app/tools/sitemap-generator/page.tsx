@@ -24,8 +24,31 @@ interface GenerationSummary {
 }
 
 export default function SitemapGenerator() {
-  // Input method tabs
-  const [inputMethod, setInputMethod] = useState<'upload' | 'manual'>('upload');
+  // Input method tabs (crawl, upload, manual)
+  const [inputMethod, setInputMethod] = useState<'crawl' | 'upload' | 'manual'>('crawl');
+
+  // Website Crawl state
+  const [crawlUrl, setCrawlUrl] = useState<string>('https://example.com');
+  const [crawlDiscoverSitemaps, setCrawlDiscoverSitemaps] = useState<boolean>(true);
+  const [isCrawling, setIsCrawling] = useState<boolean>(false);
+  const [crawlStats, setCrawlStats] = useState<{
+    crawledCount: number;
+    queueCount: number;
+    validCount: number;
+    skippedCount: number;
+    currentUrl: string;
+    logs: { url: string; status: number | string; isIndexable: boolean; reason?: string }[];
+  }>({
+    crawledCount: 0,
+    queueCount: 0,
+    validCount: 0,
+    skippedCount: 0,
+    currentUrl: '',
+    logs: []
+  });
+
+  const crawlAbortRef = useRef<AbortController | null>(null);
+  const accumulatedEntriesRef = useRef<any[]>([]);
 
   // Manual URL entry
   const [manualText, setManualText] = useState<string>(
@@ -440,6 +463,263 @@ export default function SitemapGenerator() {
     }
   };
 
+  /**
+   * Complete crawl and generate standard XML Sitemap from crawled entries
+   */
+  const finishAndGenerateSitemap = async (entries: any[]) => {
+    if (!entries || entries.length === 0) {
+      setErrorMessage('No valid, indexable pages were discovered on the specified website.');
+      setStatus('error');
+      setIsProcessing(false);
+      setIsCrawling(false);
+      return;
+    }
+
+    setIsProcessing(true);
+    setStatus('processing');
+
+    try {
+      const res = await fetch('/api/seo/sitemap/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rows: entries,
+          options: {
+            includePriority,
+            priorityMode,
+            defaultPriority: fixedPriority,
+            includeChangefreq,
+            defaultChangefreq: changefreqValue,
+            deduplicate: true
+          }
+        })
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      let data: any;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const rawText = await res.text();
+        throw new Error(rawText || `Server returned status ${res.status}`);
+      }
+
+      if (!res.ok && !data.summary) {
+        throw new Error(data.error || 'Failed to generate XML sitemap from crawl results.');
+      }
+
+      setSummary(data.summary);
+      setFiles(data.files || []);
+      setZipDownloadId(data.zipDownloadId || null);
+      setZipBase64(data.zipBase64 || null);
+      setReportDownloadId(data.reportDownloadId || null);
+      setReportCsv(data.reportCsv || null);
+      setXmlPreview(data.xmlPreview || '');
+      setIsPreviewTruncated(data.isPreviewTruncated || false);
+      setStatus('success');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error generating XML sitemap from crawl.');
+      setStatus('error');
+    } finally {
+      setIsProcessing(false);
+      setIsCrawling(false);
+    }
+  };
+
+  /**
+   * Stop crawling early and immediately generate sitemap with URLs found so far
+   */
+  const stopCrawlEarly = () => {
+    if (crawlAbortRef.current) {
+      crawlAbortRef.current.abort();
+      crawlAbortRef.current = null;
+    }
+    setIsCrawling(false);
+    if (accumulatedEntriesRef.current.length > 0) {
+      finishAndGenerateSitemap([...accumulatedEntriesRef.current]);
+    } else {
+      setStatus('idle');
+      setIsProcessing(false);
+    }
+  };
+
+  /**
+   * Handle Website Crawling with SSE Streaming
+   */
+  const handleCrawlWebsite = async () => {
+    resetState();
+    if (!crawlUrl || !crawlUrl.trim()) {
+      setErrorMessage('Please enter a website URL to crawl.');
+      setStatus('error');
+      return;
+    }
+
+    let urlToTest = crawlUrl.trim();
+    if (!urlToTest.startsWith('http://') && !urlToTest.startsWith('https://')) {
+      urlToTest = 'https://' + urlToTest;
+      setCrawlUrl(urlToTest);
+    }
+
+    setIsCrawling(true);
+    setStatus('processing');
+    setCrawlStats({
+      crawledCount: 0,
+      queueCount: 1,
+      validCount: 0,
+      skippedCount: 0,
+      currentUrl: urlToTest,
+      logs: []
+    });
+    accumulatedEntriesRef.current = [];
+
+    const controller = new AbortController();
+    crawlAbortRef.current = controller;
+
+    try {
+      const response = await fetch('/api/seo/sitemap/crawl', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
+        },
+        body: JSON.stringify({
+          url: urlToTest,
+          discoverFromRobotsTxt: crawlDiscoverSitemaps
+        }),
+        signal: controller.signal
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+
+      // Fallback if not an SSE stream (e.g. error or direct JSON)
+      if (!contentType.includes('text/event-stream')) {
+        let jsonRes: any;
+        if (contentType.includes('application/json')) {
+          jsonRes = await response.json();
+        } else {
+          const rawText = await response.text();
+          throw new Error(rawText || `Server returned status ${response.status}`);
+        }
+
+        if (!response.ok || !jsonRes.success) {
+          throw new Error(jsonRes.error || 'Failed to crawl website.');
+        }
+
+        accumulatedEntriesRef.current = jsonRes.validEntries || [];
+        await finishAndGenerateSitemap(accumulatedEntriesRef.current);
+        return;
+      }
+
+      // Handle Server-Sent Events stream
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Streaming response body is unavailable.');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const block of lines) {
+          const eventMatch = block.match(/^event:\s*(\w+)/m);
+          const dataMatch = block.match(/^data:\s*(.+)$/m);
+          if (dataMatch) {
+            try {
+              const eventType = eventMatch ? eventMatch[1] : 'message';
+              const data = JSON.parse(dataMatch[1]);
+
+              if (eventType === 'url_discovered') {
+                if (data.discoveredUrl) {
+                  accumulatedEntriesRef.current.push({
+                    loc: data.discoveredUrl.loc,
+                    lastmod: data.discoveredUrl.lastmod || undefined
+                  });
+                  setCrawlStats(prev => ({
+                    ...prev,
+                    crawledCount: data.crawledCount ?? prev.crawledCount,
+                    queueCount: data.queueCount ?? prev.queueCount,
+                    validCount: data.validUrlsCount ?? prev.validCount + 1,
+                    currentUrl: data.currentUrl || prev.currentUrl,
+                    logs: [
+                      {
+                        url: data.discoveredUrl.loc,
+                        status: data.discoveredUrl.statusCode || 200,
+                        isIndexable: true
+                      },
+                      ...prev.logs.slice(0, 49)
+                    ]
+                  }));
+                }
+              } else if (eventType === 'url_skipped') {
+                if (data.discoveredUrl) {
+                  setCrawlStats(prev => ({
+                    ...prev,
+                    crawledCount: data.crawledCount ?? prev.crawledCount,
+                    queueCount: data.queueCount ?? prev.queueCount,
+                    skippedCount: prev.skippedCount + 1,
+                    currentUrl: data.currentUrl || prev.currentUrl,
+                    logs: [
+                      {
+                        url: data.discoveredUrl.loc,
+                        status: data.discoveredUrl.statusCode || 'skip',
+                        isIndexable: false,
+                        reason: data.discoveredUrl.skipReason
+                      },
+                      ...prev.logs.slice(0, 49)
+                    ]
+                  }));
+                }
+              } else if (eventType === 'progress') {
+                setCrawlStats(prev => ({
+                  ...prev,
+                  crawledCount: data.crawledCount ?? prev.crawledCount,
+                  queueCount: data.queueCount ?? prev.queueCount,
+                  validCount: data.validUrlsCount ?? prev.validCount,
+                  currentUrl: data.currentUrl || prev.currentUrl
+                }));
+              } else if (eventType === 'complete') {
+                const finalEntries = data.validEntries || accumulatedEntriesRef.current;
+                await finishAndGenerateSitemap(finalEntries);
+                return;
+              } else if (eventType === 'error') {
+                throw new Error(data.error || 'Crawling failed');
+              }
+            } catch (jsonErr: any) {
+              if (jsonErr.message && !jsonErr.message.includes('Unexpected token')) {
+                throw jsonErr;
+              }
+            }
+          }
+        }
+      }
+
+      // If stream ended without explicit complete event:
+      if (accumulatedEntriesRef.current.length > 0) {
+        await finishAndGenerateSitemap(accumulatedEntriesRef.current);
+      } else {
+        throw new Error('Crawl completed with 0 indexable URLs discovered.');
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        // User manually stopped/cancelled crawl - already handled
+        return;
+      }
+      setErrorMessage(err.message || 'Error occurred while crawling website.');
+      setStatus('error');
+      setIsCrawling(false);
+      setIsProcessing(false);
+    } finally {
+      crawlAbortRef.current = null;
+    }
+  };
+
   const handleCopyXml = () => {
     if (!xmlPreview) return;
     navigator.clipboard.writeText(xmlPreview);
@@ -675,36 +955,221 @@ export default function SitemapGenerator() {
         </div>
 
         {/* Input Method Switcher */}
-        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl mb-6 max-w-sm">
+        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl mb-6 max-w-md">
           <button
             onClick={() => {
+              if (isCrawling) stopCrawlEarly();
+              resetState();
+              setInputMethod('crawl');
+            }}
+            className={`py-2 px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
+              inputMethod === 'crawl'
+                ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            <span>Crawl Website</span>
+          </button>
+          <button
+            onClick={() => {
+              if (isCrawling) stopCrawlEarly();
               resetState();
               setInputMethod('upload');
             }}
-            className={`py-2 px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+            className={`py-2 px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
               inputMethod === 'upload'
                 ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Upload File
+            <span>Upload File</span>
           </button>
           <button
             onClick={() => {
+              if (isCrawling) stopCrawlEarly();
               resetState();
               setInputMethod('manual');
             }}
-            className={`py-2 px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+            className={`py-2 px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
               inputMethod === 'manual'
                 ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Paste URLs
+            <span>Paste URLs</span>
           </button>
         </div>
+
+        {/* TAB 1: CRAWL ENTIRE WEBSITE */}
+        {inputMethod === 'crawl' && (
+          <div className="space-y-5">
+            {/* Website URL Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Website URL to Crawl
+                </label>
+                <span className="text-[11px] font-semibold text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <span>✓ Full Website Crawl (No Page Limit)</span>
+                </span>
+              </div>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="2" y1="12" x2="22" y2="12" />
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  </svg>
+                </span>
+                <input
+                  type="url"
+                  value={crawlUrl}
+                  onChange={e => setCrawlUrl(e.target.value)}
+                  disabled={isCrawling}
+                  placeholder="https://example.com"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-sm focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-white disabled:opacity-60"
+                />
+              </div>
+            </div>
+
+            {/* Discovery & Advanced Options */}
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={crawlDiscoverSitemaps}
+                  onChange={e => setCrawlDiscoverSitemaps(e.target.checked)}
+                  disabled={isCrawling}
+                  className="w-4 h-4 rounded text-green-600 focus:ring-green-500 border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                />
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  Discover orphan pages from <code className="text-[11px] font-mono px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-800">robots.txt</code> & existing XML sitemaps
+                </span>
+              </label>
+              <div className="flex items-center gap-2">
+                {includePriority && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-700 dark:text-green-300 font-semibold whitespace-nowrap">
+                    {priorityMode === 'depth' ? '⚡ Depth Priority' : `Priority: ${fixedPriority}`}
+                  </span>
+                )}
+                {includeChangefreq && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold whitespace-nowrap">
+                    Freq: {changefreqValue}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* LIVE CRAWLER MONITOR / DASHBOARD */}
+            {isCrawling && (
+              <div className="p-4 rounded-xl border border-green-500/30 bg-green-50/20 dark:bg-green-950/10 space-y-4">
+                {/* Status Bar */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                      Crawling website in real-time...
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={stopCrawlEarly}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-green-600 hover:bg-green-700 text-white transition-all shadow-xs"
+                    >
+                      Finish & Generate ({crawlStats.validCount} URLs)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (crawlAbortRef.current) crawlAbortRef.current.abort();
+                        setIsCrawling(false);
+                        setIsProcessing(false);
+                        setStatus('idle');
+                      }}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Metric Counters */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center">
+                    <div className="text-xl font-bold text-slate-900 dark:text-white">{crawlStats.crawledCount}</div>
+                    <div className="text-[10px] uppercase font-semibold text-slate-500">Crawled</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center">
+                    <div className="text-xl font-bold text-green-600 dark:text-green-400">{crawlStats.validCount}</div>
+                    <div className="text-[10px] uppercase font-semibold text-slate-500">Valid Indexable</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center">
+                    <div className="text-xl font-bold text-amber-500">{crawlStats.queueCount}</div>
+                    <div className="text-[10px] uppercase font-semibold text-slate-500">In Queue</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center">
+                    <div className="text-xl font-bold text-slate-400">{crawlStats.skippedCount}</div>
+                    <div className="text-[10px] uppercase font-semibold text-slate-500">Non-Indexable</div>
+                  </div>
+                </div>
+
+                {/* Current URL being visited */}
+                {crawlStats.currentUrl && (
+                  <div className="flex items-center gap-2 text-xs font-mono text-slate-600 dark:text-slate-400 truncate bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200/60 dark:border-slate-700/60">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-600 font-bold uppercase">Visiting</span>
+                    <span className="truncate">{crawlStats.currentUrl}</span>
+                  </div>
+                )}
+
+                {/* Live Crawl Feed */}
+                {crawlStats.logs.length > 0 && (
+                  <div className="space-y-1 max-h-48 overflow-y-auto p-2 bg-slate-900 text-slate-200 rounded-lg font-mono text-[11px] border border-slate-800">
+                    {crawlStats.logs.slice(0, 20).map((log, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 py-0.5 border-b border-slate-800/60 last:border-0">
+                        <span className="truncate">{log.url}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold whitespace-nowrap ${
+                          log.isIndexable
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-amber-500/20 text-amber-300'
+                        }`}>
+                          {log.isIndexable ? '200 OK' : (log.reason || 'skipped')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Launch Crawl Button */}
+            {!isCrawling && (
+              <button
+                type="button"
+                onClick={handleCrawlWebsite}
+                disabled={isProcessing}
+                className="px-6 py-3.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-sm transition-all shadow-sm hover:shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                <span>Crawl Website & Generate Sitemap</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* STEP 1: UPLOAD AREA */}
         {inputMethod === 'upload' && (
