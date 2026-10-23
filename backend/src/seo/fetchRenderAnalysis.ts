@@ -1,11 +1,13 @@
 import * as cheerio from 'cheerio';
+import { extractSchemaTypes } from './schemaExtractor.js';
 import {
   ExtractedSeoSignals,
   SeoSignalDiffItem,
   DiagnosticItem,
   InitialFetchResult,
   RenderBrowserResult,
-  FetchRenderRobotsInfo
+  FetchRenderRobotsInfo,
+  SeoParityStatus
 } from './fetchRenderTypes.js';
 
 export function extractSeoSignals(html: string, baseUrl: string): ExtractedSeoSignals {
@@ -130,32 +132,9 @@ export function extractSeoSignals(html: string, baseUrl: string): ExtractedSeoSi
     }
   });
 
-  // 8. Structured Data (JSON-LD) - extract before removing scripts
-  const structuredDataTypes: string[] = [];
-  let structuredDataCount = 0;
-  $('script').each((_, el) => {
-    const type = $(el).attr('type')?.toLowerCase().trim();
-    if (type === 'application/ld+json') {
-      const rawContent = $(el).html() || '';
-      if (rawContent.trim()) {
-        structuredDataCount++;
-        try {
-          const parsed = JSON.parse(rawContent.trim());
-          if (Array.isArray(parsed)) {
-            for (const item of parsed) {
-              if (item && item['@type']) {
-                structuredDataTypes.push(String(item['@type']));
-              }
-            }
-          } else if (parsed && parsed['@type']) {
-            structuredDataTypes.push(String(parsed['@type']));
-          }
-        } catch {
-          structuredDataTypes.push('Malformed JSON-LD');
-        }
-      }
-    }
-  });
+  // 8. Structured Data (JSON-LD, Microdata, RDFa, Next.js payloads)
+  const structuredDataTypes = extractSchemaTypes(html);
+  const structuredDataCount = structuredDataTypes.length;
 
   // 9. Hreflang Tags
   const hreflangTags: { lang: string; href: string }[] = [];
@@ -190,7 +169,7 @@ export function extractSeoSignals(html: string, baseUrl: string): ExtractedSeoSi
     imagesCount,
     imagesWithAltCount,
     wordCount,
-    structuredDataTypes: Array.from(new Set(structuredDataTypes)),
+    structuredDataTypes,
     structuredDataCount,
     hreflangTags
   };
@@ -400,15 +379,42 @@ export function compareSeoSignals(
   });
 
   // Structured Data
-  const schemaInitial = initial.structuredDataTypes.join(', ') || '(none)';
-  const schemaRendered = rendered.structuredDataTypes.join(', ') || '(none)';
+  const schemaInitial = initial.structuredDataTypes.length > 0 ? initial.structuredDataTypes.join(', ') : '(none)';
+  const schemaRendered = rendered.structuredDataTypes.length > 0 ? rendered.structuredDataTypes.join(', ') : '(none)';
+
+  const initialSorted = [...initial.structuredDataTypes].sort();
+  const renderedSorted = [...rendered.structuredDataTypes].sort();
+  const isIdentical =
+    initialSorted.length === renderedSorted.length &&
+    initialSorted.every((t, i) => t.toLowerCase() === renderedSorted[i].toLowerCase());
+
+  let schemaStatus: SeoParityStatus = 'IDENTICAL';
+  let schemaSummary = 'Structured data types match.';
+
+  if (isIdentical) {
+    schemaStatus = 'IDENTICAL';
+    schemaSummary =
+      initial.structuredDataTypes.length > 0
+        ? `Structured data types match (${initial.structuredDataTypes.join(', ')}).`
+        : 'No structured data types found in either initial server HTML or rendered DOM.';
+  } else if (initial.structuredDataTypes.length === 0 && rendered.structuredDataTypes.length > 0) {
+    schemaStatus = 'ADDED';
+    schemaSummary = `Structured data dynamically injected after client JavaScript execution: ${rendered.structuredDataTypes.join(', ')}.`;
+  } else if (initial.structuredDataTypes.length > 0 && rendered.structuredDataTypes.length === 0) {
+    schemaStatus = 'REMOVED';
+    schemaSummary = `Structured data types present in initial HTML (${initial.structuredDataTypes.join(', ')}) were omitted after JavaScript rendering.`;
+  } else {
+    schemaStatus = 'MODIFIED';
+    schemaSummary = 'Structured data types differ between initial server HTML and rendered JavaScript DOM.';
+  }
+
   diffs.push({
     name: 'structuredData',
     label: 'Structured Data Types',
     initialValue: schemaInitial,
     renderedValue: schemaRendered,
-    status: schemaInitial === schemaRendered ? 'IDENTICAL' : 'MODIFIED',
-    summary: schemaInitial === schemaRendered ? 'Structured data types match.' : 'Structured data differences detected between initial and rendered versions.',
+    status: schemaStatus,
+    summary: schemaSummary,
     importance: 'MEDIUM'
   });
 
@@ -604,6 +610,31 @@ export function generateDiagnostics(
         title: 'Canonical URL Discrepancy',
         description: `Canonical tag changed after client-side rendering (Initial: ${canonDiff.initialValue} vs Rendered: ${canonDiff.renderedValue}).`,
         seoImpact: 'Inconsistent canonicals can confuse search engine indexing signals.',
+        source: 'RENDERED_DOM',
+        confidence: 'CONFIRMED'
+      });
+    }
+
+    const schemaDiff = diffs.find(d => d.name === 'structuredData');
+    if (schemaDiff && schemaDiff.status === 'REMOVED') {
+      diagnostics.push({
+        id: 'structured-data-removed',
+        category: 'INDEXABILITY',
+        severity: 'WARNING',
+        title: 'Structured Data Omitted After Client Rendering',
+        description: `Structured data present in initial server HTML (${schemaDiff.initialValue}) was missing after JavaScript execution.`,
+        seoImpact: 'If search engines render JavaScript and lose initial structured data entities, rich snippets may be lost.',
+        source: 'RENDERED_DOM',
+        confidence: 'CONFIRMED'
+      });
+    } else if (schemaDiff && schemaDiff.status === 'ADDED') {
+      diagnostics.push({
+        id: 'structured-data-js-injected',
+        category: 'RENDERING',
+        severity: 'INFO',
+        title: 'Structured Data Injected by JavaScript',
+        description: `Structured data types (${schemaDiff.renderedValue}) were dynamically created after JavaScript rendering.`,
+        seoImpact: 'Search engine crawlers that do not execute JavaScript (or experience rendering timeouts) will not see these structured data types.',
         source: 'RENDERED_DOM',
         confidence: 'CONFIRMED'
       });
