@@ -7,6 +7,9 @@ const backendTarget =
   (isDev ? "http://localhost:5000" : "");
 
 const nextConfig: NextConfig = {
+  experimental: {
+    agentUpgrade: "security",
+  },
   devIndicators: false,
   images: {
     unoptimized: true,

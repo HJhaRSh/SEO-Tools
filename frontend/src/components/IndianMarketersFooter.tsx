@@ -186,7 +186,7 @@ export default function IndianMarketersFooter() {
                 width={246}
                 height={160}
                 unoptimized
-                onError={(e) => {
+                onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
                   e.currentTarget.src = INDIAN_MARKETERS_LOGO_FALLBACK;
                 }}
                 className="h-[42px] w-auto object-contain"
