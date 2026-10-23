@@ -12,7 +12,7 @@ import IndianMarketersServicesMenu from './IndianMarketersServicesMenu';
 import IndianMarketersMobileMenu from './IndianMarketersMobileMenu';
 
 export default function IndianMarketersHeader() {
-  // Navigation items include Home, Vision, Services, Tools, Blog, Contact us
+  // Navigation: Home, Vision, Services, Tools (https://indianmarketers.in/tools), Blog, Contact us
   const [servicesMenuOpen, setServicesMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoSrc, setLogoSrc] = useState('/images/indian-marketers-logo.png');

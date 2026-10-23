@@ -37,7 +37,7 @@ export const HEADER_NAV_ITEMS: NavItem[] = [
   { label: 'Home', href: `${MAIN_SITE_URL}/` },
   { label: 'Vision', href: `${MAIN_SITE_URL}/#vision` },
   { label: 'Services', href: '#services', isMegaMenu: true },
-  { label: 'Tools', href: '/tools' },
+  { label: 'Tools', href: `${MAIN_SITE_URL}/tools` },
   { label: 'Blog', href: `${MAIN_SITE_URL}/blog/` },
   { label: 'Contact us', href: `${MAIN_SITE_URL}/contact-us/` },
 ];
