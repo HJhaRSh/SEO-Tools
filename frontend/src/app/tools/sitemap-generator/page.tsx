@@ -1593,6 +1593,27 @@ export default function SitemapGenerator() {
                     </button>
                   </div>
 
+                  {crawlReport.some(e => e.statusCode === 403) && (
+                    <div className="mb-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-300">
+                      <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="8" x2="12" y2="12" />
+                          <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <div>
+                          <p className="font-bold text-sm text-amber-900 dark:text-amber-200">
+                            HTTP 403 Forbidden Detected (Cloudflare / WAF Bot Protection)
+                          </p>
+                          <p className="mt-1 leading-relaxed">
+                            The target server or Cloudflare blocked requests originating from cloud serverless IP addresses.
+                            If you own this website, check your <strong>Cloudflare Dashboard &rarr; Security &rarr; Bots</strong> and ensure <strong>Bot Fight Mode</strong> or Super Bot Fight Mode isn't challenging datacenter requests, or add a WAF Custom Rule allowing requests from your domain.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Filter Tabs & Search Bar */}
                   <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 mb-4">
                     <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium">

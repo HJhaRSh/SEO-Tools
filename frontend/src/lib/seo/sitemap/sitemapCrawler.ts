@@ -696,9 +696,12 @@ export async function crawlWebsiteForSitemap(
       const isRedir = Boolean(fetchRes && [301, 302, 307, 308].includes(fetchRes.statusCode));
       const isErr = !fetchRes || fetchRes.statusCode >= 400;
       const statusType: CrawlReportEntry['status'] = isRedir ? 'redirected' : (isErr ? 'error' : 'excluded');
-      const reasonMsg = fetchRes
+      let reasonMsg = fetchRes
         ? (isRedir ? `Redirected (${fetchRes.statusCode}) to ${fetchRes.finalUrl}` : `HTTP status ${fetchRes.statusCode}`)
         : 'HTTP Error (No response)';
+      if (fetchRes?.statusCode === 403) {
+        reasonMsg = 'HTTP 403 Forbidden (Blocked by Cloudflare Bot Fight Mode or Server WAF)';
+      }
 
       const repEntry: CrawlReportEntry = {
         url,

@@ -2,6 +2,7 @@ import dns from 'dns';
 import { promisify } from 'util';
 import http from 'http';
 import https from 'https';
+import zlib from 'zlib';
 import { isBlockedHostname, isPrivateOrReservedIP } from './ssrf';
 
 const dnsLookup = promisify(dns.lookup);
@@ -259,7 +260,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
-  const customUserAgent = options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 (compatible; IndianMarketersBot/1.0; +https://indianmarketers.in/seo-tools)';
+  const customUserAgent = options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
   const allowLocalhostForTesting = Boolean(options.allowLocalhostForTesting && process.env.NODE_ENV !== 'production');
 
   const redirectHistory: { from: string; to: string; statusCode: number }[] = [];
@@ -323,7 +324,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         // Pin connection to validated IP to prevent DNS rebinding (TOCTOU attacks)
         lookup: (_hostname: string, optionsOrCallback: any, maybeCallback?: any) => {
           const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
-          const opts = typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
+          const opts = typeof optionsOrCallback === 'object' && optionsOrCallback !== null ? optionsOrCallback : {};
           const family = resolvedIp.includes(':') ? 6 : 4;
           if (opts && opts.all) {
             cb(null, [{ address: resolvedIp, family }]);
@@ -334,8 +335,17 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         headers: {
           'Host': parsedUrl.hostname + (parsedUrl.port ? `:${parsedUrl.port}` : ''),
           'User-Agent': customUserAgent,
-          'Accept': 'text/plain, text/html, application/xml, text/xml, */*;q=0.8',
-          'Accept-Encoding': 'identity', // avoid compressed streams that could bypass byte counting or cause zip bombs
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Sec-Ch-Ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1',
           'Connection': 'close',
           ...(options.headers || {})
         },
@@ -409,11 +419,28 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
             });
           }
 
+          // Transparently decompress gzip/deflate/br streams
+          const encoding = (headers['content-encoding'] || '').toLowerCase().trim();
+          let inputStream: NodeJS.ReadableStream = response;
+          if (encoding === 'gzip') {
+            const decompressor = zlib.createGunzip();
+            decompressor.on('error', (err) => safeReject(err));
+            inputStream = response.pipe(decompressor);
+          } else if (encoding === 'deflate') {
+            const decompressor = zlib.createInflate();
+            decompressor.on('error', (err) => safeReject(err));
+            inputStream = response.pipe(decompressor);
+          } else if (encoding === 'br') {
+            const decompressor = zlib.createBrotliDecompress();
+            decompressor.on('error', (err) => safeReject(err));
+            inputStream = response.pipe(decompressor);
+          }
+
           const chunks: Buffer[] = [];
           let totalBytes = 0;
           let truncated = false;
 
-          response.on('data', (chunk: Buffer) => {
+          inputStream.on('data', (chunk: Buffer) => {
             if (totalBytes + chunk.length > maxBytes) {
               const allowedLength = Math.max(0, maxBytes - totalBytes);
               if (allowedLength > 0) {
@@ -428,7 +455,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
             }
           });
 
-          response.on('end', () => {
+          inputStream.on('end', () => {
             const body = Buffer.concat(chunks).toString('utf-8');
             safeResolve({
               statusCode,
@@ -440,7 +467,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
             });
           });
 
-          response.on('close', () => {
+          inputStream.on('close', () => {
             if (truncated) {
               const body = Buffer.concat(chunks).toString('utf-8');
               safeResolve({
