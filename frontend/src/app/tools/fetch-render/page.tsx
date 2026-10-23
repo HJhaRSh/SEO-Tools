@@ -13,6 +13,13 @@ interface UserAgentOption {
 
 const DEFAULT_USER_AGENTS: UserAgentOption[] = [
   {
+    id: 'chrome-desktop',
+    name: 'Google Chrome Desktop',
+    token: 'chrome',
+    category: 'browser',
+    disclaimer: 'Standard modern desktop browser emulation.'
+  },
+  {
     id: 'googlebot-smartphone',
     name: 'Googlebot Smartphone',
     token: 'googlebot',
@@ -32,13 +39,6 @@ const DEFAULT_USER_AGENTS: UserAgentOption[] = [
     token: 'bingbot',
     category: 'search',
     disclaimer: 'Simulated user-agent. Server responses may vary based on bot-mitigation systems.'
-  },
-  {
-    id: 'chrome-desktop',
-    name: 'Google Chrome Desktop',
-    token: 'chrome',
-    category: 'browser',
-    disclaimer: 'Standard modern desktop browser emulation.'
   },
   {
     id: 'chrome-mobile',
@@ -75,7 +75,7 @@ function triggerDownload(filename: string, mimeType: string, data: any) {
 export default function FetchRenderPage() {
   // Input fields
   const [url, setUrl] = useState('');
-  const [userAgentId, setUserAgentId] = useState('googlebot-smartphone');
+  const [userAgentId, setUserAgentId] = useState('chrome-desktop');
   const [mode, setMode] = useState<'fetch-and-render' | 'fetch-only'>('fetch-and-render');
 
   // Advanced options
