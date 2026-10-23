@@ -4,6 +4,7 @@ import {
   EventFormState,
   FaqFormState,
   HowToFormState,
+  ImageFormState,
   JobPostingFormState,
   LocalBusinessFormState,
   OrganizationFormState,
@@ -456,6 +457,64 @@ export function validateSchema(
         issues.push({
           field: 'uploadDate',
           message: 'Upload date is required.',
+          severity: 'error',
+        });
+      }
+      break;
+    }
+
+    case 'ImageObject': {
+      const state = data as unknown as ImageFormState;
+      if (!state.contentUrl?.trim()) {
+        issues.push({
+          field: 'contentUrl',
+          message: 'Image content URL (the direct image file URL) is required for ImageObject.',
+          severity: 'error',
+        });
+      } else if (!isValidWebUrl(state.contentUrl)) {
+        issues.push({
+          field: 'contentUrl',
+          message: 'Image content URL must be a valid HTTP/HTTPS URL.',
+          severity: 'error',
+        });
+      }
+
+      if (!state.name?.trim() && !state.caption?.trim()) {
+        issues.push({
+          field: 'name',
+          message: 'Image name or caption is recommended for search engine clarity and image search ranking.',
+          severity: 'warning',
+        });
+      }
+
+      if (state.license?.trim() && !isValidWebUrl(state.license)) {
+        issues.push({
+          field: 'license',
+          message: 'License URL must be a valid HTTP/HTTPS web address.',
+          severity: 'error',
+        });
+      }
+
+      if (state.acquireLicensePage?.trim() && !isValidWebUrl(state.acquireLicensePage)) {
+        issues.push({
+          field: 'acquireLicensePage',
+          message: 'Acquire license page must be a valid HTTP/HTTPS web address.',
+          severity: 'error',
+        });
+      }
+
+      if (!state.license?.trim() && !state.acquireLicensePage?.trim()) {
+        issues.push({
+          field: 'license',
+          message: "Google recommends providing 'license' and/or 'acquireLicensePage' to qualify for the 'Licensable' badge in Google Images.",
+          severity: 'warning',
+        });
+      }
+
+      if (state.datePublished?.trim() && !isValidDateString(state.datePublished)) {
+        issues.push({
+          field: 'datePublished',
+          message: 'Publication date must be formatted in ISO 8601 (e.g. YYYY-MM-DD).',
           severity: 'error',
         });
       }

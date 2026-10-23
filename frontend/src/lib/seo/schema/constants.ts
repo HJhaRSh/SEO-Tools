@@ -1,4 +1,4 @@
-import { RichResultMeta, SupportedSchemaType } from './types';
+import { OrganizationSubType, RichResultMeta, SupportedSchemaType } from './types';
 
 export const SUPPORTED_SCHEMA_TYPES: { id: SupportedSchemaType; label: string; group: string; description?: string }[] = [
   // Entity & Brand
@@ -24,6 +24,7 @@ export const SUPPORTED_SCHEMA_TYPES: { id: SupportedSchemaType; label: string; g
 
   // Media & Creative
   { id: 'VideoObject', label: 'Video Object', group: 'Media & Creative', description: 'Video media with thumbnail, upload date, and duration' },
+  { id: 'ImageObject', label: 'Image Object', group: 'Media & Creative', description: 'Image metadata, licensing, author, and Google Image badges' },
 
   // Events & Places
   { id: 'Event', label: 'Event', group: 'Events & Places', description: 'Concerts, webinars, conferences, and festivals' },
@@ -126,6 +127,13 @@ export const RICH_RESULT_META_MAP: Record<SupportedSchemaType, RichResultMeta> =
     note: 'Enables video badges, timestamps, thumbnails, and preview clips in Google Search results and Video tab.',
     docUrl: 'https://developers.google.com/search/docs/appearance/structured-data/video',
   },
+  ImageObject: {
+    status: 'supported',
+    statusBadge: 'Google Licensable Image Badge',
+    badgeClass: 'badge-success',
+    note: 'Enables Licensable badge and metadata (creator, credit, copyright, and licensing URLs) on Google Images.',
+    docUrl: 'https://developers.google.com/search/docs/appearance/structured-data/image-license-metadata',
+  },
   Event: {
     status: 'supported',
     statusBadge: 'Google Event Listing',
@@ -183,3 +191,19 @@ export const RICH_RESULT_META_MAP: Record<SupportedSchemaType, RichResultMeta> =
     docUrl: 'https://schema.org/Service',
   },
 };
+
+export const ORGANIZATION_SUBTYPES: { value: OrganizationSubType; label: string }[] = [
+  { value: 'Organization', label: 'Organization (General)' },
+  { value: 'Corporation', label: 'Corporation / Enterprise' },
+  { value: 'EducationalOrganization', label: 'EducationalOrganization (School, University)' },
+  { value: 'GovernmentOrganization', label: 'GovernmentOrganization' },
+  { value: 'MedicalOrganization', label: 'MedicalOrganization (Hospital, Clinic)' },
+  { value: 'NGO', label: 'NGO (Non-Governmental Organization / Non-profit)' },
+  { value: 'NewsMediaOrganization', label: 'NewsMediaOrganization' },
+  { value: 'OnlineBusiness', label: 'OnlineBusiness (Digital Agency, E-commerce Brand)' },
+  { value: 'PerformingGroup', label: 'PerformingGroup (Music Band, Theater Troupe)' },
+  { value: 'SportsOrganization', label: 'SportsOrganization (Sports Team, Club, League)' },
+  { value: 'Airline', label: 'Airline' },
+  { value: 'Consortium', label: 'Consortium' },
+];
+

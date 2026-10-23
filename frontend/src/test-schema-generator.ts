@@ -54,6 +54,7 @@ const allTypes: SupportedSchemaType[] = [
   'BreadcrumbList',
   'Recipe',
   'VideoObject',
+  'ImageObject',
   'JobPosting',
   'WebSite',
   'WebPage',
@@ -156,4 +157,57 @@ assert(
   '@type array import should extract the headline'
 );
 
+// 10. Test Organization Subtype
+console.log('Testing Organization Subtype serialization...');
+const orgWithSubtype = buildSchemaObject('Organization', {
+  subType: 'Corporation',
+  name: 'Acme Enterprise Holdings',
+  url: 'https://acme.example.com',
+});
+assert(orgWithSubtype['@type'] === 'Corporation', 'Organization with subType Corporation must output @type: Corporation');
+
+// 11. Test ImageObject Google Licensable Metadata
+console.log('Testing ImageObject builder & Google Licensable metadata...');
+const imageObj = buildSchemaObject('ImageObject', {
+  name: 'Diagram of Entity Search',
+  contentUrl: 'https://example.com/photo.jpg',
+  license: 'https://creativecommons.org/licenses/by/4.0/',
+  acquireLicensePage: 'https://example.com/buy-rights',
+  creditText: 'Harsh Jha',
+  creatorType: 'Person',
+  creatorName: 'Harsh Jha',
+  width: '1200',
+  height: '630',
+});
+assert(imageObj['@type'] === 'ImageObject', 'ImageObject must have @type ImageObject');
+assert(imageObj.contentUrl === 'https://example.com/photo.jpg', 'contentUrl must match');
+assert(imageObj.license === 'https://creativecommons.org/licenses/by/4.0/', 'license must match');
+assert(imageObj.acquireLicensePage === 'https://example.com/buy-rights', 'acquireLicensePage must match');
+assert((imageObj.creator as { name: string }).name === 'Harsh Jha', 'creator name must match');
+
+// 12. Test Importer for ImageObject & Corporation
+console.log('Testing Importer with ImageObject & Corporation subtype...');
+const imageScript = `{
+  "@context": "https://schema.org",
+  "@type": "ImageObject",
+  "contentUrl": "https://example.com/imported.png",
+  "license": "https://example.com/license"
+}`;
+const imgImport = importExistingJsonLd(imageScript);
+assert(imgImport.success === true, 'ImageObject import must succeed');
+assert(imgImport.detectedType === 'ImageObject', 'Detected type must be ImageObject');
+assert(imgImport.parsedData?.contentUrl === 'https://example.com/imported.png', 'Parsed contentUrl must match');
+
+const corpScript = `{
+  "@context": "https://schema.org",
+  "@type": "Corporation",
+  "name": "Global Corp Ltd"
+}`;
+const corpImport = importExistingJsonLd(corpScript);
+assert(corpImport.success === true, 'Corporation import must succeed');
+assert(corpImport.detectedType === 'Organization', 'Corporation should detect as Organization');
+assert(corpImport.parsedData?.subType === 'Corporation', 'Corporation subType must be preserved');
+assert(corpImport.parsedData?.name === 'Global Corp Ltd', 'Corporation name must be extracted');
+
 console.log('ALL UNIT & LOGIC TESTS PASSED SUCCESSFULLY! ✓');
+

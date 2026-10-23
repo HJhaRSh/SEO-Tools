@@ -6,6 +6,7 @@ import {
   EventFormState,
   FaqFormState,
   HowToFormState,
+  ImageFormState,
   JobPostingFormState,
   LocalBusinessFormState,
   OrganizationFormState,
@@ -281,7 +282,7 @@ export function buildLocalBusinessSchema(data: LocalBusinessFormState): Record<s
 export function buildOrganizationSchema(data: OrganizationFormState): Record<string, unknown> {
   const schema: Record<string, unknown> = {
     '@context': 'https://schema.org',
-    '@type': 'Organization',
+    '@type': data.subType || 'Organization',
   };
 
   if (data.name?.trim()) schema.name = data.name.trim();
@@ -629,6 +630,39 @@ export function buildVideoSchema(data: VideoFormState): Record<string, unknown> 
   return cleanObject(schema);
 }
 
+export function buildImageObjectSchema(data: ImageFormState): Record<string, unknown> {
+  const schema: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'ImageObject',
+  };
+
+  if (data.contentUrl?.trim()) schema.contentUrl = data.contentUrl.trim();
+  if (data.name?.trim()) schema.name = data.name.trim();
+  if (data.caption?.trim()) schema.caption = data.caption.trim();
+  if (data.description?.trim()) schema.description = data.description.trim();
+  if (data.license?.trim()) schema.license = data.license.trim();
+  if (data.acquireLicensePage?.trim()) schema.acquireLicensePage = data.acquireLicensePage.trim();
+  if (data.creditText?.trim()) schema.creditText = data.creditText.trim();
+  if (data.copyrightNotice?.trim()) schema.copyrightNotice = data.copyrightNotice.trim();
+  if (data.datePublished?.trim()) schema.datePublished = data.datePublished.trim();
+
+  const width = parseCleanNumber(data.width);
+  if (width !== null && width > 0) schema.width = `${Math.round(width)} px`;
+
+  const height = parseCleanNumber(data.height);
+  if (height !== null && height > 0) schema.height = `${Math.round(height)} px`;
+
+  if (data.creatorName?.trim()) {
+    schema.creator = cleanObject({
+      '@type': data.creatorType || 'Person',
+      name: data.creatorName.trim(),
+      url: data.creatorUrl?.trim() || undefined,
+    });
+  }
+
+  return cleanObject(schema);
+}
+
 export function buildJobPostingSchema(data: JobPostingFormState): Record<string, unknown> {
   const schema: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -899,6 +933,8 @@ export function buildSchemaObject(
       return buildRecipeSchema(state as unknown as RecipeFormState);
     case 'VideoObject':
       return buildVideoSchema(state as unknown as VideoFormState);
+    case 'ImageObject':
+      return buildImageObjectSchema(state as unknown as ImageFormState);
     case 'JobPosting':
       return buildJobPostingSchema(state as unknown as JobPostingFormState);
     case 'WebSite':

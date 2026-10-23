@@ -7,6 +7,7 @@ import {
   EventFormState,
   FaqFormState,
   HowToFormState,
+  ImageFormState,
   JobPostingFormState,
   LocalBusinessFormState,
   OrganizationFormState,
@@ -25,6 +26,7 @@ import { generateRowId } from './fieldUtils';
 export function getDefaultSchemasState(): AllSchemasState {
   return {
     Organization: {
+      subType: 'Organization',
       name: 'Indian Marketers',
       url: 'https://indianmarketers.in',
       logo: 'https://indianmarketers.in/logo.png',
@@ -302,6 +304,22 @@ export function getDefaultSchemasState(): AllSchemasState {
       publisherName: 'Indian Marketers',
       publisherLogo: 'https://indianmarketers.in/logo.png',
     },
+    ImageObject: {
+      name: 'Search Engine Architecture Blueprint 2026',
+      contentUrl: 'https://indianmarketers.in/images/seo-architecture-blueprint.jpg',
+      caption: 'Detailed structural diagram illustrating search bot crawling, rendering pipelines, and JSON-LD entity graph mapping.',
+      description: 'Technical illustration mapping web crawling architectures, modern render services, and linked open data knowledge pipelines.',
+      creatorType: 'Person',
+      creatorName: 'Harsh Jha',
+      creatorUrl: 'https://indianmarketers.in/team/harsh-jha',
+      creditText: 'Harsh Jha / Indian Marketers',
+      copyrightNotice: '© 2026 Indian Marketers. All rights reserved.',
+      license: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+      acquireLicensePage: 'https://indianmarketers.in/licensing',
+      datePublished: '2026-10-15',
+      width: '1920',
+      height: '1080',
+    },
     JobPosting: {
       title: 'Senior Technical SEO Specialist',
       description: 'We are seeking an experienced Technical SEO Specialist proficient in JavaScript rendering, log analysis, and schema architecture.',
@@ -402,6 +420,7 @@ export function getDefaultSchemasState(): AllSchemasState {
 export function getBlankSchemasState(): AllSchemasState {
   return {
     Organization: {
+      subType: 'Organization',
       name: '',
       url: '',
       logo: '',
@@ -609,6 +628,22 @@ export function getBlankSchemasState(): AllSchemasState {
       embedUrl: '',
       publisherName: '',
       publisherLogo: '',
+    },
+    ImageObject: {
+      name: '',
+      contentUrl: '',
+      caption: '',
+      description: '',
+      creatorType: 'Person',
+      creatorName: '',
+      creatorUrl: '',
+      creditText: '',
+      copyrightNotice: '',
+      license: '',
+      acquireLicensePage: '',
+      datePublished: '',
+      width: '',
+      height: '',
     },
     JobPosting: {
       title: '',

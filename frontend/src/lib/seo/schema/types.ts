@@ -17,6 +17,7 @@ export type SupportedSchemaType =
   | 'BreadcrumbList'
   | 'Recipe'
   | 'VideoObject'
+  | 'ImageObject'
   | 'JobPosting'
   | 'WebSite'
   | 'WebPage'
@@ -136,7 +137,22 @@ export interface LocalBusinessFormState {
   acceptsReservations?: boolean;
 }
 
+export type OrganizationSubType =
+  | 'Organization'
+  | 'Corporation'
+  | 'Airline'
+  | 'Consortium'
+  | 'EducationalOrganization'
+  | 'GovernmentOrganization'
+  | 'MedicalOrganization'
+  | 'NGO'
+  | 'NewsMediaOrganization'
+  | 'OnlineBusiness'
+  | 'PerformingGroup'
+  | 'SportsOrganization';
+
 export interface OrganizationFormState {
+  subType?: OrganizationSubType;
   name: string;
   url: string;
   logo: string;
@@ -260,6 +276,23 @@ export interface VideoFormState {
   publisherLogo: string;
 }
 
+export interface ImageFormState {
+  name: string;
+  contentUrl: string;
+  caption: string;
+  description: string;
+  creatorType: 'Person' | 'Organization';
+  creatorName: string;
+  creatorUrl: string;
+  creditText: string;
+  copyrightNotice: string;
+  license: string;
+  acquireLicensePage: string;
+  datePublished: string;
+  width: string;
+  height: string;
+}
+
 export interface JobPostingFormState {
   title: string;
   description: string;
@@ -360,6 +393,7 @@ export interface AllSchemasState {
   BreadcrumbList: BreadcrumbFormState;
   Recipe: RecipeFormState;
   VideoObject: VideoFormState;
+  ImageObject: ImageFormState;
   JobPosting: JobPostingFormState;
   WebSite: WebSiteFormState;
   WebPage: WebPageFormState;

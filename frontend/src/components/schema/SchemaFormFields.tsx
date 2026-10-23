@@ -7,6 +7,7 @@ import {
   EventFormState,
   FaqFormState,
   HowToFormState,
+  ImageFormState,
   JobPostingFormState,
   LocalBusinessFormState,
   OrganizationFormState,
@@ -20,6 +21,7 @@ import {
   WebPageFormState,
   WebSiteFormState,
 } from '@/lib/seo/schema/types';
+import { ORGANIZATION_SUBTYPES } from '@/lib/seo/schema/constants';
 import { generateRowId } from '@/lib/seo/schema/fieldUtils';
 
 interface SchemaFormFieldsProps {
@@ -695,6 +697,21 @@ export default function SchemaFormFields({ schemaType, state, onChange }: Schema
 
     return (
       <div className="grid md:grid-cols-2 gap-4 mt-6">
+        <div className="input-group md:col-span-2">
+          <label className="label">Specific Subtype</label>
+          <select
+            className="select"
+            value={data.subType || 'Organization'}
+            onChange={(e) => onChange('subType', e.target.value)}
+          >
+            {ORGANIZATION_SUBTYPES.map((sub) => (
+              <option key={sub.value} value={sub.value}>
+                {sub.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="input-group">
           <label className="label">
             Organization Name <span className="text-red-500 font-bold">*</span>
@@ -1584,6 +1601,187 @@ export default function SchemaFormFields({ schemaType, state, onChange }: Schema
             placeholder="https://www.youtube.com/embed/VIDEO_ID"
             value={data.embedUrl || ''}
             onChange={(e) => onChange('embedUrl', e.target.value)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // IMAGE OBJECT (Google Licensable Images & Metadata)
+  // ----------------------------------------------------
+  if (schemaType === 'ImageObject') {
+    const data = state as unknown as ImageFormState;
+
+    return (
+      <div className="grid md:grid-cols-2 gap-4 mt-6">
+        <div className="input-group md:col-span-2">
+          <label className="label">
+            Image Content URL (Direct Image File) <span className="text-red-500 font-bold">*</span>
+          </label>
+          <input
+            type="url"
+            className="input font-mono text-sm"
+            placeholder="https://example.com/photos/1x1/photo.jpg"
+            value={data.contentUrl || ''}
+            onChange={(e) => onChange('contentUrl', e.target.value)}
+          />
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            The canonical direct link to the image bitmap (JPG, PNG, WebP, AVIF, SVG).
+          </p>
+        </div>
+
+        <div className="input-group">
+          <label className="label">Image Title / Name</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="e.g. Search Engine Architecture Blueprint"
+            value={data.name || ''}
+            onChange={(e) => onChange('name', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group">
+          <label className="label">Publication Date</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="YYYY-MM-DD (e.g. 2026-10-15)"
+            value={data.datePublished || ''}
+            onChange={(e) => onChange('datePublished', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group md:col-span-2">
+          <label className="label">Caption</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="Short caption describing the context of the image..."
+            value={data.caption || ''}
+            onChange={(e) => onChange('caption', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group md:col-span-2">
+          <label className="label">Full Description</label>
+          <textarea
+            className="textarea"
+            rows={2}
+            placeholder="Detailed description of what is visible in the image..."
+            value={data.description || ''}
+            onChange={(e) => onChange('description', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group">
+          <label className="label">Creator Type</label>
+          <select
+            className="select"
+            value={data.creatorType || 'Person'}
+            onChange={(e) => onChange('creatorType', e.target.value)}
+          >
+            <option value="Person">Person (Photographer / Artist)</option>
+            <option value="Organization">Organization (Agency / Studio)</option>
+          </select>
+        </div>
+
+        <div className="input-group">
+          <label className="label">Creator Name</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="e.g. Harsh Jha"
+            value={data.creatorName || ''}
+            onChange={(e) => onChange('creatorName', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group">
+          <label className="label">Creator Profile / Website URL</label>
+          <input
+            type="url"
+            className="input"
+            placeholder="https://example.com/photographer"
+            value={data.creatorUrl || ''}
+            onChange={(e) => onChange('creatorUrl', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group">
+          <label className="label">Credit / Byline Text</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="e.g. Harsh Jha / Indian Marketers"
+            value={data.creditText || ''}
+            onChange={(e) => onChange('creditText', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group md:col-span-2">
+          <label className="label">Copyright Notice</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="e.g. © 2026 Indian Marketers. All rights reserved."
+            value={data.copyrightNotice || ''}
+            onChange={(e) => onChange('copyrightNotice', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group">
+          <label className="label">
+            License Details URL <span className="text-amber-500 text-xs font-semibold">(For Google Licensable Badge)</span>
+          </label>
+          <input
+            type="url"
+            className="input"
+            placeholder="https://creativecommons.org/licenses/by/4.0/"
+            value={data.license || ''}
+            onChange={(e) => onChange('license', e.target.value)}
+          />
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Link to the license terms that explain how the image may be used.
+          </p>
+        </div>
+
+        <div className="input-group">
+          <label className="label">
+            Acquire License Page URL <span className="text-amber-500 text-xs font-semibold">(How to purchase / obtain)</span>
+          </label>
+          <input
+            type="url"
+            className="input"
+            placeholder="https://example.com/how-to-license"
+            value={data.acquireLicensePage || ''}
+            onChange={(e) => onChange('acquireLicensePage', e.target.value)}
+          />
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Page where a searcher can find instructions or buy rights to this image.
+          </p>
+        </div>
+
+        <div className="input-group">
+          <label className="label">Width (pixels)</label>
+          <input
+            type="number"
+            className="input"
+            placeholder="e.g. 1920"
+            value={data.width || ''}
+            onChange={(e) => onChange('width', e.target.value)}
+          />
+        </div>
+
+        <div className="input-group">
+          <label className="label">Height (pixels)</label>
+          <input
+            type="number"
+            className="input"
+            placeholder="e.g. 1080"
+            value={data.height || ''}
+            onChange={(e) => onChange('height', e.target.value)}
           />
         </div>
       </div>

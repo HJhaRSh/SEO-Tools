@@ -81,6 +81,7 @@ export function importExistingJsonLd(input: string): ImportResult {
     'BreadcrumbList',
     'Recipe',
     'VideoObject',
+    'ImageObject',
     'JobPosting',
     'WebSite',
     'WebPage',
@@ -98,13 +99,35 @@ export function importExistingJsonLd(input: string): ImportResult {
     }
   }
 
-  // Second pass: fallback substring match in order of array
+  // Second pass: organization subtype mapping or fallback substring match in order of array
+  const orgSubtypes = [
+    'Corporation',
+    'Airline',
+    'Consortium',
+    'EducationalOrganization',
+    'GovernmentOrganization',
+    'MedicalOrganization',
+    'NGO',
+    'NewsMediaOrganization',
+    'OnlineBusiness',
+    'PerformingGroup',
+    'SportsOrganization',
+  ];
+
+  let detectedOrgSubType: string | undefined;
+
   if (!detectedType) {
     for (const rawType of typeArray) {
+      if (orgSubtypes.includes(rawType)) {
+        detectedType = 'Organization';
+        detectedOrgSubType = rawType;
+        break;
+      }
       const lower = rawType.toLowerCase();
       if (lower.includes('restaurant')) { detectedType = 'Restaurant'; break; }
       if (lower.includes('article')) { detectedType = 'Article'; break; }
       if (lower.includes('business') || lower.includes('store')) { detectedType = 'LocalBusiness'; break; }
+      if (lower.includes('image')) { detectedType = 'ImageObject'; break; }
     }
   }
 
@@ -119,6 +142,7 @@ export function importExistingJsonLd(input: string): ImportResult {
   const data: Record<string, unknown> = {};
 
   if (detectedType === 'Organization') {
+    data.subType = detectedOrgSubType || (typeArray.find((t) => orgSubtypes.includes(t)) as string) || 'Organization';
     data.name = entity.name || '';
     data.url = entity.url || '';
     data.logo = typeof entity.logo === 'string' ? entity.logo : (entity.logo as Record<string, unknown>)?.url || '';
@@ -211,6 +235,24 @@ export function importExistingJsonLd(input: string): ImportResult {
     data.priceCurrency = offers.priceCurrency || 'USD';
     const avail = (offers.availability as string) || '';
     data.availability = avail.includes('OutOfStock') ? 'OutOfStock' : 'InStock';
+  } else if (detectedType === 'ImageObject') {
+    data.name = entity.name || '';
+    data.contentUrl = entity.contentUrl || (typeof entity.url === 'string' ? entity.url : '');
+    data.caption = entity.caption || '';
+    data.description = entity.description || '';
+    data.license = entity.license || '';
+    data.acquireLicensePage = entity.acquireLicensePage || '';
+    data.creditText = entity.creditText || '';
+    data.copyrightNotice = entity.copyrightNotice || '';
+    data.datePublished = entity.datePublished || '';
+    data.width = entity.width ? String(entity.width).replace(/[^\d.]/g, '') : '';
+    data.height = entity.height ? String(entity.height).replace(/[^\d.]/g, '') : '';
+    const creator = entity.creator as Record<string, unknown>;
+    if (creator) {
+      data.creatorType = creator['@type'] === 'Organization' ? 'Organization' : 'Person';
+      data.creatorName = creator.name || '';
+      data.creatorUrl = creator.url || '';
+    }
   } else {
     // For other types, copy known properties
     data.name = entity.name || '';
