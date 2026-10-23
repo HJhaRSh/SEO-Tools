@@ -35,6 +35,9 @@ export interface SitemapOptions {
   includeHreflang?: boolean;
   includeChangefreq?: boolean;
   includePriority?: boolean;
+  priorityMode?: 'depth' | 'fixed';
+  defaultPriority?: string | number;
+  defaultChangefreq?: SitemapChangeFreq | 'auto-depth' | string;
   deduplicate?: boolean;
   generateIndex?: boolean;
   publicBaseUrl?: string; // Required if generateIndex is true or splitting occurs

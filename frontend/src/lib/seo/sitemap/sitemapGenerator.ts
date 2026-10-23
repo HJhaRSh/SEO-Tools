@@ -30,6 +30,11 @@ import {
   expandReciprocalEntries
 } from './sitemapHreflang';
 import { buildIndexEntriesFromFiles, buildSitemapIndexXml } from './sitemapIndex';
+import {
+  calculateUrlDepth,
+  getDepthPriority,
+  getDepthChangefreq
+} from './sitemapUrlHelper';
 
 export const PROTOCOL_MAX_URLS = 50000;
 export const PROTOCOL_MAX_BYTES = 50 * 1024 * 1024; // 50MB
@@ -100,6 +105,9 @@ export function generateSitemapXml(
     includeHreflang: options.includeHreflang ?? true,
     includeChangefreq: options.includeChangefreq ?? false,
     includePriority: options.includePriority ?? false,
+    priorityMode: options.priorityMode ?? 'depth',
+    defaultPriority: options.defaultPriority ?? '0.8',
+    defaultChangefreq: options.defaultChangefreq ?? 'weekly',
     deduplicate: options.deduplicate ?? true,
     generateIndex: options.generateIndex ?? false,
     publicBaseUrl: options.publicBaseUrl,
@@ -168,22 +176,43 @@ export function generateSitemapXml(
       }
     }
 
-    // Validate Changefreq
+    // Validate or Apply Changefreq
     let cleanChangefreq = undefined;
-    if (raw.changefreq) {
-      const freqVal = validateChangeFreq(raw.changefreq, rowNum);
-      if (freqVal.isValid) cleanChangefreq = freqVal.value;
-      allWarnings.push(...freqVal.issues.filter(i => i.severity !== 'error'));
-      allErrors.push(...freqVal.issues.filter(i => i.severity === 'error'));
+    if (opts.includeChangefreq) {
+      if (raw.changefreq) {
+        const freqVal = validateChangeFreq(raw.changefreq, rowNum);
+        if (freqVal.isValid) cleanChangefreq = freqVal.value;
+        allWarnings.push(...freqVal.issues.filter(i => i.severity !== 'error'));
+        allErrors.push(...freqVal.issues.filter(i => i.severity === 'error'));
+      } else {
+        if (opts.defaultChangefreq === 'auto-depth') {
+          const depth = calculateUrlDepth(cleanLoc);
+          cleanChangefreq = getDepthChangefreq(depth);
+        } else if (opts.defaultChangefreq) {
+          cleanChangefreq = opts.defaultChangefreq as any;
+        } else {
+          cleanChangefreq = 'weekly';
+        }
+      }
     }
 
-    // Validate Priority
+    // Validate or Apply Priority (Option 4: URL-depth hierarchy or fixed mode)
     let cleanPriority = undefined;
-    if (raw.priority !== undefined && raw.priority !== null && raw.priority !== '') {
-      const prioVal = validatePriority(raw.priority, rowNum);
-      if (prioVal.isValid) cleanPriority = prioVal.value;
-      allWarnings.push(...prioVal.issues.filter(i => i.severity !== 'error'));
-      allErrors.push(...prioVal.issues.filter(i => i.severity === 'error'));
+    if (opts.includePriority) {
+      if (raw.priority !== undefined && raw.priority !== null && raw.priority !== '') {
+        const prioVal = validatePriority(raw.priority, rowNum);
+        if (prioVal.isValid) cleanPriority = prioVal.value;
+        allWarnings.push(...prioVal.issues.filter(i => i.severity !== 'error'));
+        allErrors.push(...prioVal.issues.filter(i => i.severity === 'error'));
+      } else {
+        if (opts.priorityMode === 'fixed') {
+          cleanPriority = String(opts.defaultPriority ?? '0.8');
+        } else {
+          // 'depth' mode (Option 4)
+          const depth = calculateUrlDepth(cleanLoc);
+          cleanPriority = getDepthPriority(depth);
+        }
+      }
     }
 
     // Validate Alternates / Hreflang

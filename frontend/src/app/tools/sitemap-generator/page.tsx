@@ -32,6 +32,14 @@ export default function SitemapGenerator() {
     'https://example.com/\nhttps://example.com/about/\nhttps://example.com/services/\nhttps://example.com/contact/'
   );
 
+  // Priority & Change Frequency settings (Option 4 URL depth + Frequency toggle)
+  const [includePriority, setIncludePriority] = useState<boolean>(true);
+  const [priorityMode, setPriorityMode] = useState<'depth' | 'fixed'>('depth');
+  const [fixedPriority, setFixedPriority] = useState<string>('0.8');
+
+  const [includeChangefreq, setIncludeChangefreq] = useState<boolean>(true);
+  const [changefreqValue, setChangefreqValue] = useState<string>('weekly');
+
   // File upload state
   const [fileName, setFileName] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -310,6 +318,8 @@ export default function SitemapGenerator() {
       const mapping: any = {
         locColumn: urlCol,
         lastmodColumn: unambiguousLastmodCol,
+        changefreqColumn: detectedMapping.changefreqColumn,
+        priorityColumn: detectedMapping.priorityColumn,
         wideHreflangColumns: suggestedType === 'hreflang-wide' ? detectedMapping.wideHreflangColumns : undefined,
         longHreflangCodeColumn: suggestedType === 'hreflang-long' ? detectedMapping.longHreflangCodeColumn : undefined,
         longHreflangUrlColumn: suggestedType === 'hreflang-long' ? detectedMapping.longHreflangUrlColumn : undefined
@@ -326,6 +336,11 @@ export default function SitemapGenerator() {
           options: {
             includeLastmod: Boolean(unambiguousLastmodCol),
             includeHreflang: suggestedType !== 'simple',
+            includePriority,
+            priorityMode,
+            defaultPriority: fixedPriority,
+            includeChangefreq,
+            defaultChangefreq: changefreqValue,
             deduplicate: true
           }
         })
@@ -385,6 +400,11 @@ export default function SitemapGenerator() {
         body: JSON.stringify({
           manualUrls: manualText,
           options: {
+            includePriority,
+            priorityMode,
+            defaultPriority: fixedPriority,
+            includeChangefreq,
+            defaultChangefreq: changefreqValue,
             deduplicate: true
           }
         })
@@ -433,13 +453,26 @@ export default function SitemapGenerator() {
       description="Upload CSV or Excel to automatically generate and download standard XML sitemaps compliant with Google and sitemaps.org Protocol."
       category="Crawling & Access"
       breadcrumbs={[{ label: 'XML Sitemap Generator' }]}
-      aboutText="An XML sitemap communicates indexable URLs to search engines. Built in compliance with sitemaps.org Protocol, this tool accepts CSV or Excel spreadsheets, automatically validates URLs, removes duplicates, and generates ready-to-download sitemap.xml files."
+      aboutText="An XML sitemap communicates indexable URLs to search engines. Built in compliance with sitemaps.org Protocol, this tool accepts CSV or Excel spreadsheets, automatically validates URLs, calculates intelligent URL-depth priorities, applies change frequencies, and generates ready-to-download sitemap.xml files."
       howItWorks={[
-        "Upload your spreadsheet (.csv or .xlsx) or paste URLs directly.",
-        "The tool automatically detects the URL column, validates entries, and strips duplicates.",
-        "Download your valid sitemap.xml immediately, with automatic splitting for large lists."
+        "Upload your spreadsheet (.csv or .xlsx) or paste URLs directly into the manual input box.",
+        "Configure <priority> with intelligent URL-depth auto-scaling and <changefreq> toggles.",
+        "The tool automatically detects columns, validates entries, strips duplicates, and applies your chosen logic.",
+        "Download your valid sitemap.xml immediately, with automatic splitting into index files for large datasets."
       ]}
       faq={[
+        {
+          question: "How does the URL-depth Priority calculation work?",
+          answer: "Our intelligent depth logic automatically assigns priorities based on search engine crawl hierarchy: 1.0 for the root homepage (/), 0.8 for primary landing sections (depth 1, e.g. /services/), 0.6 for sub-categories/articles (depth 2, e.g. /services/seo/), and 0.4 for deep or nested pages (depth 3+). You can also switch to a fixed custom priority or disable the tag completely."
+        },
+        {
+          question: "What does the Change Frequency toggle do?",
+          answer: "The <changefreq> tag provides hints to search engine crawlers regarding how frequently content updates (e.g., weekly, daily, monthly, or auto-depth). You can enable or disable this tag as needed, and individual URL values in spreadsheets or delimited text will always take precedence."
+        },
+        {
+          question: "Can I still paste URLs with custom priorities or frequencies?",
+          answer: "Yes! In manual paste mode, you can paste raw URLs or use delimiters like pipe (|), tab, or comma: e.g. 'https://example.com/promo | 0.9 | daily'. Any explicitly provided value will be preserved."
+        },
         {
           question: "What spreadsheet formats are supported?",
           answer: "You can upload standard CSV (.csv) and Excel (.xlsx) files. The tool automatically detects your URL column whether your file includes headers or not."
@@ -464,8 +497,180 @@ export default function SitemapGenerator() {
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Generate XML Sitemap</h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Upload your CSV or Excel file to instantly generate and download your sitemap
+              Upload spreadsheets or paste URLs with smart URL-depth priority and change frequency logic
             </p>
+          </div>
+        </div>
+
+        {/* SITEMAP SETTINGS: PRIORITY & CHANGE FREQUENCY */}
+        <div className="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80">
+          <div className="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-slate-800 pb-2.5">
+            <div className="flex items-center gap-2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600 dark:text-green-400">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Sitemap Tags & Logic Configuration
+              </h3>
+            </div>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
+              Controls &lt;priority&gt; and &lt;changefreq&gt; in generated XML
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* PRIORITY CARD (OPTION 4) */}
+            <div className={`p-3.5 rounded-xl border transition-all ${
+              includePriority
+                ? 'bg-white dark:bg-slate-800 border-green-500/30 dark:border-green-500/20 shadow-xs'
+                : 'bg-slate-100/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 opacity-75'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    Priority Tag
+                    <code className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-slate-600 dark:text-slate-300">
+                      &lt;priority&gt;
+                    </code>
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includePriority}
+                    onChange={e => setIncludePriority(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
+              </div>
+
+              {includePriority ? (
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPriorityMode('depth')}
+                      className={`flex-1 py-1.5 px-2.5 rounded-lg font-semibold text-xs transition-all border ${
+                        priorityMode === 'depth'
+                          ? 'bg-green-50 dark:bg-green-950/40 border-green-500 text-green-700 dark:text-green-300'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      ⚡ Auto by URL Depth
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPriorityMode('fixed')}
+                      className={`py-1.5 px-2.5 rounded-lg font-semibold text-xs transition-all border ${
+                        priorityMode === 'fixed'
+                          ? 'bg-green-50 dark:bg-green-950/40 border-green-500 text-green-700 dark:text-green-300'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      Fixed Value
+                    </button>
+                  </div>
+
+                  {priorityMode === 'depth' ? (
+                    <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
+                      <div className="font-semibold text-slate-800 dark:text-slate-200 mb-1 flex items-center justify-between">
+                        <span>Hierarchy Scale:</span>
+                        <span className="text-[10px] text-green-600 dark:text-green-400 font-bold">Active</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[10px]">
+                        <div>• Root / Home (<span className="text-slate-900 dark:text-slate-200">/</span>): <strong className="text-green-600 dark:text-green-400">1.0</strong></div>
+                        <div>• 1st Level (<span className="text-slate-900 dark:text-slate-200">/item</span>): <strong className="text-green-600 dark:text-green-400">0.8</strong></div>
+                        <div>• 2nd Level (<span className="text-slate-900 dark:text-slate-200">/a/b</span>): <strong className="text-green-600 dark:text-green-400">0.6</strong></div>
+                        <div>• Deep pages (<span className="text-slate-900 dark:text-slate-200">/a/b/c+</span>): <strong className="text-green-600 dark:text-green-400">0.4</strong></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        Assigned Priority:
+                      </label>
+                      <select
+                        value={fixedPriority}
+                        onChange={e => setFixedPriority(e.target.value)}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        <option value="1.0">1.0</option>
+                        <option value="0.9">0.9</option>
+                        <option value="0.8">0.8</option>
+                        <option value="0.7">0.7</option>
+                        <option value="0.6">0.6</option>
+                        <option value="0.5">0.5</option>
+                        <option value="0.4">0.4</option>
+                        <option value="0.3">0.3</option>
+                        <option value="0.2">0.2</option>
+                        <option value="0.1">0.1</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  &lt;priority&gt; tags will be excluded from the generated sitemap XML.
+                </p>
+              )}
+            </div>
+
+            {/* CHANGE FREQUENCY CARD */}
+            <div className={`p-3.5 rounded-xl border transition-all ${
+              includeChangefreq
+                ? 'bg-white dark:bg-slate-800 border-green-500/30 dark:border-green-500/20 shadow-xs'
+                : 'bg-slate-100/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 opacity-75'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    Change Frequency
+                    <code className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-slate-600 dark:text-slate-300">
+                      &lt;changefreq&gt;
+                    </code>
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeChangefreq}
+                    onChange={e => setIncludeChangefreq(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
+              </div>
+
+              {includeChangefreq ? (
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      Frequency:
+                    </label>
+                    <select
+                      value={changefreqValue}
+                      onChange={e => setChangefreqValue(e.target.value)}
+                      className="flex-1 py-1.5 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      <option value="weekly">weekly</option>
+                      <option value="daily">daily</option>
+                      <option value="monthly">monthly</option>
+                      <option value="yearly">yearly</option>
+                    </select>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Provides crawl recommendations per Sitemap Protocol. Custom values in spreadsheets or delimited lines are respected.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  &lt;changefreq&gt; tags will be excluded from the generated sitemap XML.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -595,19 +800,31 @@ export default function SitemapGenerator() {
         {/* STEP 1: MANUAL URLS INPUT */}
         {inputMethod === 'manual' && (
           <div>
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Paste URLs (one per line)
               </label>
-              <span className="text-xs text-slate-400 font-mono">
-                {manualText.split('\n').filter(l => l.trim()).length} URLs detected
-              </span>
+              <div className="flex items-center gap-2">
+                {includePriority && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-700 dark:text-green-300 font-semibold">
+                    {priorityMode === 'depth' ? '⚡ Depth Priority' : `Priority: ${fixedPriority}`}
+                  </span>
+                )}
+                {includeChangefreq && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold">
+                    Freq: {changefreqValue}
+                  </span>
+                )}
+                <span className="text-xs text-slate-400 font-mono">
+                  {manualText.split('\n').filter(l => l.trim()).length} URLs detected
+                </span>
+              </div>
             </div>
             <textarea
               value={manualText}
               onChange={e => setManualText(e.target.value)}
               rows={7}
-              placeholder="https://example.com/&#10;https://example.com/about/&#10;https://example.com/services/"
+              placeholder="https://example.com/&#10;https://example.com/about/&#10;https://example.com/services/&#10;https://example.com/contact/&#10;# Optional custom line overrides:&#10;# https://example.com/featured | 0.9 | daily"
               className="w-full p-4 font-mono text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-green-500 focus:outline-none dark:text-slate-100 mb-4"
             />
             <button

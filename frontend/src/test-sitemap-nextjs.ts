@@ -159,6 +159,50 @@ async function run() {
   assert(apiOverManualJson.success === false, 'API rejects manual URLs > MAX_ALLOWED_ROWS with success: false');
   assert(apiOverManualJson.error?.includes('Maximum URL limit exceeded'), 'API rejection mentions Maximum URL limit exceeded');
 
+  // 10. Option 4: URL Depth Priority and Changefreq verification
+  const depthPrioReq = new NextRequest('http://localhost:3000/api/seo/sitemap/generate', {
+    method: 'POST',
+    body: JSON.stringify({
+      manualUrls: [
+        'https://example.com/',
+        'https://example.com/about',
+        'https://example.com/products/shoes',
+        'https://example.com/products/shoes/sneakers/running'
+      ].join('\n'),
+      options: {
+        includePriority: true,
+        priorityMode: 'depth',
+        includeChangefreq: true,
+        defaultChangefreq: 'weekly'
+      }
+    })
+  });
+  const depthPrioRes = await generatePost(depthPrioReq);
+  assert(depthPrioRes.status === 200, 'POST /api/seo/sitemap/generate with depth priority returns 200');
+  const depthPrioJson = await depthPrioRes.json();
+  const xmlOut = depthPrioJson.files[0].content;
+  assert(xmlOut.includes('<loc>https://example.com/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>'), 'Root homepage URL gets priority 1.0');
+  assert(xmlOut.includes('<loc>https://example.com/about</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>'), 'Depth 1 URL gets priority 0.8');
+  assert(xmlOut.includes('<loc>https://example.com/products/shoes</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.6</priority>'), 'Depth 2 URL gets priority 0.6');
+  assert(xmlOut.includes('<loc>https://example.com/products/shoes/sneakers/running</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.4</priority>'), 'Depth 3+ URL gets priority 0.4');
+
+  // 11. Delimited line with explicit priority and changefreq override test
+  const explicitOverrideReq = new NextRequest('http://localhost:3000/api/seo/sitemap/generate', {
+    method: 'POST',
+    body: JSON.stringify({
+      manualUrls: 'https://example.com/special | 0.9 | daily',
+      options: {
+        includePriority: true,
+        includeChangefreq: true
+      }
+    })
+  });
+  const explicitOverrideRes = await generatePost(explicitOverrideReq);
+  const explicitOverrideJson = await explicitOverrideRes.json();
+  const explicitXml = explicitOverrideJson.files[0].content;
+  assert(explicitXml.includes('<priority>0.9</priority>'), 'Explicit priority 0.9 preserved from delimited input');
+  assert(explicitXml.includes('<changefreq>daily</changefreq>'), 'Explicit changefreq daily preserved from delimited input');
+
   console.log('\n=====================================================');
   console.log(`TOTAL NEXT.JS ROUTE TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
   console.log('=====================================================');

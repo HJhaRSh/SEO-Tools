@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateSitemapXml } from '@/lib/seo/sitemap/sitemapGenerator';
 import { validatePublicSitemapOptions, validateSitemapInputLimit } from '@/lib/seo/sitemap/sitemapValidation';
 import { extractUrlEntriesFromRows } from '@/lib/seo/sitemap/sitemapParser';
+import { parseManualUrlLine } from '@/lib/seo/sitemap/sitemapUrlHelper';
+import { SitemapUrlEntry } from '@/lib/seo/sitemap/sitemapTypes';
 import {
   storeDownload,
   createSitemapsZip,
@@ -40,7 +42,9 @@ export async function POST(req: NextRequest) {
         .split(/\r?\n/)
         .map((l: string) => l.trim())
         .filter((l: string) => Boolean(l));
-      entries = lines.map((url: string) => ({ loc: url }));
+      entries = lines
+        .map((line: string) => parseManualUrlLine(line))
+        .filter((entry): entry is SitemapUrlEntry => entry !== null && Boolean(entry.loc));
     } else if (Array.isArray(rows)) {
       if (mapping && formatType) {
         entries = extractUrlEntriesFromRows(rows, mapping, formatType);

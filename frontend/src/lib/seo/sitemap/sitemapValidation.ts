@@ -3,7 +3,7 @@
  * Tool 4 — XML Sitemap Generator
  */
 
-import { SitemapChangeFreq, SitemapValidationIssue } from './sitemapTypes';
+import { SitemapChangeFreq, SitemapValidationIssue, SitemapOptions } from './sitemapTypes';
 import { MAX_ALLOWED_ROWS } from './sitemapParser';
 
 export const VALID_CHANGEFREQS: ReadonlySet<SitemapChangeFreq> = new Set([
@@ -327,18 +327,7 @@ export function escapeXmlEntities(str: string): string {
  */
 export function validatePublicSitemapOptions(raw: any): {
   isValid: boolean;
-  options: {
-    includeLastmod: boolean;
-    includeHreflang: boolean;
-    includeChangefreq: boolean;
-    includePriority: boolean;
-    deduplicate: boolean;
-    generateIndex: boolean;
-    publicBaseUrl?: string;
-    autoExpandReciprocalHreflang: boolean;
-    maxUrlsPerSitemap: number;
-    maxBytesPerSitemap: number;
-  };
+  options: SitemapOptions;
   error?: string;
 } {
   if (raw && typeof raw !== 'object') {
@@ -366,6 +355,24 @@ export function validatePublicSitemapOptions(raw: any): {
   const includeHreflang = toBool(safe.includeHreflang, true);
   const includeChangefreq = toBool(safe.includeChangefreq, false);
   const includePriority = toBool(safe.includePriority, false);
+  const priorityMode: 'depth' | 'fixed' = safe.priorityMode === 'fixed' ? 'fixed' : 'depth';
+
+  let defaultPriority: string = '0.8';
+  if (safe.defaultPriority !== undefined && safe.defaultPriority !== null) {
+    const prioCheck = validatePriority(safe.defaultPriority);
+    if (prioCheck.isValid && prioCheck.value) {
+      defaultPriority = prioCheck.value;
+    }
+  }
+
+  let defaultChangefreq: string = 'weekly';
+  if (safe.defaultChangefreq && typeof safe.defaultChangefreq === 'string') {
+    const cleanFreq = safe.defaultChangefreq.trim().toLowerCase();
+    if (cleanFreq === 'auto-depth' || VALID_CHANGEFREQS.has(cleanFreq as any)) {
+      defaultChangefreq = cleanFreq;
+    }
+  }
+
   const deduplicate = toBool(safe.deduplicate, true);
   const generateIndex = toBool(safe.generateIndex, false);
   const autoExpandReciprocalHreflang = toBool(safe.autoExpandReciprocalHreflang, false);
@@ -418,6 +425,9 @@ export function validatePublicSitemapOptions(raw: any): {
       includeHreflang,
       includeChangefreq,
       includePriority,
+      priorityMode,
+      defaultPriority,
+      defaultChangefreq,
       deduplicate,
       generateIndex,
       publicBaseUrl,
