@@ -18,6 +18,8 @@ export interface SafeFetchOptions {
   beforeRedirect?: (nextUrl: string, currentUrl: string) => Promise<{ allow: boolean; reason?: string; blockType?: 'BLOCKED' | 'UNKNOWN' | 'ERROR' }>;
   allowLocalhostForTesting?: boolean;
   dnsLookup?: DnsLookupFn;
+  maxDomainConcurrency?: number;
+  maxGlobalConcurrency?: number;
 }
 
 export interface SafeFetchResult {
@@ -45,7 +47,7 @@ const ALLOWED_PORTS = new Set(['80', '443', '']);
 
 // ==========================================
 // OUTBOUND REQUEST CONCURRENCY LIMITER
-// (GLOBAL_LIMIT = 5, PER_DOMAIN_LIMIT = 2)
+// (GLOBAL_LIMIT = 5, PER_DOMAIN_LIMIT = 2 by default)
 // Applied at network connection level to cover:
 // - Direct URL fetches
 // - robots.txt fetches
@@ -56,7 +58,13 @@ const HTTP_PER_DOMAIN_CONCURRENCY = 2;
 
 let activeGlobalRequests = 0;
 const activeDomainRequests = new Map<string, number>();
-const requestQueue: { origin: string; resolve: () => void }[] = [];
+interface QueuedRequest {
+  origin: string;
+  resolve: () => void;
+  maxDomain: number;
+  maxGlobal: number;
+}
+const requestQueue: QueuedRequest[] = [];
 
 export function getOutboundQueueState() {
   return {
@@ -66,11 +74,16 @@ export function getOutboundQueueState() {
   };
 }
 
-export function acquireOutboundSlot(origin: string, maxWaitMs?: number): Promise<() => void> {
+export function acquireOutboundSlot(
+  origin: string,
+  maxWaitMs?: number,
+  maxDomainConcurrency: number = HTTP_PER_DOMAIN_CONCURRENCY,
+  maxGlobalConcurrency: number = HTTP_GLOBAL_CONCURRENCY
+): Promise<() => void> {
   return new Promise<() => void>((resolveSlot, rejectSlot) => {
     let timer: NodeJS.Timeout | null = null;
     let isSettled = false;
-    let queueEntry: { origin: string; resolve: () => void } | null = null;
+    let queueEntry: QueuedRequest | null = null;
 
     function cleanup() {
       if (timer) {
@@ -89,7 +102,7 @@ export function acquireOutboundSlot(origin: string, maxWaitMs?: number): Promise
     function tryAcquire() {
       if (isSettled) return;
       const domainActive = activeDomainRequests.get(origin) || 0;
-      if (activeGlobalRequests < HTTP_GLOBAL_CONCURRENCY && domainActive < HTTP_PER_DOMAIN_CONCURRENCY) {
+      if (activeGlobalRequests < maxGlobalConcurrency && domainActive < maxDomainConcurrency) {
         isSettled = true;
         cleanup();
         activeGlobalRequests++;
@@ -112,7 +125,7 @@ export function acquireOutboundSlot(origin: string, maxWaitMs?: number): Promise
         return resolveSlot(releaseSlot);
       } else {
         if (!queueEntry) {
-          queueEntry = { origin, resolve: tryAcquire };
+          queueEntry = { origin, resolve: tryAcquire, maxDomain: maxDomainConcurrency, maxGlobal: maxGlobalConcurrency };
           requestQueue.push(queueEntry);
         }
       }
@@ -140,7 +153,7 @@ function dispatchNextQueued() {
   for (let i = 0; i < requestQueue.length; i++) {
     const item = requestQueue[i];
     const domainActive = activeDomainRequests.get(item.origin) || 0;
-    if (activeGlobalRequests < HTTP_GLOBAL_CONCURRENCY && domainActive < HTTP_PER_DOMAIN_CONCURRENCY) {
+    if (activeGlobalRequests < item.maxGlobal && domainActive < item.maxDomain) {
       requestQueue.splice(i, 1);
       item.resolve();
       break;
@@ -293,7 +306,12 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
     if (slotRemaining <= 0) {
       throw new Error(`Request timed out: overall operation exceeded deadline of ${timeoutMs}ms for ${rawUrl}`);
     }
-    const releaseSlot = await acquireOutboundSlot(parsedUrl.origin, slotRemaining);
+    const releaseSlot = await acquireOutboundSlot(
+      parsedUrl.origin,
+      slotRemaining,
+      options.maxDomainConcurrency,
+      options.maxGlobalConcurrency
+    );
 
     let res: {
       statusCode: number;

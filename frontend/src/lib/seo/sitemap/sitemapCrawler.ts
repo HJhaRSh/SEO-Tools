@@ -83,6 +83,7 @@ export interface SitemapCrawlOptions {
   allowLocalhostForTesting?: boolean;
   signal?: AbortSignal;
   onProgress?: (event: CrawlProgressEvent) => void;
+  concurrency?: number; // Concurrent parallel workers (defaults to 5)
 }
 
 export interface CrawlProgressEvent {
@@ -628,22 +629,21 @@ export async function crawlWebsiteForSitemap(
     }
   }
 
-  // Main BFS Crawl Loop
-  while (crawlQueue.length > 0 && totalPagesCrawled < maxPages) {
-    if (signal?.aborted) {
-      break;
+  // Parallel Concurrency Worker Pool Setup
+  const concurrency = Math.min(Math.max(1, options.concurrency ?? 5), 8);
+  let activeWorkers = 0;
+  let isStopping = false;
+  const notifyQueueAvailable: (() => void)[] = [];
+
+  function notifyWorkers() {
+    while (notifyQueueAvailable.length > 0) {
+      const fn = notifyQueueAvailable.shift();
+      fn?.();
     }
+  }
 
-    const currentItem = crawlQueue.shift();
-    if (!currentItem) break;
-
-    const { url, depth } = currentItem;
-    if (visitedUrls.has(url)) continue;
-    visitedUrls.add(url);
-
-    totalPagesCrawled++;
-
-    // Polite crawl delay between pages
+  async function processUrl(url: string, depth: number): Promise<void> {
+    // Polite crawl delay between page fetches
     if (crawlDelayMs > 0 && totalPagesCrawled > 1) {
       await new Promise(res => setTimeout(res, crawlDelayMs));
     }
@@ -651,9 +651,11 @@ export async function crawlWebsiteForSitemap(
     let fetchRes: SafeFetchResult | null = null;
     try {
       fetchRes = await safeFetch(url, {
-        timeoutMs: 10000,
+        timeoutMs: 6000,
         maxBytes: 1024 * 1024, // 1MB HTML limit
         allowLocalhostForTesting,
+        maxDomainConcurrency: concurrency,
+        maxGlobalConcurrency: concurrency * 2,
         headers: {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
@@ -687,7 +689,7 @@ export async function crawlWebsiteForSitemap(
         },
         reportEntry: repEntry
       });
-      continue;
+      return;
     }
 
     // Check status code
@@ -720,6 +722,7 @@ export async function crawlWebsiteForSitemap(
         if (dest && !queuedUrls.has(dest) && !visitedUrls.has(dest) && depth < maxDepth) {
           queuedUrls.add(dest);
           crawlQueue.push({ url: dest, depth });
+          notifyWorkers();
         }
       }
 
@@ -738,7 +741,7 @@ export async function crawlWebsiteForSitemap(
         },
         reportEntry: repEntry
       });
-      continue;
+      return;
     }
 
     // Check Content-Type (must be HTML)
@@ -770,7 +773,7 @@ export async function crawlWebsiteForSitemap(
         },
         reportEntry: repEntry
       });
-      continue;
+      return;
     }
 
     // Check X-Robots-Tag header
@@ -802,7 +805,7 @@ export async function crawlWebsiteForSitemap(
         },
         reportEntry: repEntry
       });
-      continue;
+      return;
     }
 
     // Handle redirect when safeFetch followed redirect(s) to a different final URL
@@ -934,12 +937,15 @@ export async function crawlWebsiteForSitemap(
 
           // Enqueue outgoing links from the destination page
           if (depth < maxDepth) {
+            let hasNewLinks = false;
             for (const nextLink of destParsed.links) {
               if (!queuedUrls.has(nextLink) && !visitedUrls.has(nextLink)) {
                 queuedUrls.add(nextLink);
                 crawlQueue.push({ url: nextLink, depth: depth + 1 });
+                hasNewLinks = true;
               }
             }
+            if (hasNewLinks) notifyWorkers();
           }
         } else {
           const destNoindexRep: CrawlReportEntry = {
@@ -954,7 +960,7 @@ export async function crawlWebsiteForSitemap(
         }
       }
 
-      continue;
+      return;
     }
 
     // Parse HTML and extract metadata & outgoing links
@@ -1050,12 +1056,15 @@ export async function crawlWebsiteForSitemap(
 
     // Enqueue discovered links if within depth limit
     if (depth < maxDepth) {
+      let hasNewLinks = false;
       for (const nextLink of parsedData.links) {
         if (!queuedUrls.has(nextLink) && !visitedUrls.has(nextLink)) {
           queuedUrls.add(nextLink);
           crawlQueue.push({ url: nextLink, depth: depth + 1 });
+          hasNewLinks = true;
         }
       }
+      if (hasNewLinks) notifyWorkers();
     }
 
     // Periodic progress emission
@@ -1067,6 +1076,50 @@ export async function crawlWebsiteForSitemap(
       currentUrl: url
     });
   }
+
+  // Worker loop
+  async function worker() {
+    while (!isStopping && !signal?.aborted && totalPagesCrawled < maxPages) {
+      // Find the next unvisited URL from the crawl queue
+      let item: { url: string; depth: number } | undefined;
+      while (crawlQueue.length > 0) {
+        const candidate = crawlQueue.shift();
+        if (candidate && !visitedUrls.has(candidate.url)) {
+          item = candidate;
+          visitedUrls.add(candidate.url);
+          totalPagesCrawled++;
+          break;
+        }
+      }
+
+      if (!item) {
+        if (activeWorkers === 0) {
+          // All active work finished and queue is exhausted
+          isStopping = true;
+          notifyWorkers();
+          break;
+        }
+
+        // Wait for active workers to produce new URLs or complete
+        await new Promise<void>(resolve => {
+          notifyQueueAvailable.push(resolve);
+        });
+        continue;
+      }
+
+      activeWorkers++;
+      try {
+        await processUrl(item.url, item.depth);
+      } finally {
+        activeWorkers--;
+        notifyWorkers();
+      }
+    }
+  }
+
+  // Run workers concurrently
+  const workers = Array.from({ length: concurrency }, () => worker());
+  await Promise.all(workers);
 
   const durationMs = Date.now() - startTime;
   const validEntries = Array.from(validEntriesMap.values());

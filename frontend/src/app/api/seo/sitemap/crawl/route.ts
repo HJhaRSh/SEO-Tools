@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
       maxDepth = 50,
       crawlDelayMs = 40,
       includeSubdomains = false,
-      discoverFromRobotsTxt = true
+      discoverFromRobotsTxt = true,
+      concurrency = 5
     } = body;
 
     if (!url || typeof url !== 'string') {
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
     // Full website crawl defaults: standard 50,000 URLs (Sitemap Protocol limit per file) and deep link traversal
     const safeMaxPages = Math.min(Math.max(1, Number(maxPages) || 50000), 50000);
     const safeMaxDepth = Math.min(Math.max(1, Number(maxDepth) || 50), 50);
+    const safeConcurrency = Math.min(Math.max(1, Number(concurrency) || 5), 8);
 
     // If client requested Server-Sent Events stream
     if (isStream) {
@@ -66,6 +68,7 @@ export async function POST(req: NextRequest) {
               crawlDelayMs: Math.max(10, Number(crawlDelayMs) || 40),
               includeSubdomains: Boolean(includeSubdomains),
               discoverFromRobotsTxt: Boolean(discoverFromRobotsTxt),
+              concurrency: safeConcurrency,
               signal: abortController.signal,
               onProgress: (evt: CrawlProgressEvent) => {
                 sendEvent(evt.type, evt);
@@ -102,7 +105,8 @@ export async function POST(req: NextRequest) {
       maxDepth: safeMaxDepth,
       crawlDelayMs: Math.max(10, Number(crawlDelayMs) || 40),
       includeSubdomains: Boolean(includeSubdomains),
-      discoverFromRobotsTxt: Boolean(discoverFromRobotsTxt)
+      discoverFromRobotsTxt: Boolean(discoverFromRobotsTxt),
+      concurrency: safeConcurrency
     });
 
     return NextResponse.json(
