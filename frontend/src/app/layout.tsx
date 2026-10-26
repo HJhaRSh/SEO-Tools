@@ -18,7 +18,11 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'SEO Tools | Indian Marketers',
+  metadataBase: new URL('https://indianmarketers.in'),
+  title: {
+    default: 'SEO Tools | Indian Marketers',
+    template: '%s',
+  },
   description: 'Free and practical tools to analyse, troubleshoot and improve your website\'s SEO.',
   icons: {
     icon: [

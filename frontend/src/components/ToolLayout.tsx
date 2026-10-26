@@ -18,6 +18,42 @@ interface ToolLayoutProps {
   fullWidth?: boolean;
 }
 
+const RELATED_TOOLS_MAP: Record<string, { name: string; href: string; desc: string }[]> = {
+  'Crawling & Access': [
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect & debug robots.txt rules under RFC 9309.' },
+    { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Check if GPTBot, ClaudeBot, and AI crawlers can access your site.' },
+    { name: '.htaccess Tester', href: '/tools/htaccess-tester', desc: 'Simulate Apache rewrite rules and 301 redirects.' },
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate and validate standard XML sitemaps.' }
+  ],
+  'Rendering & Mobile SEO': [
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'See how Googlebot and crawlers render JavaScript content.' },
+    { name: 'Pre-rendering Tester', href: '/tools/prerendering-tester', desc: 'Compare raw HTML vs rendered DOM across user agents.' },
+    { name: 'Mobile-First Index Tool', href: '/tools/mobile-first-index', desc: 'Compare desktop and mobile content parity.' },
+    { name: 'Mobile-Friendly Test', href: '/tools/mobile-friendly-test', desc: 'Test viewport, touch targets, and mobile usability.' }
+  ],
+  'International SEO': [
+    { name: 'hreflang Tags Tester', href: '/tools/hreflang-tester', desc: 'Validate international hreflang tags and reciprocal return links.' },
+    { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Simulate geo-targeted Google search and Maps results.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect crawler rendering and international HTML signals.' }
+  ],
+  'Local SEO': [
+    { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Simulate localized search results using canonical Google UULE.' },
+    { name: 'Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct 5-star Google Review links and QR codes.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview title tags, meta descriptions, and search snippets.' }
+  ],
+  'Search Appearance & Structured Data': [
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview title and description pixel widths in Google SERPs.' },
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate valid JSON-LD structured data for rich snippets.' },
+    { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Detect and audit schema markup across bulk URLs.' },
+    { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: 'Search Google Knowledge Graph entities, schema, and MIDs.' }
+  ],
+  'Search Appearance': [
+    { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Detect and audit schema markup across bulk URLs.' },
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate valid JSON-LD structured data for rich snippets.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview title and description pixel widths in Google SERPs.' }
+  ]
+};
+
 export default function ToolLayout({
   title,
   description,
@@ -29,12 +65,36 @@ export default function ToolLayout({
   faq,
   fullWidth = true
 }: ToolLayoutProps) {
+  // Related tools excluding current tool
+  const categoryRelated = RELATED_TOOLS_MAP[category] || RELATED_TOOLS_MAP['Search Appearance & Structured Data'] || [];
+  const relatedTools = categoryRelated.filter(t => t.name.toLowerCase() !== title.toLowerCase()).slice(0, 3);
+
   return (
     <div className="w-full py-4 lg:py-6">
       
-      {/* Back link */}
-      <div className="mb-6">
-        <Link href="/tools" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--im-text-muted)] hover:text-[var(--im-heading)] transition-colors group">
+      {/* Breadcrumb Navigation & Back Link */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <nav aria-label="Breadcrumb" className="text-xs sm:text-sm text-[var(--im-text-muted)]">
+          <ol className="flex items-center flex-wrap gap-1.5 font-medium">
+            <li>
+              <a href="https://indianmarketers.in/" className="hover:text-[var(--im-heading)] transition-colors">
+                Home
+              </a>
+            </li>
+            <li aria-hidden="true" className="text-slate-400">/</li>
+            <li>
+              <Link href="/tools" className="hover:text-[var(--im-heading)] transition-colors">
+                SEO Tools
+              </Link>
+            </li>
+            <li aria-hidden="true" className="text-slate-400">/</li>
+            <li className="font-semibold text-[var(--im-heading)]" aria-current="page">
+              {title}
+            </li>
+          </ol>
+        </nav>
+
+        <Link href="/tools" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--im-text-muted)] hover:text-[var(--im-heading)] transition-colors group self-start sm:self-auto">
           <div className="p-1.5 rounded-full bg-[var(--im-surface)] border border-[var(--im-border)] group-hover:border-[var(--im-primary-deep)] transition-colors">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -60,7 +120,7 @@ export default function ToolLayout({
       </div>
 
       {/* Info Section */}
-      <div className="grid gap-8 sm:gap-10 bg-[var(--im-surface)] border border-[var(--im-border)] p-5 sm:p-8 lg:p-10 rounded-2xl sm:rounded-3xl shadow-[var(--im-shadow-sm)]">
+      <div className="grid gap-8 sm:gap-10 bg-[var(--im-surface)] border border-[var(--im-border)] p-5 sm:p-8 lg:p-10 rounded-2xl sm:rounded-3xl shadow-[var(--im-shadow-sm)] mb-8">
         <section>
           <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
             <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
@@ -111,6 +171,42 @@ export default function ToolLayout({
           </section>
         )}
       </div>
+
+      {/* Related SEO Tools (Internal Linking) */}
+      {relatedTools.length > 0 && (
+        <div className="bg-[var(--im-surface)] border border-[var(--im-border)] p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[var(--im-shadow-sm)]">
+          <div className="flex items-center justify-between mb-4 sm:mb-6 border-b border-[var(--im-border)] pb-3">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-[var(--im-heading)]">Related SEO Tools</h2>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-0.5">Explore additional technical SEO utilities in the {category} category.</p>
+            </div>
+            <Link href="/tools" className="text-xs sm:text-sm font-bold text-[var(--im-primary-deep)] hover:underline hidden sm:inline-block">
+              View all 15 tools &rarr;
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {relatedTools.map((relTool) => (
+              <Link
+                key={relTool.href}
+                href={relTool.href}
+                className="group block p-4 rounded-xl border border-[var(--im-border)] hover:border-[var(--im-primary-deep)] bg-[var(--im-bg-soft)] hover:bg-white transition-all shadow-xs"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <h3 className="text-sm font-bold text-[var(--im-heading)] group-hover:text-[var(--im-primary-deep)] transition-colors">
+                    {relTool.name}
+                  </h3>
+                  <span className="text-xs text-[var(--im-text-muted)] group-hover:translate-x-0.5 transition-transform">
+                    &rarr;
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--im-text-muted)] leading-relaxed">
+                  {relTool.desc}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
