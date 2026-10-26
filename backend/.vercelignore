@@ -1,0 +1,7 @@
+# Backend Vercel Deployment Exclusions
+# Excludes local test suites and temporary artifacts from Express serverless function
+
+src/test-*.ts
+.env*.local
+*.log
+coverage/

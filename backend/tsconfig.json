@@ -10,5 +10,5 @@
     "rootDir": "./src"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/test-v7-corrections.ts", "src/test-prerendering.ts", "src/test-mobile-friendly.ts"]
+  "exclude": ["src/test-*.ts"]
 }

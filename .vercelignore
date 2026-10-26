@@ -1,0 +1,25 @@
+# Vercel Deployment Exclusions
+# Prevents development artifacts, AI agent workflows, and test suites
+# from being uploaded to Vercel build containers or traced into serverless functions.
+
+# AI-Agent and Workflow Directories
+.agent/
+.agents/
+.gemini/
+.gsd/
+
+# Documentation & Guidelines
+*.md
+!README.md
+model_capabilities.yaml
+VERSION
+
+# Test Suites & QA Diagnostic Scripts
+# (Preserved in Git for local regression testing, excluded from Vercel lambdas)
+frontend/src/test-*.ts
+backend/src/test-*.ts
+
+# Local environment and developer overrides
+.env*.local
+*.log
+coverage/

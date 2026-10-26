@@ -1,0 +1,7 @@
+# Frontend Vercel Deployment Exclusions
+# Excludes local test suites and development artifacts from Next.js serverless bundles
+
+src/test-*.ts
+.env*.local
+*.log
+coverage/
