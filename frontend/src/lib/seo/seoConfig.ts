@@ -545,6 +545,66 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
         answer: 'Up to 100 unique URLs per request. Duplicate URLs are automatically removed and only checked once.'
       }
     ]
+  },
+
+  'domain-age-checker': {
+    slug: 'domain-age-checker',
+    name: 'Domain Age Checker',
+    metaTitle: 'Free Domain Age Checker Online | Indian Marketers',
+    metaDescription: 'Check domain age online and find registration, updated and expiry dates. Use our free Domain Age Checker to analyze single or multiple domains.',
+    canonical: `${TOOLS_BASE_URL}/domain-age-checker`,
+    category: 'Crawling & Access',
+    softwareCategory: 'DeveloperApplication',
+    features: [
+      'Authoritative RFC 9083 / RFC 9224 RDAP registration data retrieval engine',
+      'Accurate calendar domain age calculation (years, months, days, total elapsed days)',
+      'Single and bulk domain lookup supporting up to 20 domains per batch',
+      'Expiration date tracking and remaining lifespan calculation',
+      'Authoritative registrar, registration status, and nameserver detection',
+      'Formula-injection protected CSV report export and one-click summary copying'
+    ],
+    faqs: [
+      {
+        question: 'How do I check the age of a domain?',
+        answer: 'Simply enter a domain name or URL (e.g., google.com or https://example.com) into the input box and click "Check Domain Age". For multiple domains, switch to the "Bulk Domains" tab, paste up to 20 domains (one per line), and click "Check Bulk Domains".'
+      },
+      {
+        question: 'Is this Domain Age Checker free?',
+        answer: 'Yes. The Indian Marketers Domain Age Checker is 100% free with no registration, no API keys, and no subscription required.'
+      },
+      {
+        question: 'Can I check multiple domains at once?',
+        answer: 'Yes. The bulk checker tab lets you audit up to 20 unique domains in a single operation with bounded concurrency, individual row statuses, and downloadable CSV reports.'
+      },
+      {
+        question: 'How is domain age calculated?',
+        answer: 'Domain age is calculated using authoritative calendar arithmetic starting from the domain\'s verified registration timestamp up to the current UTC date, properly accounting for leap years, variable month lengths, and anniversary boundaries.'
+      },
+      {
+        question: 'Is domain age the same as website age?',
+        answer: 'No. Domain age indicates when the domain name record was first created at the registry. A domain may have been registered years before a live website was launched, or it may have been bought, parked, dropped, or re-registered with different owners.'
+      },
+      {
+        question: "Can a domain's creation date change?",
+        answer: 'If a domain lapses past all grace periods and is deleted from the registry, a subsequent registration creates a brand new record with a new creation date. However, standard registrar transfers and ownership renewals preserve the original creation date.'
+      },
+      {
+        question: "Why is my domain's registration date unavailable?",
+        answer: 'Certain country-code top-level domains (ccTLDs) do not publish public RDAP registration records or withhold creation dates under local privacy laws. In such cases, the tool transparently reports that the data is not provided rather than guessing or fabricating dates.'
+      },
+      {
+        question: 'Does domain age directly improve Google rankings?',
+        answer: 'No. Google representatives have repeatedly clarified that registration age alone is not a direct ranking factor. Older domains often rank well because they have had more time to accumulate high-quality content, authoritative backlinks, user trust, and brand recognition.'
+      },
+      {
+        question: 'Can I check the expiry date of a domain?',
+        answer: 'Yes. When exposed by the authoritative registry, the tool displays the registration expiration date and calculates the exact remaining days until renewal.'
+      },
+      {
+        question: 'How accurate is RDAP registration data?',
+        answer: 'RDAP (Registration Data Access Protocol) is the official successor to legacy WHOIS mandated by ICANN. It queries authoritative registries directly via structured JSON, ensuring maximum data integrity without scraping approximations.'
+      }
+    ]
   }
 };
 
@@ -592,8 +652,9 @@ export function getWebSiteSchema() {
  * Metadata for the main /tools directory page
  */
 export function getToolsHubMetadata(): Metadata {
+  const count = Object.keys(TOOLS_REGISTRY).length;
   const title = 'Free Technical SEO Tools Directory | Indian Marketers';
-  const description = 'Explore Indian Marketers\' collection of 15 free technical SEO tools. Test robots.txt, validate schema markup, simulate SERPs, check mobile indexing, and more.';
+  const description = `Explore Indian Marketers' collection of ${count} free technical SEO tools. Test robots.txt, validate schema markup, check domain age, simulate SERPs, check mobile indexing, and more.`;
   const canonical = TOOLS_BASE_URL;
 
   return {
@@ -654,7 +715,7 @@ export function getToolsHubJsonLd() {
         '@id': `${TOOLS_BASE_URL}#webpage`,
         url: TOOLS_BASE_URL,
         name: 'Free Technical SEO Tools Directory | Indian Marketers',
-        description: 'Explore Indian Marketers\' collection of 15 free technical SEO tools. Test robots.txt, validate schema markup, simulate SERPs, check mobile indexing, and more.',
+        description: `Explore Indian Marketers' collection of ${toolList.length} free technical SEO tools. Test robots.txt, validate schema markup, check domain age, simulate SERPs, check mobile indexing, and more.`,
         isPartOf: {
           '@id': `${SITE_DOMAIN}/#website`
         },
@@ -688,7 +749,7 @@ export function getToolsHubJsonLd() {
         '@type': 'ItemList',
         '@id': `${TOOLS_BASE_URL}#itemlist`,
         name: 'Indian Marketers SEO Tools Directory',
-        description: 'A comprehensive suite of 15 technical SEO utilities for crawling, rendering, mobile SEO, local search, and structured data.',
+        description: `A comprehensive suite of ${toolList.length} technical SEO utilities for crawling, rendering, mobile SEO, local search, domain analysis, and structured data.`,
         numberOfItems: toolList.length,
         itemListElement: toolList.map((tool, idx) => ({
           '@type': 'ListItem',

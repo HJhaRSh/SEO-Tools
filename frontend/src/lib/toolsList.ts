@@ -19,7 +19,8 @@ export const NAVIGATION_TOOLS: ToolCategory[] = [
       { name: 'robots.txt Tester', description: 'Test whether URLs are allowed or blocked by robots.txt.', href: '/tools/robots-txt-tester' },
       { name: 'AI Bot Access Tester', description: 'Check whether AI crawlers can access your website.', href: '/tools/ai-bot-access-tester' },
       { name: '.htaccess Tester', description: 'Analyse common .htaccess rules and redirects.', href: '/tools/htaccess-tester' },
-      { name: 'Sitemap Generator', description: 'Generate and analyse XML sitemaps.', href: '/tools/sitemap-generator' }
+      { name: 'Sitemap Generator', description: 'Generate and analyse XML sitemaps.', href: '/tools/sitemap-generator' },
+      { name: 'Domain Age Checker', description: 'Check domain registration age, creation date, expiry details, and more for single or multiple domains.', href: '/tools/domain-age-checker', isNew: true }
     ]
   },
   {

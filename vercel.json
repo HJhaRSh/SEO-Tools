@@ -108,6 +108,12 @@
       }
     },
     {
+      "source": "/api/seo/domain-age/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"

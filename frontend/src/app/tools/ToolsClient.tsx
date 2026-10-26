@@ -14,7 +14,8 @@ const TOOLS_DATA = [
       { name: 'robots.txt Tester', description: 'Test whether URLs are allowed or blocked by robots.txt under official RFC 9309 rules with live editor and sitemap checks.', href: '/tools/robots-txt-tester' },
       { name: 'AI Bot Access Tester', description: 'Check whether AI crawlers like GPTBot, ClaudeBot, and PerplexityBot can access your website.', href: '/tools/ai-bot-access-tester' },
       { name: '.htaccess Tester', description: 'Analyse common Apache .htaccess rewrite rules, HTTPS redirects, and header directives.', href: '/tools/htaccess-tester' },
-      { name: 'Sitemap Generator', description: 'Generate and validate XML sitemaps to ensure search engine indexation coverage.', href: '/tools/sitemap-generator' }
+      { name: 'Sitemap Generator', description: 'Generate and validate XML sitemaps to ensure search engine indexation coverage.', href: '/tools/sitemap-generator' },
+      { name: 'Domain Age Checker', description: 'Check domain registration age, creation date, expiry details, and more for single or multiple domains.', href: '/tools/domain-age-checker' }
     ]
   },
   {

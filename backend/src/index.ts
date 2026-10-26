@@ -560,6 +560,57 @@ app.post('/api/seo/mobile-friendly/render', async (req: Request, res: Response) 
   }
 });
 
+// ==========================================
+// TOOL 16: DOMAIN AGE CHECKER ENDPOINTS
+// ==========================================
+import { checkDomainsBatch as checkDomainAgeBatch } from './seo/domainAgeService.js';
+
+// POST /api/seo/domain-age/check
+app.post('/api/seo/domain-age/check', async (req: Request, res: Response) => {
+  try {
+    const { domain, domains } = req.body || {};
+    let rawInputs: string[] = [];
+    if (Array.isArray(domains)) {
+      rawInputs = domains;
+    } else if (typeof domain === 'string') {
+      rawInputs = [domain];
+    } else {
+      return res.status(400).json({
+        success: false,
+        code: 'VALIDATION_ERROR',
+        error: 'Invalid request: "domains" array or "domain" string is required.'
+      });
+    }
+
+    const cleanedInputs = rawInputs
+      .filter((d): d is string => typeof d === 'string')
+      .map(d => d.trim())
+      .filter(Boolean);
+
+    if (cleanedInputs.length === 0) {
+      return res.status(400).json({
+        success: false,
+        code: 'VALIDATION_ERROR',
+        error: 'Please enter at least one domain or URL to check.'
+      });
+    }
+
+    if (cleanedInputs.length > 20) {
+      return res.status(400).json({
+        success: false,
+        code: 'VALIDATION_ERROR',
+        error: 'Exceeds maximum batch limit of 20 domains. Please submit 20 or fewer domains at a time.'
+      });
+    }
+
+    const result = await checkDomainAgeBatch(cleanedInputs, 3);
+    res.json(result);
+  } catch (err: any) {
+    const sanitized = classifyAndSanitizeError(err, 'An error occurred while checking domain age.');
+    res.status(sanitized.status).json({ success: false, code: sanitized.code, error: sanitized.message });
+  }
+});
+
 // Catch-all for undefined /api routes returning standard JSON
 app.all('/api/*', (req: Request, res: Response) => {
   res.status(404).json({

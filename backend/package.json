@@ -20,6 +20,7 @@
     "express": "^4.21.2",
     "fast-xml-parser": "^5.11.2",
     "playwright": "^1.64.0",
+    "tldts": "^7.4.19",
     "unzipper": "^0.10.14"
   },
   "devDependencies": {
