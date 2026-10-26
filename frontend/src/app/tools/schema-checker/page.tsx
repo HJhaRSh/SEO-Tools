@@ -329,8 +329,8 @@ export default function SchemaCheckerPage() {
           </div>
 
           {/* Results table */}
-          <div className="overflow-x-auto rounded-[var(--im-radius-md)] border border-[var(--im-border)] shadow-[var(--im-shadow-sm)]">
-            <table className="w-full text-sm border-collapse">
+          <div className="overflow-x-auto touch-scroll rounded-[var(--im-radius-md)] border border-[var(--im-border)] shadow-[var(--im-shadow-sm)]">
+            <table className="w-full text-sm border-collapse min-w-[500px]">
               <thead>
                 <tr className="bg-[var(--im-bg-soft)] border-b border-[var(--im-border)]">
                   <th

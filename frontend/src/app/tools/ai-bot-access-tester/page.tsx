@@ -538,8 +538,8 @@ export default function AiBotAccessTester() {
                   </div>
 
                   {/* Dark Table Matching TechnicalSEO Reference */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm border-collapse">
+                  <div className="overflow-x-auto touch-scroll">
+                    <table className="w-full text-left text-sm border-collapse min-w-[560px]">
                       <thead>
                         <tr className="border-b border-[#2e3744] text-[#8e9aa8] text-xs font-semibold uppercase tracking-wider">
                           <th className="py-3.5 px-6 font-semibold w-1/4">

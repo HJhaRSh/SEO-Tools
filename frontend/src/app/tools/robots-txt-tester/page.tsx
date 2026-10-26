@@ -318,8 +318,8 @@ Source: ${resultData.source === 'EDITOR_ROBOTS' ? 'Live Sandbox Editor Simulatio
               <p className="text-base text-slate-600 mt-1">Evaluate crawler access permissions against live or sandbox robots.txt directives</p>
             </div>
             {resultData && (
-              <div className="flex items-center gap-2">
-                <span className="text-base font-bold px-4 py-2 rounded-xl bg-slate-100 text-slate-800 border border-slate-300">
+              <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+                <span className="text-xs sm:text-base font-bold px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-slate-100 text-slate-800 border border-slate-300 max-w-full truncate">
                   Target Host: {resultData.websiteOrigin}
                 </span>
               </div>
@@ -528,10 +528,10 @@ Source: ${resultData.source === 'EDITOR_ROBOTS' ? 'Live Sandbox Editor Simulatio
                     </button>
                   </div>
 
-                  <div className="space-y-4 text-base">
-                    <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+                  <div className="space-y-4 text-sm sm:text-base">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start border-b border-slate-100 pb-3 gap-1">
                       <span className="text-slate-600 font-medium">Target URL:</span>
-                      <a href={resultData.targetUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-mono text-right max-w-[280px] truncate text-base font-bold" title={resultData.targetUrl}>
+                      <a href={resultData.targetUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-mono sm:text-right max-w-full sm:max-w-[280px] truncate text-xs sm:text-base font-bold break-all sm:break-normal" title={resultData.targetUrl}>
                         {resultData.targetUrl}
                       </a>
                     </div>
@@ -612,40 +612,40 @@ Source: ${resultData.source === 'EDITOR_ROBOTS' ? 'Live Sandbox Editor Simulatio
                 <div className="card shadow-sm p-0 overflow-hidden border-slate-200">
                   
                   {/* Top Navigation Tabs */}
-                  <div className="flex border-b border-slate-200 bg-slate-100/80 px-4 pt-3 gap-2">
+                  <div className="flex border-b border-slate-200 bg-slate-100/80 px-3 sm:px-4 pt-2.5 sm:pt-3 gap-1.5 sm:gap-2 overflow-x-auto touch-scroll scrollbar-none">
                     <button
                       onClick={() => setActiveTab('editor')}
-                      className={`px-6 py-3.5 text-base font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                      className={`px-3.5 py-2.5 sm:px-6 sm:py-3.5 text-xs sm:text-base font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
                         activeTab === 'editor'
                           ? 'bg-white border-green-600 text-green-800 shadow-xs'
                           : 'border-transparent text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                       Live Sandbox Editor
                     </button>
 
                     <button
                       onClick={() => setActiveTab('sitemaps')}
-                      className={`px-6 py-3.5 text-base font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                      className={`px-3.5 py-2.5 sm:px-6 sm:py-3.5 text-xs sm:text-base font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
                         activeTab === 'sitemaps'
                           ? 'bg-white border-green-600 text-green-800 shadow-xs'
                           : 'border-transparent text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                       XML Sitemaps ({resultData.sitemaps.length})
                     </button>
 
                     <button
                       onClick={() => setActiveTab('resources')}
-                      className={`px-6 py-3.5 text-base font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                      className={`px-3.5 py-2.5 sm:px-6 sm:py-3.5 text-xs sm:text-base font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
                         activeTab === 'resources'
                           ? 'bg-white border-green-600 text-green-800 shadow-xs'
                           : 'border-transparent text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                       Page Resources
                     </button>
                   </div>

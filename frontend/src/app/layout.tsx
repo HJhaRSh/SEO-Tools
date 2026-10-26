@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Sans, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/AppShell';
@@ -31,6 +31,13 @@ export const metadata: Metadata = {
     shortcut: '/tools/icon.svg',
     apple: '/tools/images/indian-marketers-logo.png',
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#ffffff',
 };
 
 export default function RootLayout({

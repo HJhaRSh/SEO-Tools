@@ -16,11 +16,11 @@ import {
 
 export default function IndianMarketersFooter() {
   return (
-    <footer className="w-full bg-white text-[#222222] border-t border-[#e5e7eb] pt-14 pb-12 transition-colors font-[family-name:var(--im-font-body)]">
-      <div className="max-w-[1440px] w-full mx-auto px-6 sm:px-8 xl:px-12">
+    <footer className="w-full bg-white text-[#222222] border-t border-[#e5e7eb] pt-10 sm:pt-14 pb-8 sm:pb-12 transition-colors font-[family-name:var(--im-font-body)]">
+      <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-8 xl:px-12">
         
         {/* Main 5 columns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 lg:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-7 sm:gap-8 lg:gap-8">
           
           {/* Column 1: Services */}
           <div>
@@ -171,7 +171,7 @@ export default function IndianMarketersFooter() {
         <div className="border-t border-[#e5e7eb] my-8" />
 
         {/* Bottom Bar matching live site exact layout */}
-        <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 text-center sm:text-left">
           
           {/* Left: Logo + All Rights Reserved + OUR Partners */}
           <div className="flex flex-col items-center sm:items-start">
@@ -189,21 +189,21 @@ export default function IndianMarketersFooter() {
                 onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
                   e.currentTarget.src = INDIAN_MARKETERS_LOGO_FALLBACK;
                 }}
-                className="h-[42px] w-auto object-contain"
-                style={{ width: 'auto', height: '42px' }}
+                className="h-[36px] sm:h-[42px] w-auto object-contain"
+                style={{ width: 'auto' }}
               />
             </a>
-            <span className="text-[15px] text-[#222222] font-normal leading-normal">
+            <span className="text-[14px] sm:text-[15px] text-[#222222] font-normal leading-normal">
               {FOOTER_BOTTOM_DATA.allRightsReserved}
             </span>
-            <span className="text-[16px] text-[#222222] font-normal mt-6 block">
+            <span className="text-[15px] sm:text-[16px] text-[#222222] font-normal mt-4 sm:mt-6 block">
               {FOOTER_BOTTOM_DATA.ourPartners}
             </span>
           </div>
 
           {/* Right: Exact 4 Social Icons with rounded squircle shape + Copyright */}
           <div className="flex flex-col items-center sm:items-end">
-            <div className="flex items-center gap-[10px] justify-end">
+            <div className="flex items-center gap-[10px] justify-center sm:justify-end">
               {/* Facebook */}
               <a
                 href={FOOTER_SOCIAL_LINKS[0].href}
@@ -256,7 +256,7 @@ export default function IndianMarketersFooter() {
                 </svg>
               </a>
             </div>
-            <span className="text-[15px] text-[#222222] font-normal text-right mt-2 block">
+            <span className="text-[13px] sm:text-[15px] text-[#222222] font-normal text-center sm:text-right mt-2 block">
               {FOOTER_BOTTOM_DATA.copyright}
             </span>
           </div>

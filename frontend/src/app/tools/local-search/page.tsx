@@ -366,9 +366,9 @@ export default function LocalSearchTool() {
           {/* EMBEDDED IN-PANE BROWSER VIEWER */}
           <div className="border-2 border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
             {/* Viewer Bar Controls */}
-            <div className="bg-slate-100 p-3 sm:px-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-slate-100 p-2.5 sm:p-3 sm:px-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
               {/* Tab Selector: Google Search vs Google Maps */}
-              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-xs">
+              <div className="flex flex-wrap items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-xs">
                 <button
                   type="button"
                   onClick={() => setActiveTab('search')}
@@ -395,12 +395,12 @@ export default function LocalSearchTool() {
 
               {/* Location Targeting Mode Toggle (when on search tab) */}
               {activeTab === 'search' && result.searchLocation && (
-                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-xs">
-                  <span className="text-[10px] text-slate-400 uppercase px-1.5">Strategy:</span>
+                <div className="flex flex-wrap items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-xs">
+                  <span className="text-[10px] text-slate-400 uppercase px-1.5 hidden sm:inline">Strategy:</span>
                   <button
                     type="button"
                     onClick={() => setQueryMode('location_intent')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                    className={`px-2.5 py-1 rounded-lg transition-all text-xs ${
                       queryMode === 'location_intent'
                         ? 'bg-emerald-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
@@ -412,7 +412,7 @@ export default function LocalSearchTool() {
                   <button
                     type="button"
                     onClick={() => setQueryMode('strict_uule')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                    className={`px-2.5 py-1 rounded-lg transition-all text-xs ${
                       queryMode === 'strict_uule'
                         ? 'bg-emerald-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
@@ -425,7 +425,7 @@ export default function LocalSearchTool() {
               )}
 
               {/* Viewport Dimension Toggle: Desktop vs Mobile */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold">
                   <button
                     type="button"
@@ -458,7 +458,7 @@ export default function LocalSearchTool() {
                   rel="noopener noreferrer"
                   className="btn btn-secondary text-xs py-1.5 px-3 bg-white text-slate-800 border-slate-300 hover:bg-slate-50 flex items-center gap-1"
                 >
-                  <span>Open Full Tab ↗</span>
+                  <span>Open Tab ↗</span>
                 </a>
                 <button
                   type="button"
@@ -475,12 +475,12 @@ export default function LocalSearchTool() {
             </div>
 
             {/* Embedded Browser Frame Display */}
-            <div className="bg-slate-200/60 p-2 sm:p-4 flex items-center justify-center min-h-[550px]">
+            <div className="bg-slate-200/60 p-2 sm:p-4 flex items-center justify-center min-h-[420px] sm:min-h-[550px]">
               <div
                 className={`transition-all duration-300 bg-white rounded-xl shadow-md border border-slate-300 overflow-hidden ${
                   deviceViewport === 'mobile'
-                    ? 'w-full max-w-[420px] h-[680px] rounded-3xl border-4 border-slate-800'
-                    : 'w-full h-[620px]'
+                    ? 'w-full max-w-[420px] h-[540px] sm:h-[680px] rounded-2xl sm:rounded-3xl border-2 sm:border-4 border-slate-800'
+                    : 'w-full h-[480px] sm:h-[620px]'
                 }`}
               >
                 {/* Simulated Device Header (if in mobile view) */}

@@ -506,8 +506,8 @@ RewriteRule ^old-page$ /new-page [R=301,L]`);
                 </button>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="overflow-x-auto touch-scroll">
+                <table className="w-full text-left text-xs border-collapse min-w-[520px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold uppercase tracking-wider">
                       <th className="py-2.5 px-3 w-16">Line</th>

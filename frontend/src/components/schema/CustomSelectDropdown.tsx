@@ -29,7 +29,7 @@ export default function CustomSelectDropdown({
   const selectedOption = options.find((opt) => opt.value === value) || options[0];
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -37,9 +37,11 @@ export default function CustomSelectDropdown({
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [isOpen]);
 

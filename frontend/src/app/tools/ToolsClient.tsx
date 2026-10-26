@@ -92,21 +92,21 @@ export default function ToolsClient() {
     <div className="w-full pb-10">
       
       {/* Header & Search Bar */}
-      <div className="text-center max-w-3xl mx-auto mb-6">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--im-heading)] mb-4">
+      <div className="text-center max-w-3xl mx-auto mb-5 sm:mb-6 px-1">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[var(--im-heading)] mb-3 sm:mb-4">
           Professional <span className="text-[var(--im-primary)]">SEO Tools</span>
         </h1>
 
         {/* Search Bar */}
         <div className="relative max-w-2xl mx-auto group">
-          <div className="absolute inset-y-0 left-0 pl-4 sm:pl-5 flex items-center pointer-events-none text-[var(--im-text-muted)] group-focus-within:text-[var(--im-primary-deep)] transition-colors">
+          <div className="absolute inset-y-0 left-0 pl-3.5 sm:pl-5 flex items-center pointer-events-none text-[var(--im-text-muted)] group-focus-within:text-[var(--im-primary-deep)] transition-colors">
             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
           <input
             type="text"
-            className="w-full pl-12 sm:pl-14 pr-5 py-3 sm:py-3.5 rounded-[var(--im-radius-md)] bg-[var(--im-surface)] border border-[var(--im-border)] focus:border-[var(--im-primary)] focus:ring-4 focus:ring-[var(--im-accent-tint)] shadow-[var(--im-shadow-sm)] text-base text-[var(--im-text)] font-medium transition-all placeholder:text-[var(--im-text-muted)] focus:outline-none"
+            className="w-full pl-11 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-3.5 rounded-[var(--im-radius-md)] bg-[var(--im-surface)] border border-[var(--im-border)] focus:border-[var(--im-primary)] focus:ring-4 focus:ring-[var(--im-accent-tint)] shadow-[var(--im-shadow-sm)] text-base text-[var(--im-text)] font-medium transition-all placeholder:text-[var(--im-text-muted)] focus:outline-none"
             placeholder="Search for an SEO tool (e.g. robots.txt, sitemap, hreflang)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -114,13 +114,13 @@ export default function ToolsClient() {
         </div>
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex flex-wrap gap-2.5 justify-center mb-8">
+      {/* Category Tabs: Swipeable on mobile, wrapped & centered on desktop */}
+      <div className="flex items-center gap-2 overflow-x-auto touch-scroll scrollbar-none py-1.5 px-2 -mx-3.5 sm:mx-0 sm:px-0 sm:flex-wrap sm:justify-center mb-6 sm:mb-8">
         {categories.map(cat => (
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`px-5 py-2.5 rounded-[var(--im-radius-pill)] text-sm font-semibold transition-all duration-200 cursor-pointer ${
+            className={`whitespace-nowrap px-4 py-2 sm:px-5 sm:py-2.5 rounded-[var(--im-radius-pill)] text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer shrink-0 ${
               activeCategory === cat 
                 ? 'bg-[#47A048] text-white shadow-sm ring-1 ring-[#47A048]' 
                 : 'bg-[var(--im-surface)] text-[var(--im-text)] border border-[var(--im-border)] hover:border-[#47A048] hover:bg-[var(--im-bg-soft)]'
@@ -133,32 +133,32 @@ export default function ToolsClient() {
 
       {/* Tools Grid */}
       {filteredData.length === 0 ? (
-        <div className="text-center py-16 px-6 bg-[var(--im-surface)] rounded-[var(--im-radius-md)] border border-[var(--im-border)] shadow-[var(--im-shadow-sm)] max-w-2xl mx-auto">
-          <div className="w-16 h-16 bg-[var(--im-bg-soft)] rounded-full flex items-center justify-center mx-auto mb-4 border border-[var(--im-border)]">
-             <svg className="w-8 h-8 text-[var(--im-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div className="text-center py-12 sm:py-16 px-5 bg-[var(--im-surface)] rounded-[var(--im-radius-md)] border border-[var(--im-border)] shadow-[var(--im-shadow-sm)] max-w-2xl mx-auto">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-[var(--im-bg-soft)] rounded-full flex items-center justify-center mx-auto mb-3.5 border border-[var(--im-border)]">
+             <svg className="w-7 h-7 sm:w-8 sm:h-8 text-[var(--im-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
-          <h3 className="text-xl font-semibold text-[var(--im-heading)] mb-2">No tools found</h3>
-          <p className="text-[var(--im-text-muted)] text-base">We couldn&apos;t find anything matching &quot;{searchQuery}&quot;. Try a different search term.</p>
+          <h3 className="text-lg sm:text-xl font-bold text-[var(--im-heading)] mb-1.5">No tools found</h3>
+          <p className="text-[var(--im-text-muted)] text-sm sm:text-base">We couldn&apos;t find anything matching &quot;{searchQuery}&quot;. Try a different search term.</p>
         </div>
       ) : (
-        <div className="space-y-16">
+        <div className="space-y-10 sm:space-y-16">
           {filteredData.map((categoryData) => (
-            <div key={categoryData.category} className="space-y-6">
+            <div key={categoryData.category} className="space-y-4 sm:space-y-6">
               
-              <div className="flex items-center gap-4 border-b border-[var(--im-border)] pb-4">
-                <div className="p-3 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-md)]">
+              <div className="flex items-center gap-3 sm:gap-4 border-b border-[var(--im-border)] pb-3 sm:pb-4">
+                <div className="p-2.5 sm:p-3 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-xl">
                   {categoryData.icon}
                 </div>
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-semibold text-[var(--im-heading)] tracking-tight">{categoryData.category}</h2>
-                  <p className="text-[var(--im-text-muted)] text-sm mt-1">{categoryData.description}</p>
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-[var(--im-heading)] tracking-tight">{categoryData.category}</h2>
+                  <p className="text-[var(--im-text-muted)] text-xs sm:text-sm mt-0.5">{categoryData.description}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                 {categoryData.tools.map(tool => (
                   <Link href={tool.href} key={tool.name} className="group block h-full">
-                    <div className="h-full bg-[var(--im-surface)] rounded-[var(--im-radius-md)] border border-[var(--im-border)] p-6 sm:p-7 shadow-[var(--im-shadow-sm)] hover:shadow-[var(--im-shadow-md)] hover:border-[var(--im-primary-deep)] hover:-translate-y-0.5 transition-all duration-200 flex flex-col relative overflow-hidden">
+                    <div className="h-full bg-[var(--im-surface)] rounded-2xl border border-[var(--im-border)] p-5 sm:p-7 shadow-[var(--im-shadow-sm)] hover:shadow-[var(--im-shadow-md)] hover:border-[var(--im-primary-deep)] hover:-translate-y-0.5 transition-all duration-200 flex flex-col relative overflow-hidden">
                       
                       <div className="flex items-center justify-between gap-3 mb-3">
                         <h3 className="text-lg font-semibold text-[var(--im-heading)] group-hover:text-[var(--im-primary-deep)] transition-colors">

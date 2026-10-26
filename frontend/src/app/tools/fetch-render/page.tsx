@@ -584,7 +584,7 @@ export default function FetchRenderPage() {
           {/* 2. Result Tabs */}
           <div className="card">
             {/* Tabs Header */}
-            <div className="flex border-b border-slate-200 dark:border-slate-700 gap-2 sm:gap-3 overflow-x-auto pb-3 mb-6">
+            <div className="flex border-b border-slate-200 dark:border-slate-700 gap-2 sm:gap-3 overflow-x-auto touch-scroll scrollbar-none pb-3 mb-6">
               {[
                 { id: 'overview', label: 'Overview & Diagnostics' },
                 { id: 'seo-diff', label: 'SEO Diff' },

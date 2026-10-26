@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NAVIGATION_TOOLS } from '@/lib/toolsList';
@@ -14,6 +14,30 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
   const pathname = usePathname();
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [filterQuery, setFilterQuery] = useState('');
+
+  // Lock body scroll when mobile sidebar drawer is open
+  useEffect(() => {
+    if (isOpenMobile) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpenMobile]);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpenMobile) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onCloseMobile) {
+        onCloseMobile();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpenMobile, onCloseMobile]);
 
   const toggleCategory = (cat: string) => {
     setCollapsedCategories(prev => ({
@@ -82,7 +106,7 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
       </div>
 
       {/* Tools List by Category */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div className="flex-1 overflow-y-auto touch-scroll overscroll-contain p-4 pb-safe space-y-5">
         {filteredCategories.map((group) => {
           const isCollapsed = Boolean(collapsedCategories[group.category]);
 

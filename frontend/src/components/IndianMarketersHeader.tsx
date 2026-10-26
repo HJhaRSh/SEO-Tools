@@ -23,33 +23,13 @@ export default function IndianMarketersHeader() {
       {/* Header — matches live indianmarketers.in exactly:
           white bg, subtle border-bottom, 80px height,
           3-column grid: logo left | nav centered | CTA right */}
-      <header
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
-          width: '100%',
-          backgroundColor: '#ffffff',
-          borderBottom: '1px solid #e5e7eb',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '1440px',
-            margin: '0 auto',
-            padding: '0 40px',
-            height: '80px',
-            display: 'grid',
-            gridTemplateColumns: 'auto 1fr auto',
-            alignItems: 'center',
-            gap: '16px',
-          }}
-        >
+      <header className="sticky top-0 z-50 w-full bg-white border-b border-[#e5e7eb] transition-all">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10 h-16 md:h-20 flex items-center justify-between gap-3 sm:gap-4">
           {/* COL 1: Logo — plain image, no card wrapper */}
           <a
             href={`${MAIN_SITE_URL}/`}
             aria-label="Indian Marketers Home"
-            style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}
+            className="inline-flex items-center shrink-0"
           >
             <Image
               src={logoSrc}
@@ -59,7 +39,7 @@ export default function IndianMarketersHeader() {
               priority
               unoptimized
               onError={() => setLogoSrc(INDIAN_MARKETERS_LOGO_FALLBACK)}
-              style={{ height: '44px', width: 'auto', objectFit: 'contain', display: 'block' }}
+              className="h-8 sm:h-9 md:h-11 w-auto object-contain block"
             />
           </a>
 
@@ -199,19 +179,11 @@ export default function IndianMarketersHeader() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="flex md:hidden"
-              style={{
-                padding: '8px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#111827',
-                borderRadius: '8px',
-              }}
+              className="flex md:hidden p-2.5 min-w-[44px] min-h-[44px] items-center justify-center text-slate-800 hover:text-black hover:bg-slate-100 active:bg-slate-200 rounded-lg transition-colors cursor-pointer"
               aria-label="Open Navigation Menu"
             >
               <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
           </div>

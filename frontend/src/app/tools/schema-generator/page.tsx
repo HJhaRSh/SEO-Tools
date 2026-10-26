@@ -338,19 +338,7 @@ export default function SchemaGenerator() {
           </div>
         </div>
 
-        <pre
-          style={{
-            backgroundColor: '#0f172a',
-            color: '#e2e8f0',
-            padding: '24px',
-            borderRadius: '1rem',
-            overflowX: 'auto',
-            fontSize: '13.5px',
-            lineHeight: '1.6',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            maxHeight: '560px',
-          }}
-        >
+        <pre className="p-3.5 sm:p-6 rounded-2xl overflow-x-auto touch-scroll text-xs sm:text-[13.5px] leading-relaxed max-h-[560px] bg-[#0f172a] text-[#e2e8f0] font-mono">
           <code>{generated.code}</code>
         </pre>
       </div>

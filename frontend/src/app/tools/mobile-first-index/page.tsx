@@ -488,7 +488,7 @@ export default function MobileFirstIndexPage() {
           </div>
 
           {/* TAB NAVIGATION */}
-          <div className="flex overflow-x-auto pb-1 gap-2 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex overflow-x-auto touch-scroll scrollbar-none pb-1 gap-2 border-b border-slate-200 dark:border-slate-800">
             {[
               { id: 'overview', label: 'Comparison Matrix & Issues' },
               { id: 'crawling', label: 'Crawling & Indexing' },

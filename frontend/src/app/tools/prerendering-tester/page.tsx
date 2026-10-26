@@ -511,7 +511,7 @@ export default function PrerenderingTester() {
                     </button>
                   )}
                 </div>
-                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <div className="overflow-x-auto touch-scroll border border-slate-200 dark:border-slate-800 rounded-2xl">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">

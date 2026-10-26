@@ -935,8 +935,8 @@ export default function HreflangTester() {
             </div>
 
             {/* Responsive Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto touch-scroll rounded-xl border border-slate-200 dark:border-slate-700">
+              <table className="w-full text-left text-sm min-w-[650px]">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
                   <tr>
                     <th className="p-3.5">Hreflang</th>

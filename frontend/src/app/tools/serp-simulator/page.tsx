@@ -568,7 +568,7 @@ export default function SerpSimulator() {
             PREVIEW SECTION (Right Column)
             ======================================================== */}
         <div className="xl:col-span-7 space-y-6">
-          <div className="card sticky top-6">
+          <div className="card xl:sticky xl:top-6">
             {/* Header + Device Switcher */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700 pb-4 mb-6">
               <div>

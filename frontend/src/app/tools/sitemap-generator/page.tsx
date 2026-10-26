@@ -1029,25 +1029,25 @@ export default function SitemapGenerator() {
         </div>
 
         {/* Input Method Switcher */}
-        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl mb-6 max-w-md">
+        <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl mb-6 max-w-md">
           <button
             onClick={() => {
               if (isCrawling) stopCrawlEarly();
               resetState();
               setInputMethod('crawl');
             }}
-            className={`py-2 px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2 px-1.5 sm:px-3 rounded-lg font-bold text-[11px] sm:text-sm transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
               inputMethod === 'crawl'
                 ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
               <circle cx="12" cy="12" r="10" />
               <line x1="2" y1="12" x2="22" y2="12" />
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             </svg>
-            <span>Crawl Website</span>
+            <span className="truncate">Crawl Site</span>
           </button>
           <button
             onClick={() => {
@@ -1055,14 +1055,14 @@ export default function SitemapGenerator() {
               resetState();
               setInputMethod('upload');
             }}
-            className={`py-2 px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2 px-1.5 sm:px-3 rounded-lg font-bold text-[11px] sm:text-sm transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
               inputMethod === 'upload'
                 ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span>Upload File</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span className="truncate">Upload File</span>
           </button>
           <button
             onClick={() => {
@@ -1070,14 +1070,14 @@ export default function SitemapGenerator() {
               resetState();
               setInputMethod('manual');
             }}
-            className={`py-2 px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2 px-1.5 sm:px-3 rounded-lg font-bold text-[11px] sm:text-sm transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
               inputMethod === 'manual'
                 ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            <span>Paste URLs</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span className="truncate">Paste URLs</span>
           </button>
         </div>
 

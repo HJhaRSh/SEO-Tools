@@ -50,7 +50,7 @@ export default function SchemaTypeDropdown({ value, onChange }: SchemaTypeDropdo
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -58,9 +58,11 @@ export default function SchemaTypeDropdown({ value, onChange }: SchemaTypeDropdo
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [isOpen]);
 
