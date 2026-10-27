@@ -35,7 +35,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <svg className="w-3.5 h-3.5 text-[#4caf50]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
-          <span>All Tools (15)</span>
+          <span>All Tools (17)</span>
         </button>
       </div>
 

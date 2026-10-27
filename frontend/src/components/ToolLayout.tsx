@@ -12,11 +12,125 @@ interface ToolLayoutProps {
   category: string;
   breadcrumbs: Breadcrumb[];
   children: React.ReactNode; 
-  aboutText: string;
-  howItWorks: string[];
+  aboutText: React.ReactNode;
+  howItWorks: (string | React.ReactNode)[];
   faq: { question: string; answer: string }[];
   fullWidth?: boolean;
+  relatedTools?: { name: string; href: string; desc: string }[];
 }
+
+const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; desc: string }[]> = {
+  'robots.txt tester': [
+    { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Verify whether AI crawlers like GPTBot and ClaudeBot can access your site.' },
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Create and validate clean XML sitemaps to declare crawlable URLs.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how crawlers render pages and detect blocked subresources (CSS/JS).' }
+  ],
+  'ai bot access tester': [
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect RFC 9309 rules, specificity tie-breaking, and live robots.txt directives.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Simulate bot rendering and inspect HTTP response headers across user agents.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: 'Review Google Search Console index status for URLs permitted or blocked for crawlers.' }
+  ],
+  '.htaccess tester': [
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Verify that your Apache 301 redirects and rewritten URLs return clean HTTP status.' },
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate an updated XML sitemap reflecting your canonical and rewritten URL structure.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Ensure crawler access directives match your server redirect configurations.' }
+  ],
+  'sitemap generator': [
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Check that your sitemap URLs and sitemap declaration header are crawlable by bots.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: "Inspect Google's actual index coverage status for URLs submitted in your sitemap." },
+    { name: 'hreflang Tags Tester', href: '/tools/hreflang-tester', desc: 'Verify that multilingual sitemap entries have valid ISO language codes and return tags.' }
+  ],
+  'xml sitemap generator': [
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Check that your sitemap URLs and sitemap declaration header are crawlable by bots.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: "Inspect Google's actual index coverage status for URLs submitted in your sitemap." },
+    { name: 'hreflang Tags Tester', href: '/tools/hreflang-tester', desc: 'Verify that multilingual sitemap entries have valid ISO language codes and return tags.' }
+  ],
+  'fetch & render': [
+    { name: 'Pre-rendering Tester', href: '/tools/prerendering-tester', desc: 'Compare initial server HTML against the fully executed client-side JavaScript DOM.' },
+    { name: 'Mobile-First Index Tool', href: '/tools/mobile-first-index', desc: 'Audit content and SEO signal parity between desktop and mobile versions of your page.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Identify whether any critical CSS, script, or image resources are blocked from crawlers.' }
+  ],
+  'pre-rendering tester': [
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Render JavaScript-heavy pages in headless Chromium and capture visual DOM snapshots.' },
+    { name: 'Mobile-Friendly Test', href: '/tools/mobile-friendly-test', desc: 'Evaluate mobile layout responsiveness, viewport configuration, and touch elements.' },
+    { name: 'Mobile-First Index Tool', href: '/tools/mobile-first-index', desc: 'Audit heading, canonical, and structured data parity between mobile and desktop bots.' }
+  ],
+  'mobile-first index tool': [
+    { name: 'Mobile-Friendly Test', href: '/tools/mobile-friendly-test', desc: 'Test viewport meta tag settings, touch target spacing, and font readability on smartphones.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how search bots execute client-side scripts and render responsive components.' },
+    { name: 'Pre-rendering Tester', href: '/tools/prerendering-tester', desc: 'Detect server response differences across mobile Googlebot and desktop user agents.' }
+  ],
+  'mobile-friendly test': [
+    { name: 'Mobile-First Index Tool', href: '/tools/mobile-first-index', desc: 'Check content, heading, and structured data parity across desktop and mobile Googlebot.' },
+    { name: 'Pre-rendering Tester', href: '/tools/prerendering-tester', desc: 'Compare initial source markup against rendered DOM across user agents.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Simulate Googlebot Smartphone browser execution and capture rendering screenshots.' }
+  ],
+  'hreflang tags tester': [
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate valid multilingual XML sitemaps with XHTML alternate namespace tags.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Verify that international head tags and hreflang annotations render in initial HTML.' },
+    { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Simulate location-specific search engine results pages across target international countries.' }
+  ],
+  'local search tool': [
+    { name: 'Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct 5-star Google review links and printable QR codes for local customers.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how local business title tags and meta descriptions appear in Google search results.' },
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness structured data to help search engines understand your address.' }
+  ],
+  'local search results tool': [
+    { name: 'Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct 5-star Google review links and printable QR codes for local customers.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how local business title tags and meta descriptions appear in Google search results.' },
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness structured data to help search engines understand your address.' }
+  ],
+  'review link generator': [
+    { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Audit localized Google Search and Google Maps results from specific city locations.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how your business snippet and review rating stars display in Google SERPs.' },
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness JSON-LD markup to reinforce local business identity.' }
+  ],
+  'google review link generator': [
+    { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Audit localized Google Search and Google Maps results from specific city locations.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how your business snippet and review rating stars display in Google SERPs.' },
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness JSON-LD markup to reinforce local business identity.' }
+  ],
+  'serp simulator': [
+    { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Detect structured data types on your page that unlock rich snippets in Google search results.' },
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Create valid JSON-LD schema markup to earn star ratings, FAQs, and event enhancements.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: 'Review live page titles and descriptions alongside actual Google Search Console index status.' }
+  ],
+  'knowledge graph search': [
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate Organization or Person JSON-LD markup referencing your official Google Entity MID.' },
+    { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Audit your live pages to confirm that entity structured data is detected in source HTML.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how brand entity titles and descriptions appear in desktop and mobile Google search.' }
+  ],
+  'schema markup generator': [
+    { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Validate and detect structured data markup across single pages or bulk URLs up to 100 pages.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how rich snippet enhancements (like star ratings and publication dates) appear in SERPs.' },
+    { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: "Search Google's Knowledge Graph to find official Entity Machine IDs (MIDs) for your schema." }
+  ],
+  'schema checker': [
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Create valid Schema.org JSON-LD structured data for rich snippet eligibility.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how detected schema features like review stars affect search snippet appearance.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Check whether structured data is rendered in initial HTML or injected dynamically by JavaScript.' }
+  ],
+  'bulk schema checker': [
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Create valid Schema.org JSON-LD structured data for rich snippet eligibility.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how detected schema features like review stars affect search snippet appearance.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Check whether structured data is rendered in initial HTML or injected dynamically by JavaScript.' }
+  ],
+  'domain age checker': [
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: 'Inspect Google Search Console indexing coverage for URLs on newly registered or aged domains.' },
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate standard XML sitemaps to accelerate crawl discovery for fresh domain assets.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Ensure newly acquired or restructured domains have clean crawler access directives.' }
+  ],
+  'free domain age checker online': [
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: 'Inspect Google Search Console indexing coverage for URLs on newly registered or aged domains.' },
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate standard XML sitemaps to accelerate crawl discovery for fresh domain assets.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Ensure newly acquired or restructured domains have clean crawler access directives.' }
+  ],
+  'bulk google index checker': [
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate and format XML sitemaps to submit unindexed URLs to Google Search Console.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Verify that URLs reported as Not Indexed or Crawl Anomaly are not blocked in robots.txt.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect whether JavaScript rendering discrepancies prevent Googlebot from indexing page content.' }
+  ]
+};
 
 const RELATED_TOOLS_MAP: Record<string, { name: string; href: string; desc: string }[]> = {
   'Crawling & Access': [
@@ -65,11 +179,16 @@ export default function ToolLayout({
   aboutText,
   howItWorks,
   faq,
-  fullWidth = true
+  fullWidth = true,
+  relatedTools: explicitRelatedTools
 }: ToolLayoutProps) {
-  // Related tools excluding current tool
+  // Determine curated related tools for this specific tool, with category fallback
+  const titleKey = title.toLowerCase().trim();
+  const curated = explicitRelatedTools || TOOL_SPECIFIC_RELATED_MAP[titleKey];
   const categoryRelated = RELATED_TOOLS_MAP[category] || RELATED_TOOLS_MAP['Search Appearance & Structured Data'] || [];
-  const relatedTools = categoryRelated.filter(t => t.name.toLowerCase() !== title.toLowerCase()).slice(0, 3);
+  const relatedTools = (curated && curated.length > 0)
+    ? curated.filter(t => t.name.toLowerCase() !== titleKey).slice(0, 3)
+    : categoryRelated.filter(t => t.name.toLowerCase() !== titleKey).slice(0, 3);
 
   return (
     <div className="w-full py-4 lg:py-6">
@@ -180,10 +299,10 @@ export default function ToolLayout({
           <div className="flex items-center justify-between mb-4 sm:mb-6 border-b border-[var(--im-border)] pb-3">
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-[var(--im-heading)]">Related SEO Tools</h2>
-              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-0.5">Explore additional technical SEO utilities in the {category} category.</p>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-0.5">Explore complementary technical SEO utilities and workflows.</p>
             </div>
             <Link href="/tools" className="text-xs sm:text-sm font-bold text-[var(--im-primary-deep)] hover:underline hidden sm:inline-block">
-              View all 15 tools &rarr;
+              View all 17 tools &rarr;
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

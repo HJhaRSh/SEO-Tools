@@ -68,7 +68,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'ai-bot-access-tester': {
     slug: 'ai-bot-access-tester',
     name: 'AI Bot Access Tester',
-    metaTitle: 'AI Bot Access Tester – Check AI Crawlers | Indian Marketers',
+    metaTitle: 'AI Bot Access Checker - Test AI Crawlers | Indian Marketers',
     metaDescription: 'Check if AI crawlers like GPTBot, ClaudeBot, and Perplexity can access your site. Test robots.txt rules, HTTP status codes, and WAF shields across bulk URLs.',
     canonical: `${TOOLS_BASE_URL}/ai-bot-access-tester`,
     category: 'Crawling & Access',
@@ -130,7 +130,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'sitemap-generator': {
     slug: 'sitemap-generator',
     name: 'Sitemap Generator',
-    metaTitle: 'XML Sitemap Generator – CSV & Excel to XML | Indian Marketers',
+    metaTitle: 'Free XML Sitemap Generator Online | Indian Marketers',
     metaDescription: 'Generate standard XML sitemaps from CSV, Excel, or pasted URLs. Configure auto-depth priorities, format changefreq tags, and download clean sitemap.xml files.',
     canonical: `${TOOLS_BASE_URL}/sitemap-generator`,
     category: 'Crawling & Access',
@@ -173,7 +173,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'fetch-render': {
     slug: 'fetch-render',
     name: 'Fetch & Render',
-    metaTitle: 'Fetch & Render Tool – JavaScript SEO Check | Indian Marketers',
+    metaTitle: 'Fetch and Render Tool - JavaScript SEO Test | Indian Marketers',
     metaDescription: 'Inspect how search crawlers fetch and render JavaScript pages. Compare raw server HTML against rendered DOM, capture screenshots, and detect blocked resources.',
     canonical: `${TOOLS_BASE_URL}/fetch-render`,
     category: 'Rendering & Mobile SEO',
@@ -204,7 +204,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'prerendering-tester': {
     slug: 'prerendering-tester',
     name: 'Pre-rendering Tester',
-    metaTitle: 'Pre-rendering Tester – Dynamic Rendering | Indian Marketers',
+    metaTitle: 'Pre-rendering Tester & Dynamic Rendering Check | Indian Marketers',
     metaDescription: 'Compare HTTP responses and SEO signals across multiple user agents. Detect pre-rendering middleware, dynamic rendering, and bot-specific HTML discrepancies.',
     canonical: `${TOOLS_BASE_URL}/prerendering-tester`,
     category: 'Rendering & Mobile SEO',
@@ -235,7 +235,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'mobile-first-index': {
     slug: 'mobile-first-index',
     name: 'Mobile-First Index Tool',
-    metaTitle: 'Mobile-First Index Tool – Parity Audit | Indian Marketers',
+    metaTitle: 'Mobile-First Indexing Checker - Parity Audit | Indian Marketers',
     metaDescription: 'Audit technical SEO parity between desktop and mobile pages. Compare headings, content, structured data, canonical tags, and internal links for Googlebot.',
     canonical: `${TOOLS_BASE_URL}/mobile-first-index`,
     category: 'Rendering & Mobile SEO',
@@ -270,7 +270,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'mobile-friendly-test': {
     slug: 'mobile-friendly-test',
     name: 'Mobile-Friendly Test',
-    metaTitle: 'Mobile-Friendly Test – Usability Checker | Indian Marketers',
+    metaTitle: 'Mobile-Friendly Test Online - Usability Checker | Indian Marketers',
     metaDescription: 'Test webpage mobile usability across devices. Audit viewport configuration, horizontal content overflow, font readability, and interactive tap target spacing.',
     canonical: `${TOOLS_BASE_URL}/mobile-friendly-test`,
     category: 'Rendering & Mobile SEO',
@@ -305,7 +305,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'hreflang-tester': {
     slug: 'hreflang-tester',
     name: 'hreflang Tags Tester',
-    metaTitle: 'hreflang Tags Tester – International SEO | Indian Marketers',
+    metaTitle: 'hreflang Tags Tester & Validator Online | Indian Marketers',
     metaDescription: 'Validate hreflang annotations in HTML, HTTP headers, and XML sitemaps. Verify ISO language codes, reciprocal return tags, and x-default international fallbacks.',
     canonical: `${TOOLS_BASE_URL}/hreflang-tester`,
     category: 'International SEO',
@@ -344,7 +344,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'local-search': {
     slug: 'local-search',
     name: 'Local Search Tool',
-    metaTitle: 'Local Search Results Tool – Geo SERP Audit | Indian Marketers',
+    metaTitle: 'Local Search Simulator - Geo SERP Audit Tool | Indian Marketers',
     metaDescription: 'Simulate localized Google Search and Google Maps results from any geographic location using canonical UULE parameters, country bias, and language controls.',
     canonical: `${TOOLS_BASE_URL}/local-search`,
     category: 'Local SEO',
@@ -414,7 +414,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'serp-simulator': {
     slug: 'serp-simulator',
     name: 'SERP Simulator',
-    metaTitle: 'Google SERP Simulator – Title Pixel Preview | Indian Marketers',
+    metaTitle: 'Google SERP Simulator - Meta Snippet Preview | Indian Marketers',
     metaDescription: 'Preview title tags and meta descriptions in Google search results. Check pixel widths, prevent snippet truncation, and simulate desktop and mobile displays.',
     canonical: `${TOOLS_BASE_URL}/serp-simulator`,
     category: 'Search Appearance & Structured Data',
@@ -445,7 +445,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'knowledge-graph-search': {
     slug: 'knowledge-graph-search',
     name: 'Knowledge Graph Search',
-    metaTitle: 'Knowledge Graph Search & Entity Finder | Indian Marketers',
+    metaTitle: 'Google Knowledge Graph Search & Entity Finder | Indian Marketers',
     metaDescription: 'Search Google\'s Knowledge Graph to find entity machine IDs (MIDs), schema types, and match scores. Verify brand entity recognition and export findings to CSV.',
     canonical: `${TOOLS_BASE_URL}/knowledge-graph-search`,
     category: 'Search Appearance & Structured Data',
@@ -484,7 +484,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'schema-generator': {
     slug: 'schema-generator',
     name: 'Schema Markup Generator',
-    metaTitle: 'Schema Markup Generator – JSON-LD Creator | Indian Marketers',
+    metaTitle: 'Schema Markup Generator - Free JSON-LD Creator | Indian Marketers',
     metaDescription: 'Create valid Schema.org JSON-LD structured data in real time. Generate rich snippet markup for Organizations, Articles, FAQs, Local Businesses, and Products.',
     canonical: `${TOOLS_BASE_URL}/schema-generator`,
     category: 'Search Appearance & Structured Data',
@@ -515,7 +515,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'schema-checker': {
     slug: 'schema-checker',
     name: 'Schema Checker',
-    metaTitle: 'Bulk Schema Checker – Structured Data Audit | Indian Marketers',
+    metaTitle: 'Schema Markup Checker - Bulk Schema Validator | Indian Marketers',
     metaDescription: 'Audit structured data markup across up to 100 URLs simultaneously. Detect JSON-LD, Microdata, and RDFa schema types, verify presence, and export reports to CSV.',
     canonical: `${TOOLS_BASE_URL}/schema-checker`,
     category: 'Search Appearance & Structured Data',
@@ -537,7 +537,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
         answer: 'This tool checks the raw HTML response returned by the server. Schema markup injected only after JavaScript execution may not be detected. Use the Fetch & Render tool if you need to inspect the fully rendered DOM.'
       },
       {
-        question: "What does 'Schema Found: No' mean?",
+        question: 'What does "Schema Found: No" mean?',
         answer: 'It means no recognisable schema markup (JSON-LD, Microdata, or RDFa) was found in the raw HTML of that page. The page may still have schema injected via JavaScript.'
       },
       {
@@ -550,8 +550,8 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'domain-age-checker': {
     slug: 'domain-age-checker',
     name: 'Domain Age Checker',
-    metaTitle: 'Free Domain Age Checker Online | Indian Marketers',
-    metaDescription: 'Check domain age online and find registration, updated and expiry dates. Use our free Domain Age Checker to analyze single or multiple domains.',
+    metaTitle: 'Domain Age Checker - Check Domain Age Online | Indian Marketers',
+    metaDescription: 'Check domain age online and find authoritative RDAP registration, update, and expiration dates. Analyze single or bulk domains with free CSV export.',
     canonical: `${TOOLS_BASE_URL}/domain-age-checker`,
     category: 'Crawling & Access',
     softwareCategory: 'DeveloperApplication',
@@ -566,43 +566,43 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     faqs: [
       {
         question: 'How do I check the age of a domain?',
-        answer: 'Simply enter a domain name or URL (e.g., google.com or https://example.com) into the input box and click "Check Domain Age". For multiple domains, switch to the "Bulk Domains" tab, paste up to 20 domains (one per line), and click "Check Bulk Domains".'
+        answer: 'Enter any website URL or domain name (e.g. google.com or https://example.co.uk) into the input field and click "Check Domain Age". The tool automatically normalizes the domain, discovers its authoritative registry, and displays the exact creation date and calculated age.'
       },
       {
-        question: 'Is this Domain Age Checker free?',
-        answer: 'Yes. The Indian Marketers Domain Age Checker is 100% free with no registration, no API keys, and no subscription required.'
+        question: 'Is this Domain Age Checker completely free?',
+        answer: 'Yes. Our Domain Age Checker is 100% free with no account registration, no API key requirements, and no hidden subscriptions.'
       },
       {
         question: 'Can I check multiple domains at once?',
-        answer: 'Yes. The bulk checker tab lets you audit up to 20 unique domains in a single operation with bounded concurrency, individual row statuses, and downloadable CSV reports.'
+        answer: 'Yes! Switch to the "Bulk Domains" tab to check up to 20 domains in a single batch. Lookups are processed with bounded concurrency to respect registry rate limits, and results can be exported as a spreadsheet CSV.'
       },
       {
         question: 'How is domain age calculated?',
-        answer: 'Domain age is calculated using authoritative calendar arithmetic starting from the domain\'s verified registration timestamp up to the current UTC date, properly accounting for leap years, variable month lengths, and anniversary boundaries.'
+        answer: 'We use real calendar arithmetic from the authoritative UTC registration timestamp to the current UTC date. This accounts for leap years, varying month lengths, and anniversary boundaries rather than approximating 365 days per year.'
       },
       {
         question: 'Is domain age the same as website age?',
-        answer: 'No. Domain age indicates when the domain name record was first created at the registry. A domain may have been registered years before a live website was launched, or it may have been bought, parked, dropped, or re-registered with different owners.'
+        answer: 'No. Domain age measures the time since the domain name was first registered with an authoritative domain registry. A domain may have been registered years before any website content was published, or it may have been bought, parked, or changed owners multiple times.'
       },
       {
         question: "Can a domain's creation date change?",
-        answer: 'If a domain lapses past all grace periods and is deleted from the registry, a subsequent registration creates a brand new record with a new creation date. However, standard registrar transfers and ownership renewals preserve the original creation date.'
+        answer: 'If a domain registration lapses completely and the domain is deleted and later re-registered by someone else, the registry assigns a new creation date. However, standard renewals and registrar transfers preserve the original creation date.'
       },
       {
-        question: "Why is my domain's registration date unavailable?",
-        answer: 'Certain country-code top-level domains (ccTLDs) do not publish public RDAP registration records or withhold creation dates under local privacy laws. In such cases, the tool transparently reports that the data is not provided rather than guessing or fabricating dates.'
+        question: "Why is a domain's registration date unavailable?",
+        answer: 'Some country-code top-level domains (ccTLDs) do not operate public RDAP servers or withhold registration dates under local privacy laws. In such cases, we transparently report that the date is unavailable rather than inventing fake data.'
       },
       {
-        question: 'Does domain age directly improve Google rankings?',
-        answer: 'No. Google representatives have repeatedly clarified that registration age alone is not a direct ranking factor. Older domains often rank well because they have had more time to accumulate high-quality content, authoritative backlinks, user trust, and brand recognition.'
+        question: 'Does domain age directly boost Google search rankings?',
+        answer: 'No. Google search advocates have clarified that domain registration age is not an algorithmic ranking factor. Older websites often perform well in search because they have built content depth, high-quality backlinks, and brand authority over time, not solely because of their registration date.'
       },
       {
-        question: 'Can I check the expiry date of a domain?',
-        answer: 'Yes. When exposed by the authoritative registry, the tool displays the registration expiration date and calculates the exact remaining days until renewal.'
+        question: 'Can I check domain expiration dates?',
+        answer: 'Yes. When exposed by the authoritative registry, the tool reports the official expiration date and calculates the exact days remaining until renewal.'
       },
       {
-        question: 'How accurate is RDAP registration data?',
-        answer: 'RDAP (Registration Data Access Protocol) is the official successor to legacy WHOIS mandated by ICANN. It queries authoritative registries directly via structured JSON, ensuring maximum data integrity without scraping approximations.'
+        question: 'How accurate is RDAP compared to legacy WHOIS?',
+        answer: 'RDAP is the modern, standardized protocol specified by ICANN and the IETF (RFC 9083). It returns machine-readable JSON directly from authoritative registry databases, eliminating the formatting inconsistencies and fragile text scraping of legacy WHOIS.'
       }
     ]
   },
@@ -610,7 +610,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'bulk-google-index-checker': {
     slug: 'bulk-google-index-checker',
     name: 'Bulk Google Index Checker',
-    metaTitle: 'Bulk Google Index Checker Online | Indian Marketers',
+    metaTitle: 'Bulk Google Index Checker Online - GSC Status | Indian Marketers',
     metaDescription: 'Check Google indexing status for multiple URLs with Search Console. View indexed pages, coverage reasons, live meta titles and descriptions, and export results.',
     canonical: `${TOOLS_BASE_URL}/bulk-google-index-checker`,
     category: 'Crawling & Access',
@@ -715,8 +715,8 @@ export function getWebSiteSchema() {
  */
 export function getToolsHubMetadata(): Metadata {
   const count = Object.keys(TOOLS_REGISTRY).length;
-  const title = 'Free Technical SEO Tools Directory | Indian Marketers';
-  const description = `Explore Indian Marketers' collection of ${count} free technical SEO tools. Test robots.txt, validate schema markup, check domain age, simulate SERPs, check mobile indexing, and more.`;
+  const title = 'Free Technical SEO Tools Directory Online | Indian Marketers';
+  const description = `Free technical SEO tools by Indian Marketers. Test robots.txt, validate schema markup, audit domain age, inspect crawler rendering, and check indexing online.`;
   const canonical = TOOLS_BASE_URL;
 
   return {
@@ -776,7 +776,7 @@ export function getToolsHubJsonLd() {
         '@type': 'CollectionPage',
         '@id': `${TOOLS_BASE_URL}#webpage`,
         url: TOOLS_BASE_URL,
-        name: 'Free Technical SEO Tools Directory | Indian Marketers',
+        name: 'Free Technical SEO Tools Directory Online | Indian Marketers',
         description: `Explore Indian Marketers' collection of ${toolList.length} free technical SEO tools. Test robots.txt, validate schema markup, check domain age, simulate SERPs, check mobile indexing, and more.`,
         isPartOf: {
           '@id': `${SITE_DOMAIN}/#website`

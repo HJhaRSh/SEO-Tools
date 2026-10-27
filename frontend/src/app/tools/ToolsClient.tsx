@@ -95,9 +95,12 @@ export default function ToolsClient() {
       
       {/* Header & Search Bar */}
       <div className="text-center max-w-3xl mx-auto mb-5 sm:mb-6 px-1">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[var(--im-heading)] mb-3 sm:mb-4">
-          Professional <span className="text-[var(--im-primary)]">SEO Tools</span>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[var(--im-heading)] mb-2.5 sm:mb-3">
+          Free Technical <span className="text-[var(--im-primary)]">SEO Tools</span> Directory
         </h1>
+        <p className="text-xs sm:text-sm md:text-base text-[var(--im-text-muted)] max-w-2xl mx-auto mb-4 sm:mb-5 leading-relaxed font-normal">
+          A comprehensive suite of 17 free technical SEO tools engineered for marketers, agencies, and developers. Audit crawl directives, inspect JavaScript rendering, validate Schema.org structured data, and verify Google indexing without subscriptions.
+        </p>
 
         {/* Search Bar */}
         <div className="relative max-w-2xl mx-auto group">
@@ -184,6 +187,50 @@ export default function ToolsClient() {
           ))}
         </div>
       )}
+
+      {/* Crawlable Technical SEO Architecture Overview */}
+      <div className="mt-16 sm:mt-20 pt-10 sm:pt-14 border-t border-[var(--im-border)]">
+        <div className="max-w-4xl mx-auto bg-[var(--im-surface)] border border-[var(--im-border)] rounded-2xl sm:rounded-3xl p-6 sm:p-10 shadow-[var(--im-shadow-sm)] space-y-6">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[var(--im-heading)] tracking-tight mb-2">
+              Technical SEO Diagnostic Suite
+            </h2>
+            <p className="text-sm sm:text-base text-[var(--im-text)] leading-relaxed">
+              Modern search engines evaluate websites through multi-stage pipelines: discovering URLs, requesting server headers, rendering client-side JavaScript, extracting structured data entities, and deciding indexation eligibility. The Indian Marketers SEO Tools collection provides specialized diagnostic utilities across each phase of this lifecycle.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
+            <div className="p-4 sm:p-5 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)]">
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-1.5">Crawling &amp; Access</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Test robots.txt rule precedence under RFC 9309, verify AI bot crawler access, simulate Apache rewrite rules, generate XML sitemaps, audit domain registration age, and review Search Console indexing coverage.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)]">
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-1.5">Rendering &amp; Mobile SEO</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Inspect raw server HTML versus rendered DOM in headless Chromium, audit dynamic pre-rendering headers, check desktop and mobile content parity, and test smartphone viewport usability.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)]">
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-1.5">International &amp; Local SEO</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Validate hreflang annotations across HTML, HTTP headers, and sitemaps, simulate geo-located Google Search results via canonical UULE parameters, and generate direct review links.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)]">
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-1.5">Search Appearance &amp; Schema</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Preview title and description pixel widths in simulated SERPs, look up Knowledge Graph entity MIDs, generate valid JSON-LD code, and audit schema markup across bulk URLs.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
