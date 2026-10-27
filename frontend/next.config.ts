@@ -56,6 +56,10 @@ const nextConfig: NextConfig = {
         destination: '/api/seo/fetch-render/:path*'
       },
       {
+        source: '/api/seo/bulk-google-index-checker/:path*',
+        destination: '/api/seo/bulk-google-index-checker/:path*'
+      },
+      {
         source: '/api/:path*',
         destination: `${backendTarget.replace(/\/$/, '')}/api/:path*`
       }

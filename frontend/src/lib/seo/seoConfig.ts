@@ -605,6 +605,68 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
         answer: 'RDAP (Registration Data Access Protocol) is the official successor to legacy WHOIS mandated by ICANN. It queries authoritative registries directly via structured JSON, ensuring maximum data integrity without scraping approximations.'
       }
     ]
+  },
+
+  'bulk-google-index-checker': {
+    slug: 'bulk-google-index-checker',
+    name: 'Bulk Google Index Checker',
+    metaTitle: 'Bulk Google Index Checker Online | Indian Marketers',
+    metaDescription: 'Check Google indexing status for multiple URLs with Search Console. View indexed pages, coverage reasons, live meta titles and descriptions, and export results.',
+    canonical: `${TOOLS_BASE_URL}/bulk-google-index-checker`,
+    category: 'Crawling & Access',
+    softwareCategory: 'DeveloperApplication',
+    features: [
+      'Official Google Search Console URL Inspection API integration',
+      'Batch URL processing up to 100 URLs with automatic inspection',
+      'Real recorded Google index statuses: Indexed, Not Indexed, Alternate / Canonicalized',
+      'Diagnostic coverage reasons, crawl states, and Google-selected canonical URLs',
+      'Live server-side HTML meta title and description extraction with character counts',
+      'Property scope validation for domain and URL-prefix Search Console properties',
+      'Read-only OAuth 2.0 authorization with PKCE and AES-256-GCM session security',
+      'Spreadsheet formula-safe CSV export and instant tabular clipboard copy'
+    ],
+    faqs: [
+      {
+        question: 'Is the Bulk Google Index Checker free?',
+        answer: 'Yes. The Bulk Google Index Checker is 100% free to use. You simply connect your Google Search Console account with read-only permissions to inspect up to 100 URLs per session.'
+      },
+      {
+        question: 'Why do I need Search Console access?',
+        answer: 'Google treats indexing records, coverage states, crawl history, and canonical choices as private search engine data. Google only shares this information via the official URL Inspection API with accounts that have verified ownership or permission on the property.'
+      },
+      {
+        question: 'Can I check multiple URLs together?',
+        answer: 'Yes. You can paste up to 100 URLs at a time from your selected property. The tool automatically batches requests and retrieves indexing information directly from Google.'
+      },
+      {
+        question: 'Can I inspect competitor websites?',
+        answer: 'No. The Google URL Inspection API requires verified property ownership in Google Search Console. You can only inspect websites where your Google account has verified property access.'
+      },
+      {
+        question: 'What does Not Indexed mean?',
+        answer: 'Not Indexed means Google has crawled or discovered the URL but chose not to include it in the search index, or excluded it due to reasons such as a noindex tag, crawl anomaly, soft 404, or canonicalization.'
+      },
+      {
+        question: 'Can I export indexing results?',
+        answer: 'Yes. You can export the complete batch report as an RFC-compliant CSV spreadsheet, including Google indexing verdicts, coverage reasons, canonical URLs, last crawl timestamps, and live metadata.'
+      },
+      {
+        question: 'Does the tool show meta titles and descriptions?',
+        answer: 'Yes. In addition to Google indexing data, the tool concurrently extracts the live HTML meta title, meta description, and character counts directly from the public webpage.'
+      },
+      {
+        question: "How current is Google's indexing information?",
+        answer: "The data returned is Google's recorded index status from Googlebot's most recent crawl. It reflects what Google's search index currently knows about your page."
+      },
+      {
+        question: 'Does connecting Google give the tool editing permissions?',
+        answer: 'No. The tool requests strictly read-only access (https://www.googleapis.com/auth/webmasters.readonly). It cannot edit your sitemaps, modify settings, or change website verification.'
+      },
+      {
+        question: 'What happens when I disconnect?',
+        answer: 'Clicking Disconnect immediately destroys the server session cookie and attempts token revocation with Google. Your authorization token is discarded.'
+      }
+    ]
   }
 };
 

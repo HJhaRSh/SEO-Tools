@@ -24,7 +24,8 @@ const RELATED_TOOLS_MAP: Record<string, { name: string; href: string; desc: stri
     { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Check if GPTBot, ClaudeBot, and AI crawlers can access your site.' },
     { name: '.htaccess Tester', href: '/tools/htaccess-tester', desc: 'Simulate Apache rewrite rules and 301 redirects.' },
     { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate and validate standard XML sitemaps.' },
-    { name: 'Domain Age Checker', href: '/tools/domain-age-checker', desc: 'Check domain registration age, creation date, and expiry details.' }
+    { name: 'Domain Age Checker', href: '/tools/domain-age-checker', desc: 'Check domain registration age, creation date, and expiry details.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: "Check Google's indexing status for multiple URLs with Search Console and view live meta titles and descriptions." }
   ],
   'Rendering & Mobile SEO': [
     { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'See how Googlebot and crawlers render JavaScript content.' },
