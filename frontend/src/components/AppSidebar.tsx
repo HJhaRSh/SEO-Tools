@@ -116,7 +116,7 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
                 onClick={() => toggleCategory(group.category)}
                 className="w-full flex items-center justify-between px-2.5 py-2 rounded-[var(--im-radius-sm)] text-[var(--im-text-muted)] hover:text-[var(--im-heading)] hover:bg-[var(--im-bg-soft)] font-semibold uppercase tracking-wider text-xs transition-colors cursor-pointer"
               >
-                <span>{group.category}</span>
+                <span className="truncate whitespace-nowrap">{group.category}</span>
                 <svg
                   className={`w-3.5 h-3.5 transform transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
                   fill="none"

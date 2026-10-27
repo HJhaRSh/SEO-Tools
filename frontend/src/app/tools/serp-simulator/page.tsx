@@ -253,7 +253,7 @@ export default function SerpSimulator() {
     <ToolLayout
       title="SERP Simulator"
       description="Preview your title tag, meta description, and URL in Google search results with pixel-accurate truncation."
-      category="Search Appearance & Structured Data"
+      category="Search Appearance"
       breadcrumbs={[{ label: 'SERP Simulator' }]}
       aboutText="The Search Engine Results Page (SERP) is your primary storefront in search engine results. Google restricts snippet elements based on container pixel widths rather than simple character counts. This Google SERP Simulator measures actual text pixel rendering, simulates Google's word-boundary truncation, supports desktop and mobile viewports, query term highlighting, date stamps, and rich review stars."
       howItWorks={[

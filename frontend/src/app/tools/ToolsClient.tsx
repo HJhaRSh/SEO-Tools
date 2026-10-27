@@ -54,7 +54,7 @@ const TOOLS_DATA = [
     ]
   },
   {
-    category: 'Search Appearance & Structured Data',
+    category: 'Search Appearance',
     description: 'Tools to optimise how your website appears in search results.',
     icon: (
       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z" /></svg>
@@ -188,45 +188,191 @@ export default function ToolsClient() {
         </div>
       )}
 
-      {/* Crawlable Technical SEO Architecture Overview */}
-      <div className="mt-16 sm:mt-20 pt-10 sm:pt-14 border-t border-[var(--im-border)]">
-        <div className="max-w-4xl mx-auto bg-[var(--im-surface)] border border-[var(--im-border)] rounded-2xl sm:rounded-3xl p-6 sm:p-10 shadow-[var(--im-shadow-sm)] space-y-6">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[var(--im-heading)] tracking-tight mb-2">
-              Technical SEO Diagnostic Suite
-            </h2>
-            <p className="text-sm sm:text-base text-[var(--im-text)] leading-relaxed">
-              Modern search engines evaluate websites through multi-stage pipelines: discovering URLs, requesting server headers, rendering client-side JavaScript, extracting structured data entities, and deciding indexation eligibility. The Indian Marketers SEO Tools collection provides specialized diagnostic utilities across each phase of this lifecycle.
-            </p>
+      {/* Crawlable Technical SEO Architecture Overview - All 17 Tools (No Card Container) */}
+      <div className="mt-16 sm:mt-24 pt-12 sm:pt-16 border-t border-[var(--im-border)] max-w-5xl mx-auto space-y-12">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-[var(--im-heading)] tracking-tight mb-3">
+            Technical SEO Diagnostic Suite
+          </h2>
+          <p className="text-sm sm:text-base text-[var(--im-text-muted)] leading-relaxed max-w-3xl">
+            Modern search engines evaluate websites through multi-stage pipelines: discovering URLs, verifying server directives, executing client-side JavaScript, validating localization annotations, and indexing structured data entities. Explore all 17 specialized diagnostic tools across each phase of the technical search lifecycle:
+          </p>
+        </div>
+
+        <div className="space-y-10">
+          {/* Phase 1: Crawling & Access */}
+          <div className="space-y-4">
+            <h3 className="text-base sm:text-lg font-bold text-[var(--im-heading)] border-b border-[var(--im-border)] pb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Crawling, Access &amp; Indexation
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+              <div>
+                <Link href="/tools/robots-txt-tester" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  robots.txt Tester &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Test URL crawl permissions and directive specificity tie-breaking under official RFC 9309 rules with live editing.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/ai-bot-access-tester" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  AI Bot Access Tester &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Verify whether 35+ AI crawlers including GPTBot, ClaudeBot, and PerplexityBot are allowed or blocked by your robots.txt.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/htaccess-tester" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  .htaccess Tester &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Simulate Apache mod_rewrite rules, 301/302 redirects, HTTPS migrations, and trailing slash enforcement.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/sitemap-generator" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  XML Sitemap Generator &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Generate and validate standards-compliant XML sitemaps and sitemap index files with hreflang alternates and W3C dates.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/domain-age-checker" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Domain Age Checker &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Query authoritative RDAP registry records for creation dates, expiration schedules, and calendar age metrics.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/bulk-google-index-checker" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Bulk Google Index Checker &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Inspect Google Search Console indexing coverage, inspection verdict reasons, and live page title tags in bulk.
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
-            <div className="p-4 sm:p-5 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)]">
-              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-1.5">Crawling &amp; Access</h3>
-              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
-                Test robots.txt rule precedence under RFC 9309, verify AI bot crawler access, simulate Apache rewrite rules, generate XML sitemaps, audit domain registration age, and review Search Console indexing coverage.
-              </p>
+          {/* Phase 2: Rendering & Mobile SEO */}
+          <div className="space-y-4">
+            <h3 className="text-base sm:text-lg font-bold text-[var(--im-heading)] border-b border-[var(--im-border)] pb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              JavaScript Rendering &amp; Mobile Parity
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+              <div>
+                <Link href="/tools/fetch-render" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Fetch &amp; Render &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Inspect raw server HTML versus rendered DOM in headless Chromium to detect blocked scripts or missing DOM nodes.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/prerendering-tester" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Pre-rendering Tester &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Compare search bot versus browser HTML responses to audit dynamic rendering configurations and hydration discrepancies.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/mobile-first-index" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Mobile-First Index Tool &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Audit heading, canonical, metadata, and structured data parity between desktop and smartphone crawler variants.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/mobile-friendly-test" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Mobile-Friendly Test &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Audit mobile viewport meta tag settings, touch target tap spacing, and legible font sizes on smartphone screens.
+                </p>
+              </div>
             </div>
+          </div>
 
-            <div className="p-4 sm:p-5 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)]">
-              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-1.5">Rendering &amp; Mobile SEO</h3>
-              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
-                Inspect raw server HTML versus rendered DOM in headless Chromium, audit dynamic pre-rendering headers, check desktop and mobile content parity, and test smartphone viewport usability.
-              </p>
+          {/* Phase 3: International & Local SEO */}
+          <div className="space-y-4">
+            <h3 className="text-base sm:text-lg font-bold text-[var(--im-heading)] border-b border-[var(--im-border)] pb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              International &amp; Local Search
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+              <div>
+                <Link href="/tools/hreflang-tester" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  hreflang Tags Tester &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Validate multi-language annotations, ISO 639-1 language codes, region subtags, and bidirectional reciprocal return links.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/local-search" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Local Search Tool &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Simulate geo-targeted Google Search and Maps results from specific cities or postal codes using canonical UULE parameters.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/review-link-generator" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Review Link Generator &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Create direct, frictionless 5-star Google review links and printable QR codes for verified Google Business Profiles.
+                </p>
+              </div>
             </div>
+          </div>
 
-            <div className="p-4 sm:p-5 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)]">
-              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-1.5">International &amp; Local SEO</h3>
-              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
-                Validate hreflang annotations across HTML, HTTP headers, and sitemaps, simulate geo-located Google Search results via canonical UULE parameters, and generate direct review links.
-              </p>
-            </div>
-
-            <div className="p-4 sm:p-5 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)]">
-              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-1.5">Search Appearance &amp; Schema</h3>
-              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
-                Preview title and description pixel widths in simulated SERPs, look up Knowledge Graph entity MIDs, generate valid JSON-LD code, and audit schema markup across bulk URLs.
-              </p>
+          {/* Phase 4: Search Appearance & Structured Data */}
+          <div className="space-y-4">
+            <h3 className="text-base sm:text-lg font-bold text-[var(--im-heading)] border-b border-[var(--im-border)] pb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Search Appearance &amp; Structured Data
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+              <div>
+                <Link href="/tools/serp-simulator" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  SERP Simulator &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Preview title tag and meta description pixel widths to prevent snippet truncation on desktop and mobile SERPs.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/knowledge-graph-search" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Knowledge Graph Search &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Query Google Knowledge Graph API to retrieve authoritative entity Machine IDs (MIDs), types, and match scores.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/schema-generator" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Schema Markup Generator &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Generate valid Schema.org JSON-LD structured data for Organizations, Articles, FAQs, Local Businesses, and Products.
+                </p>
+              </div>
+              <div>
+                <Link href="/tools/schema-checker" className="text-sm font-semibold text-[var(--im-heading)] hover:text-[var(--im-primary-deep)] transition-colors">
+                  Schema Checker &rarr;
+                </Link>
+                <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-1 leading-relaxed">
+                  Detect and audit JSON-LD, Microdata, and RDFa schema markup across single pages or bulk batches up to 100 URLs.
+                </p>
+              </div>
             </div>
           </div>
         </div>

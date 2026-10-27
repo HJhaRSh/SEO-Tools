@@ -50,7 +50,7 @@ export const NAVIGATION_TOOLS: ToolCategory[] = [
     ]
   },
   {
-    category: 'Search Appearance & Structured Data',
+    category: 'Search Appearance',
     description: 'Tools to optimise how your website appears in search results.',
     tools: [
       { name: 'SERP Simulator', description: 'Preview your title and meta description in search results.', href: '/tools/serp-simulator' },

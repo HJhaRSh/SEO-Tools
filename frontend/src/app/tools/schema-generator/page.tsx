@@ -153,7 +153,7 @@ export default function SchemaGenerator() {
     <ToolLayout
       title="Schema Markup Generator"
       description="Generate and validate production-ready Schema.org JSON-LD structured data in real-time."
-      category="Search Appearance & Structured Data"
+      category="Search Appearance"
       breadcrumbs={[{ label: 'Schema Markup Generator' }]}
       aboutText="Structured data helps search engines understand the context of your content, leading to Rich Snippets (like review stars or event details) in search results. This tool generates valid JSON-LD code that you can copy and paste into your HTML."
       howItWorks={[

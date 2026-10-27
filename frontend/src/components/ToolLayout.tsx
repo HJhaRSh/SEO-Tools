@@ -157,16 +157,17 @@ const RELATED_TOOLS_MAP: Record<string, { name: string; href: string; desc: stri
     { name: 'Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct 5-star Google Review links and QR codes.' },
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview title tags, meta descriptions, and search snippets.' }
   ],
-  'Search Appearance & Structured Data': [
+  'Search Appearance': [
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview title and description pixel widths in Google SERPs.' },
     { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate valid JSON-LD structured data for rich snippets.' },
     { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Detect and audit schema markup across bulk URLs.' },
     { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: 'Search Google Knowledge Graph entities, schema, and MIDs.' }
   ],
-  'Search Appearance': [
-    { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Detect and audit schema markup across bulk URLs.' },
+  'Search Appearance & Structured Data': [
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview title and description pixel widths in Google SERPs.' },
     { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate valid JSON-LD structured data for rich snippets.' },
-    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview title and description pixel widths in Google SERPs.' }
+    { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Detect and audit schema markup across bulk URLs.' },
+    { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: 'Search Google Knowledge Graph entities, schema, and MIDs.' }
   ]
 };
 
@@ -185,7 +186,7 @@ export default function ToolLayout({
   // Determine curated related tools for this specific tool, with category fallback
   const titleKey = title.toLowerCase().trim();
   const curated = explicitRelatedTools || TOOL_SPECIFIC_RELATED_MAP[titleKey];
-  const categoryRelated = RELATED_TOOLS_MAP[category] || RELATED_TOOLS_MAP['Search Appearance & Structured Data'] || [];
+  const categoryRelated = RELATED_TOOLS_MAP[category] || RELATED_TOOLS_MAP['Search Appearance'] || [];
   const relatedTools = (curated && curated.length > 0)
     ? curated.filter(t => t.name.toLowerCase() !== titleKey).slice(0, 3)
     : categoryRelated.filter(t => t.name.toLowerCase() !== titleKey).slice(0, 3);

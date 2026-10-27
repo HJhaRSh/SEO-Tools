@@ -206,7 +206,7 @@ export default function KnowledgeGraphSearch() {
     <ToolLayout
       title="Knowledge Graph Search"
       description="Search and inspect Google Knowledge Graph entities, schema types, MIDs, and API relevance scores."
-      category="Search Appearance & Structured Data"
+      category="Search Appearance"
       breadcrumbs={[{ label: 'Knowledge Graph Search' }]}
       aboutText="Google's Knowledge Graph organizes information about real-world entities (people, places, organizations, things). This tool connects directly to Google's official Knowledge Graph Search API, allowing SEOs and content strategists to inspect recognized entities, verify Freebase/Wikidata Machine Identifiers (MIDs), inspect Schema.org entity categories, and evaluate API match scores."
       howItWorks={[

@@ -417,7 +417,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     metaTitle: 'Google SERP Simulator - Meta Snippet Preview | Indian Marketers',
     metaDescription: 'Preview title tags and meta descriptions in Google search results. Check pixel widths, prevent snippet truncation, and simulate desktop and mobile displays.',
     canonical: `${TOOLS_BASE_URL}/serp-simulator`,
-    category: 'Search Appearance & Structured Data',
+    category: 'Search Appearance',
     softwareCategory: 'DeveloperApplication',
     features: [
       'Pixel-accurate title container measurement (~600px desktop threshold)',
@@ -448,7 +448,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     metaTitle: 'Google Knowledge Graph Search & Entity Finder | Indian Marketers',
     metaDescription: 'Search Google\'s Knowledge Graph to find entity machine IDs (MIDs), schema types, and match scores. Verify brand entity recognition and export findings to CSV.',
     canonical: `${TOOLS_BASE_URL}/knowledge-graph-search`,
-    category: 'Search Appearance & Structured Data',
+    category: 'Search Appearance',
     softwareCategory: 'DeveloperApplication',
     features: [
       'Direct connection to Google official Knowledge Graph Search API',
@@ -487,7 +487,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     metaTitle: 'Schema Markup Generator - Free JSON-LD Creator | Indian Marketers',
     metaDescription: 'Create valid Schema.org JSON-LD structured data in real time. Generate rich snippet markup for Organizations, Articles, FAQs, Local Businesses, and Products.',
     canonical: `${TOOLS_BASE_URL}/schema-generator`,
-    category: 'Search Appearance & Structured Data',
+    category: 'Search Appearance',
     softwareCategory: 'DeveloperApplication',
     features: [
       'Real-time Schema.org JSON-LD generation with syntax highlighting',
@@ -518,7 +518,7 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     metaTitle: 'Schema Markup Checker - Bulk Schema Validator | Indian Marketers',
     metaDescription: 'Audit structured data markup across up to 100 URLs simultaneously. Detect JSON-LD, Microdata, and RDFa schema types, verify presence, and export reports to CSV.',
     canonical: `${TOOLS_BASE_URL}/schema-checker`,
-    category: 'Search Appearance & Structured Data',
+    category: 'Search Appearance',
     softwareCategory: 'DeveloperApplication',
     features: [
       'Multi-format structured data detection (JSON-LD including @graph, Microdata, and RDFa)',
