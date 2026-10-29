@@ -120,6 +120,12 @@
       }
     },
     {
+      "source": "/api/seo/local-search/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"
