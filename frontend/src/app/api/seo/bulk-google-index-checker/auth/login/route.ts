@@ -7,6 +7,7 @@ import {
 } from '@/lib/seo/bulk-google-index-checker/sessionUtils';
 import {
   getGoogleConfig,
+  getTrustedOrigin,
   buildGoogleAuthUrl,
 } from '@/lib/seo/bulk-google-index-checker/gscService';
 
@@ -16,8 +17,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const forwardedHost = req.headers.get('x-forwarded-host');
   const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
-  const origin = forwardedHost ? `${forwardedProto}://${forwardedHost.split(',')[0].trim()}` : req.nextUrl.origin;
-  const config = getGoogleConfig(origin);
+  const candidate = forwardedHost ? `${forwardedProto}://${forwardedHost.split(',')[0].trim()}` : req.nextUrl.origin;
+  const trustedOrigin = getTrustedOrigin(candidate);
+  const config = getGoogleConfig(trustedOrigin);
 
   if (!config) {
     return NextResponse.json(

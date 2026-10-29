@@ -22,13 +22,13 @@
     "dotenv": "^16.4.7",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
-    "fast-xml-parser": "^5.11.2",
     "playwright": "^1.64.0",
     "tldts": "^7.4.19",
-    "tsx": "^4.19.2",
     "unzipper": "^0.10.14"
   },
   "devDependencies": {
+    "fast-xml-parser": "^5.11.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
 }

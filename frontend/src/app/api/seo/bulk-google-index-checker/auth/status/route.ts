@@ -17,7 +17,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest): Promise<NextResponse<AuthStatusResponse>> {
   try {
-    const config = getGoogleConfig(req.nextUrl.origin);
+    const forwardedHost = req.headers.get('x-forwarded-host');
+    const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+    const candidate = forwardedHost ? `${forwardedProto}://${forwardedHost.split(',')[0].trim()}` : req.nextUrl.origin;
+    const config = getGoogleConfig(candidate);
     if (!config) {
       return NextResponse.json({
         configured: false,

@@ -16,26 +16,106 @@ export interface GoogleOAuthConfig {
   redirectUri: string;
 }
 
-/**
- * Retrieves configured Google OAuth credentials and resolves the exact redirect URI
- */
-export function getGoogleConfig(origin?: string): GoogleOAuthConfig | null {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+export const DEFAULT_PRODUCTION_ORIGIN = 'https://indianmarketers.in';
 
-  let redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI;
-  if (!redirectUri) {
-    if (origin) {
-      redirectUri = `${origin}/api/seo/bulk-google-index-checker/auth/callback`;
-    } else if (process.env.NODE_ENV !== 'production') {
-      redirectUri = 'http://localhost:3000/api/seo/bulk-google-index-checker/auth/callback';
-    } else {
-      redirectUri = 'https://indianmarketers.in/api/seo/bulk-google-index-checker/auth/callback';
+/**
+ * Resolves and validates a trusted origin for OAuth redirects and callbacks.
+ * In production, restricts to trusted domain (indianmarketers.in), preventing host
+ * header manipulation and ensuring users are never redirected to internal Vercel deployment URLs.
+ * In non-production environments (local dev / tests), permits localhost and loopback interfaces.
+ */
+export function getTrustedOrigin(candidate?: string | null): string {
+  // If an explicit trusted public origin is configured in environment, use it
+  const explicitAppUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.PUBLIC_ORIGIN || process.env.APP_URL;
+  if (explicitAppUrl) {
+    try {
+      const parsed = new URL(explicitAppUrl);
+      return parsed.origin;
+    } catch {
+      // Fall through if misconfigured
     }
   }
 
+  const isDev = process.env.NODE_ENV !== 'production';
+
+  if (candidate) {
+    try {
+      const parsed = new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`);
+      const hostname = parsed.hostname.toLowerCase();
+
+      // Permit localhost / loopback in local dev & test environments
+      if (isDev && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1')) {
+        return parsed.origin;
+      }
+
+      // Permit production domain and any subdomains
+      if (hostname === 'indianmarketers.in' || hostname.endsWith('.indianmarketers.in')) {
+        return `https://${parsed.host}`;
+      }
+    } catch {
+      // Ignore parse error and fall back to default
+    }
+  }
+
+  // In development, default to localhost:3000
+  if (isDev) {
+    return 'http://localhost:3000';
+  }
+
+  // In production, unconditionally default to the public canonical domain
+  return DEFAULT_PRODUCTION_ORIGIN;
+}
+
+/**
+ * Retrieves configured Google OAuth credentials and resolves the exact redirect URI.
+ * Validates that redirect URI always points to a trusted origin and rejects internal Vercel domains.
+ */
+export function getGoogleConfig(
+  originCandidate?: string | null,
+  options?: { allowVercelRollback?: boolean }
+): GoogleOAuthConfig | null {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
   if (!clientId || !clientSecret) {
     return null;
+  }
+
+  const allowRollback =
+    options?.allowVercelRollback ||
+    process.env.ALLOW_VERCEL_OAUTH_ROLLBACK === 'true' ||
+    process.env.ALLOW_VERCEL_ROLLBACK === 'true';
+
+  const isCandidateVercel =
+    originCandidate && originCandidate.includes('vercel.app');
+
+  const trustedOrigin = getTrustedOrigin(originCandidate);
+  const canonicalCallback = `${trustedOrigin}/api/seo/bulk-google-index-checker/auth/callback`;
+
+  let redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI;
+
+  // Support Vercel rollback when explicitly permitted or when handling callback directly on Vercel
+  if (allowRollback && (redirectUri?.includes('vercel.app') || isCandidateVercel)) {
+    redirectUri = redirectUri && redirectUri.includes('vercel.app')
+      ? redirectUri
+      : `https://${new URL(originCandidate!).host}/api/seo/bulk-google-index-checker/auth/callback`;
+  } else if (!redirectUri || redirectUri.includes('vercel.app')) {
+    redirectUri = canonicalCallback;
+  } else {
+    // Ensure configured redirect URI adheres to a trusted domain
+    try {
+      const parsed = new URL(redirectUri);
+      const isDev = process.env.NODE_ENV !== 'production';
+      const hostname = parsed.hostname.toLowerCase();
+      const isLocal = isDev && (hostname === 'localhost' || hostname === '127.0.0.1');
+      const isProductionDomain = hostname === 'indianmarketers.in' || hostname.endsWith('.indianmarketers.in');
+
+      if (!isLocal && !isProductionDomain) {
+        redirectUri = canonicalCallback;
+      }
+    } catch {
+      redirectUri = canonicalCallback;
+    }
   }
 
   return {

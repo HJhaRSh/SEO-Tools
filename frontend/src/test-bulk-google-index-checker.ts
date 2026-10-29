@@ -8,6 +8,8 @@ import {
 } from './lib/seo/bulk-google-index-checker/sessionUtils';
 import {
   getGoogleConfig,
+  getTrustedOrigin,
+  DEFAULT_PRODUCTION_ORIGIN,
   buildGoogleAuthUrl,
   isUrlInProperty,
   mapIndexStatusResult,
@@ -153,6 +155,69 @@ async function runAllTests() {
     assert.strictEqual(authUrl.includes('code_challenge_method=S256'), true);
     assert.strictEqual(authUrl.includes('state=csrf-test-state-token'), true);
     assert.strictEqual(authUrl.includes('access_type=offline'), true);
+  });
+
+  it('Resolves trusted production origin and suppresses internal Vercel deployment URLs', () => {
+    // When incoming origin candidate is a Vercel deployment domain
+    const vercelOrigin = 'https://seo-tools-three-psi.vercel.app';
+    const resolvedOrigin = getTrustedOrigin(vercelOrigin);
+    // In production environment or default fallback, must resolve to canonical production domain
+    assert.strictEqual(DEFAULT_PRODUCTION_ORIGIN, 'https://indianmarketers.in');
+    assert.strictEqual(getTrustedOrigin('indianmarketers.in'), 'https://indianmarketers.in');
+    assert.strictEqual(getTrustedOrigin('https://indianmarketers.in'), 'https://indianmarketers.in');
+    assert.strictEqual(getTrustedOrigin('https://tools.indianmarketers.in'), 'https://tools.indianmarketers.in');
+
+    // Untrusted external origins must be rejected in favor of canonical production origin (or localhost in dev)
+    const untrusted = getTrustedOrigin('https://attacker-phishing.com');
+    assert.strictEqual(untrusted === 'https://indianmarketers.in' || untrusted === 'http://localhost:3000', true);
+  });
+
+  it('Overrides Vercel deployment redirect URIs in environment variables with canonical callback', () => {
+    const prevEnv = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+    const prevClientId = process.env.GOOGLE_CLIENT_ID;
+    const prevClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    try {
+      process.env.GOOGLE_CLIENT_ID = 'test-client-id.apps.googleusercontent.com';
+      process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
+
+      // Simulate Vercel environment where GOOGLE_OAUTH_REDIRECT_URI was configured to vercel.app
+      process.env.GOOGLE_OAUTH_REDIRECT_URI = 'https://seo-tools-three-psi.vercel.app/api/seo/bulk-google-index-checker/auth/callback';
+
+      const config = getGoogleConfig('https://seo-tools-three-psi.vercel.app');
+      assert.ok(config);
+      // Must NOT use vercel.app
+      assert.strictEqual(config.redirectUri.includes('vercel.app'), false);
+      assert.strictEqual(
+        config.redirectUri === 'https://indianmarketers.in/api/seo/bulk-google-index-checker/auth/callback' ||
+        config.redirectUri === 'http://localhost:3000/api/seo/bulk-google-index-checker/auth/callback',
+        true
+      );
+    } finally {
+      process.env.GOOGLE_OAUTH_REDIRECT_URI = prevEnv;
+      process.env.GOOGLE_CLIENT_ID = prevClientId;
+      process.env.GOOGLE_CLIENT_SECRET = prevClientSecret;
+    }
+  });
+
+  it('Supports Vercel callback rollback when explicitly requested or handling direct Vercel callback', () => {
+    const prevEnv = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+    const prevClientId = process.env.GOOGLE_CLIENT_ID;
+    const prevClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    try {
+      process.env.GOOGLE_CLIENT_ID = 'test-client-id.apps.googleusercontent.com';
+      process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
+      process.env.GOOGLE_OAUTH_REDIRECT_URI = 'https://seo-tools-three-psi.vercel.app/api/seo/bulk-google-index-checker/auth/callback';
+
+      const configWithRollback = getGoogleConfig('https://seo-tools-three-psi.vercel.app', { allowVercelRollback: true });
+      assert.ok(configWithRollback);
+      assert.strictEqual(configWithRollback.redirectUri, 'https://seo-tools-three-psi.vercel.app/api/seo/bulk-google-index-checker/auth/callback');
+    } finally {
+      process.env.GOOGLE_OAUTH_REDIRECT_URI = prevEnv;
+      process.env.GOOGLE_CLIENT_ID = prevClientId;
+      process.env.GOOGLE_CLIENT_SECRET = prevClientSecret;
+    }
   });
 
   // ----------------------------------------------------

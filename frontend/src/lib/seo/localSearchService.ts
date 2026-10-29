@@ -48,24 +48,152 @@ export interface CuratedLocation {
 }
 
 export const CURATED_LOCATIONS: CuratedLocation[] = [
+  // India - Maharashtra
   { name: 'Mumbai, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
-  { name: 'Andheri West, Mumbai, India', countryCode: 'in', languageCode: 'en' },
-  { name: 'Bengaluru, Karnataka, India', countryCode: 'in', languageCode: 'en' },
-  { name: 'Delhi, Delhi, India', countryCode: 'in', languageCode: 'en' },
-  { name: 'Hyderabad, Telangana, India', countryCode: 'in', languageCode: 'en' },
   { name: 'Pune, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Nagpur, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Thane, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Nashik, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Aurangabad, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Navi Mumbai, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Solapur, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Kolhapur, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Ahmednagar, Maharashtra, India', countryCode: 'in', languageCode: 'en' },
+
+  // India - NCR & North
+  { name: 'Delhi, Delhi, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'New Delhi, Delhi, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Noida, Uttar Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Gurgaon, Haryana, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Faridabad, Haryana, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Ghaziabad, Uttar Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Chandigarh, Chandigarh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Jaipur, Rajasthan, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Jodhpur, Rajasthan, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Udaipur, Rajasthan, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Kota, Rajasthan, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Lucknow, Uttar Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Kanpur, Uttar Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Varanasi, Uttar Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Agra, Uttar Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Prayagraj, Uttar Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Ludhiana, Punjab, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Amritsar, Punjab, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Jalandhar, Punjab, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Dehradun, Uttarakhand, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Shimla, Himachal Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Jammu, Jammu and Kashmir, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Srinagar, Jammu and Kashmir, India', countryCode: 'in', languageCode: 'en' },
+
+  // India - South
+  { name: 'Bengaluru, Karnataka, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Mysore, Karnataka, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Mangalore, Karnataka, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Hubli, Karnataka, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Hyderabad, Telangana, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Warangal, Telangana, India', countryCode: 'in', languageCode: 'en' },
   { name: 'Chennai, Tamil Nadu, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Coimbatore, Tamil Nadu, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Madurai, Tamil Nadu, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Tiruchirappalli, Tamil Nadu, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Salem, Tamil Nadu, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Kochi, Kerala, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Thiruvananthapuram, Kerala, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Kozhikode, Kerala, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Visakhapatnam, Andhra Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Vijayawada, Andhra Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Guntur, Andhra Pradesh, India', countryCode: 'in', languageCode: 'en' },
+
+  // India - West & Central
   { name: 'Ahmedabad, Gujarat, India', countryCode: 'in', languageCode: 'gu' },
+  { name: 'Surat, Gujarat, India', countryCode: 'in', languageCode: 'gu' },
+  { name: 'Vadodara, Gujarat, India', countryCode: 'in', languageCode: 'gu' },
+  { name: 'Rajkot, Gujarat, India', countryCode: 'in', languageCode: 'gu' },
+  { name: 'Indore, Madhya Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Bhopal, Madhya Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Gwalior, Madhya Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Jabalpur, Madhya Pradesh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Raipur, Chhattisgarh, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Panaji, Goa, India', countryCode: 'in', languageCode: 'en' },
+
+  // India - East & Northeast
+  { name: 'Kolkata, West Bengal, India', countryCode: 'in', languageCode: 'bn' },
+  { name: 'Howrah, West Bengal, India', countryCode: 'in', languageCode: 'bn' },
+  { name: 'Siliguri, West Bengal, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Patna, Bihar, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Gaya, Bihar, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Ranchi, Jharkhand, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Jamshedpur, Jharkhand, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Bhubaneswar, Odisha, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Cuttack, Odisha, India', countryCode: 'in', languageCode: 'en' },
+  { name: 'Guwahati, Assam, India', countryCode: 'in', languageCode: 'en' },
+
+  // United States
   { name: 'New York, NY, United States', countryCode: 'us', languageCode: 'en' },
-  { name: 'San Francisco, California, United States', countryCode: 'us', languageCode: 'en' },
+  { name: 'Los Angeles, California, United States', countryCode: 'us', languageCode: 'en' },
   { name: 'Chicago, Illinois, United States', countryCode: 'us', languageCode: 'en' },
+  { name: 'Houston, Texas, United States', countryCode: 'us', languageCode: 'en' },
+  { name: 'San Francisco, California, United States', countryCode: 'us', languageCode: 'en' },
+  { name: 'Seattle, Washington, United States', countryCode: 'us', languageCode: 'en' },
+  { name: 'Austin, Texas, United States', countryCode: 'us', languageCode: 'en' },
+  { name: 'Miami, Florida, United States', countryCode: 'us', languageCode: 'en' },
+  { name: 'Boston, Massachusetts, United States', countryCode: 'us', languageCode: 'en' },
+  { name: 'Dallas, Texas, United States', countryCode: 'us', languageCode: 'en' },
+
+  // United Kingdom
   { name: 'London, England, United Kingdom', countryCode: 'gb', languageCode: 'en' },
   { name: 'Manchester, England, United Kingdom', countryCode: 'gb', languageCode: 'en' },
-  { name: 'Sydney, New South Wales, Australia', countryCode: 'au', languageCode: 'en' },
+  { name: 'Birmingham, England, United Kingdom', countryCode: 'gb', languageCode: 'en' },
+  { name: 'Edinburgh, Scotland, United Kingdom', countryCode: 'gb', languageCode: 'en' },
+  { name: 'Glasgow, Scotland, United Kingdom', countryCode: 'gb', languageCode: 'en' },
+  { name: 'Leeds, England, United Kingdom', countryCode: 'gb', languageCode: 'en' },
+
+  // Canada
   { name: 'Toronto, Ontario, Canada', countryCode: 'ca', languageCode: 'en' },
+  { name: 'Vancouver, British Columbia, Canada', countryCode: 'ca', languageCode: 'en' },
+  { name: 'Montreal, Quebec, Canada', countryCode: 'ca', languageCode: 'en' },
+  { name: 'Calgary, Alberta, Canada', countryCode: 'ca', languageCode: 'en' },
+
+  // Australia & New Zealand
+  { name: 'Sydney, New South Wales, Australia', countryCode: 'au', languageCode: 'en' },
+  { name: 'Melbourne, Victoria, Australia', countryCode: 'au', languageCode: 'en' },
+  { name: 'Brisbane, Queensland, Australia', countryCode: 'au', languageCode: 'en' },
+  { name: 'Perth, Western Australia, Australia', countryCode: 'au', languageCode: 'en' },
+  { name: 'Auckland, Auckland, New Zealand', countryCode: 'nz', languageCode: 'en' },
+
+  // Middle East & Asia
   { name: 'Dubai, Dubai, United Arab Emirates', countryCode: 'ae', languageCode: 'en' },
+  { name: 'Abu Dhabi, Abu Dhabi, United Arab Emirates', countryCode: 'ae', languageCode: 'en' },
   { name: 'Singapore, Singapore', countryCode: 'sg', languageCode: 'en' },
+  { name: 'Tokyo, Tokyo, Japan', countryCode: 'jp', languageCode: 'ja' },
+  { name: 'Kuala Lumpur, Federal Territory of Kuala Lumpur, Malaysia', countryCode: 'my', languageCode: 'en' },
+  { name: 'Bangkok, Bangkok, Thailand', countryCode: 'th', languageCode: 'en' },
+
+  // Europe
+  { name: 'Berlin, Berlin, Germany', countryCode: 'de', languageCode: 'de' },
+  { name: 'Munich, Bavaria, Germany', countryCode: 'de', languageCode: 'de' },
+  { name: 'Frankfurt, Hesse, Germany', countryCode: 'de', languageCode: 'de' },
+  { name: 'Paris, Île-de-France, France', countryCode: 'fr', languageCode: 'fr' },
+  { name: 'Madrid, Community of Madrid, Spain', countryCode: 'es', languageCode: 'es' },
+  { name: 'Barcelona, Catalonia, Spain', countryCode: 'es', languageCode: 'es' },
+  { name: 'Rome, Lazio, Italy', countryCode: 'it', languageCode: 'it' },
+  { name: 'Milan, Lombardy, Italy', countryCode: 'it', languageCode: 'it' },
+  { name: 'Amsterdam, North Holland, Netherlands', countryCode: 'nl', languageCode: 'en' },
+  { name: 'Dublin, County Dublin, Ireland', countryCode: 'ie', languageCode: 'en' }
 ];
+
+/**
+ * Filter curated locations based on user input for real-time autocomplete
+ */
+export function filterCuratedLocations(query: string, maxResults: number = 8): CuratedLocation[] {
+  const clean = query.trim().toLowerCase();
+  if (!clean) {
+    return CURATED_LOCATIONS.slice(0, maxResults);
+  }
+  return CURATED_LOCATIONS.filter((loc) => {
+    return loc.name.toLowerCase().includes(clean);
+  }).slice(0, maxResults);
+}
 
 /**
  * Common popular country selections with gl code and primary language

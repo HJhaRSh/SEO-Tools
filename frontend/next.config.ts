@@ -17,6 +17,20 @@ const nextConfig: NextConfig = {
   // Prevent Next.js from bundling native-binary or node-only packages — they must be loaded at runtime
   serverExternalPackages: ['@sparticuz/chromium', 'playwright-core', 'unzipper', 'archiver'],
 
+  // Narrow serverless function tracing: exclude non-runtime GUI assets, types, docs, and map files
+  outputFileTracingExcludes: {
+    '*': [
+      'node_modules/playwright-core/lib/vite/**',
+      'node_modules/playwright-core/types/**',
+      'node_modules/@swc/core*/**',
+      'node_modules/@esbuild/**',
+      'node_modules/typescript/**',
+      'node_modules/**/*.md',
+      'node_modules/**/*.d.ts',
+      'node_modules/**/*.map',
+    ],
+  },
+
   async rewrites() {
     // Only configure Next.js proxy rewrites if a backend target is defined.
     // In production on Vercel where vercel.json routes /api directly to the Express backend service,

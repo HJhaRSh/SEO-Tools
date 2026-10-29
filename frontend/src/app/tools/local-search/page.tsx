@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ToolLayout from '@/components/ToolLayout';
 import {
   generateLocalSearchResults,
@@ -8,6 +8,13 @@ import {
   POPULAR_COUNTRIES,
   POPULAR_LANGUAGES
 } from '@/lib/seo/localSearchService';
+
+interface LocationSuggestion {
+  canonicalName: string;
+  title: string;
+  subtitle: string;
+  countryCode: string;
+}
 
 export default function LocalSearchTool() {
   // Primary Form State
@@ -23,12 +30,108 @@ export default function LocalSearchTool() {
   // Active Embedded Viewer View
   const [activeTab, setActiveTab] = useState<'search' | 'maps'>('search');
   const [deviceViewport, setDeviceViewport] = useState<'desktop' | 'mobile'>('desktop');
-  const [queryMode, setQueryMode] = useState<'location_intent' | 'strict_uule'>('location_intent');
+  const [queryMode, setQueryMode] = useState<'strict_uule' | 'location_intent'>('strict_uule');
 
   // Execution & Feedback State
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LocalSearchResult | null>(null);
   const [copiedType, setCopiedType] = useState<'search' | 'maps' | null>(null);
+
+  // Live Location Search Autocomplete State (Queries dynamic locations as user types)
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const locationWrapperRef = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Fetch real-time matching locations as user types (debounced, min 2 chars, never preloaded)
+  useEffect(() => {
+    const trimmed = location.trim();
+    if (trimmed.length < 2) {
+      setLocationSuggestions([]);
+      setIsLoadingLocations(false);
+      setShowLocationDropdown(false);
+      return;
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    debounceTimerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      setIsLoadingLocations(true);
+
+      try {
+        const res = await fetch(`/api/seo/local-search/locations?q=${encodeURIComponent(trimmed)}`, {
+          signal: controller.signal
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { locations?: LocationSuggestion[] };
+          const results = data.locations || [];
+          setLocationSuggestions(results);
+          setShowLocationDropdown(results.length > 0);
+          setSelectedSuggestionIndex(-1);
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        setLocationSuggestions([]);
+      } finally {
+        setIsLoadingLocations(false);
+      }
+    }, 280);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [location]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (locationWrapperRef.current && !locationWrapperRef.current.contains(event.target as Node)) {
+        setShowLocationDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectLocation = (loc: LocationSuggestion) => {
+    setLocation(loc.canonicalName);
+    if (loc.countryCode) {
+      setCountryCode(loc.countryCode);
+    }
+    setShowLocationDropdown(false);
+    setSelectedSuggestionIndex(-1);
+    setLocationSuggestions([]);
+  };
+
+  const handleLocationKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showLocationDropdown || locationSuggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedSuggestionIndex((prev) => (prev < locationSuggestions.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : locationSuggestions.length - 1));
+    } else if (e.key === 'Enter' && selectedSuggestionIndex >= 0) {
+      e.preventDefault();
+      handleSelectLocation(locationSuggestions[selectedSuggestionIndex]);
+    } else if (e.key === 'Escape') {
+      setShowLocationDropdown(false);
+    }
+  };
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -177,7 +280,7 @@ export default function LocalSearchTool() {
             </p>
           </div>
 
-          {/* Location Input & Curated Suggestions */}
+          {/* Location Input with Live Autocomplete Dropdown */}
           <div className="input-group mb-4">
             <div className="flex items-center justify-between mb-1.5">
               <label className="label mb-0" htmlFor="local-search-location">
@@ -185,17 +288,107 @@ export default function LocalSearchTool() {
               </label>
               <span className="text-xs text-slate-400 font-medium">Canonical City / Region / Country</span>
             </div>
-            <input
-              id="local-search-location"
-              type="text"
-              className="input font-medium"
-              placeholder="e.g. Ahmednagar, Maharashtra, India or Mumbai, Maharashtra, India"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              maxLength={200}
-            />
+
+            <div className="relative" ref={locationWrapperRef}>
+              <div className="relative">
+                <input
+                  id="local-search-location"
+                  type="text"
+                  autoComplete="off"
+                  className="input font-medium pr-10"
+                  placeholder="Type any neighborhood, city, or state (e.g. Bandra, Mumbai, Whitefield, London...)"
+                  value={location}
+                  onChange={(e) => {
+                    setLocation(e.target.value);
+                    setSelectedSuggestionIndex(-1);
+                  }}
+                  onFocus={() => {
+                    if (location.trim().length >= 2 && locationSuggestions.length > 0) {
+                      setShowLocationDropdown(true);
+                    }
+                  }}
+                  onKeyDown={handleLocationKeyDown}
+                  maxLength={200}
+                />
+                {isLoadingLocations ? (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <svg className="animate-spin h-4 w-4 text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </span>
+                ) : location ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocation('');
+                      setLocationSuggestions([]);
+                      setShowLocationDropdown(false);
+                      setSelectedSuggestionIndex(-1);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+                    title="Clear location"
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">
+                    📍
+                  </span>
+                )}
+              </div>
+
+              {/* Autocomplete Dropdown - dynamic to user's search */}
+              {showLocationDropdown && location.trim().length >= 2 && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto divide-y divide-slate-100">
+                  <div className="px-3 py-1.5 bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between border-b border-slate-100">
+                    <span>Locations for &quot;{location.trim()}&quot;</span>
+                    {isLoadingLocations ? (
+                      <span className="text-emerald-600 font-normal">Searching...</span>
+                    ) : (
+                      <span>Use ↑↓ and Enter</span>
+                    )}
+                  </div>
+                  {locationSuggestions.map((loc, idx) => {
+                    const isSelected = idx === selectedSuggestionIndex;
+
+                    return (
+                      <button
+                        key={`${loc.canonicalName}-${idx}`}
+                        type="button"
+                        onClick={() => handleSelectLocation(loc)}
+                        className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 transition-colors text-xs ${
+                          isSelected ? 'bg-emerald-50 text-emerald-950 font-medium' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-emerald-600 text-sm shrink-0">📍</span>
+                          <span className="truncate">
+                            <strong className="text-slate-900 font-bold">{loc.title}</strong>
+                            {loc.subtitle && <span className="text-slate-500 ml-1">, {loc.subtitle}</span>}
+                          </span>
+                        </div>
+                        {loc.countryCode && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                              {loc.countryCode}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {locationSuggestions.length === 0 && !isLoadingLocations && (
+                    <div className="p-3 text-xs text-slate-500 text-center">
+                      No matching locations found for &quot;{location.trim()}&quot;. Custom query will be used.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <p className="text-xs text-slate-500 mt-1.5">
-              💡 <strong>Pro-Tip for Google UULE:</strong> Google&apos;s location database requires full canonical format: <code>City, State, Country</code> (e.g. <strong>Ahmednagar, Maharashtra, India</strong>). Appending the country ensures Google overrides your physical IP instead of falling back to your local city.
+              💡 <strong>Pro-Tip for Google UULE:</strong> Choose from the dropdown or enter <code>City, State, Country</code> (e.g. <strong>Ahmednagar, Maharashtra, India</strong>). Appending the country ensures Google overrides your physical IP instead of falling back to your local city.
             </p>
           </div>
 
@@ -399,27 +592,27 @@ export default function LocalSearchTool() {
                   <span className="text-[10px] text-slate-400 uppercase px-1.5 hidden sm:inline">Strategy:</span>
                   <button
                     type="button"
-                    onClick={() => setQueryMode('location_intent')}
-                    className={`px-2.5 py-1 rounded-lg transition-all text-xs ${
-                      queryMode === 'location_intent'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Forces local map pack for the target city by pairing canonical UULE with explicit local query intent"
-                  >
-                    📍 Force Local Pack ({result.searchLocation.split(',')[0].trim()})
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setQueryMode('strict_uule')}
                     className={`px-2.5 py-1 rounded-lg transition-all text-xs ${
                       queryMode === 'strict_uule'
                         ? 'bg-emerald-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
-                    title="Sends pure keyword with UULE parameter only"
+                    title="Searches the exact keyword unmodified (e.g. 'dentist') while applying location strictly via Google's UULE parameter"
                   >
-                    🏷️ Pure UULE Only
+                    🏷️ Exact Keyword Only (UULE)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQueryMode('location_intent')}
+                    className={`px-2.5 py-1 rounded-lg transition-all text-xs ${
+                      queryMode === 'location_intent'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Appends the city name to the query keyword (e.g. 'dentist in Mumbai') to test explicit local intent queries"
+                  >
+                    📍 Append City ({result.searchLocation.split(',')[0].trim()})
                   </button>
                 </div>
               )}

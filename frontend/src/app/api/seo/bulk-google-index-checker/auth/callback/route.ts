@@ -8,6 +8,7 @@ import {
 } from '@/lib/seo/bulk-google-index-checker/sessionUtils';
 import {
   getGoogleConfig,
+  getTrustedOrigin,
   exchangeCodeForTokens,
 } from '@/lib/seo/bulk-google-index-checker/gscService';
 
@@ -17,9 +18,11 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const forwardedHost = req.headers.get('x-forwarded-host');
   const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
-  const origin = forwardedHost ? `${forwardedProto}://${forwardedHost.split(',')[0].trim()}` : req.nextUrl.origin;
-  const config = getGoogleConfig(origin);
-  const redirectTarget = new URL('/tools/bulk-google-index-checker', `${origin}${req.nextUrl.pathname}`);
+  const candidate = forwardedHost ? `${forwardedProto}://${forwardedHost.split(',')[0].trim()}` : req.nextUrl.origin;
+  const isVercelHost = candidate.includes('vercel.app') || req.nextUrl.origin.includes('vercel.app');
+  const trustedOrigin = getTrustedOrigin(candidate);
+  const config = getGoogleConfig(isVercelHost ? req.nextUrl.origin : trustedOrigin, { allowVercelRollback: isVercelHost });
+  const redirectTarget = new URL('/tools/bulk-google-index-checker', trustedOrigin);
 
   if (!config) {
     redirectTarget.searchParams.set('error', 'OAUTH_NOT_CONFIGURED');
