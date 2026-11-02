@@ -25,6 +25,7 @@ export interface ToolSeoData {
   canonical: string;
   category: string;
   softwareCategory: string;
+  keywords?: string[];
   features: string[];
   faqs: ToolFaqItem[];
 }
@@ -673,10 +674,23 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     slug: 'page-focus-analyzer',
     name: 'AI Page Focus & Semantic Relevance Analyzer',
     metaTitle: 'AI Page Focus & Semantic Relevance Analyzer | Indian Marketers',
-    metaDescription: 'Analyse webpage topics, measure semantic relevance, compare competitors and discover AI-powered content improvements with high-dimensional vector embeddings.',
+    metaDescription: 'Analyze webpage topics, measure semantic relevance, evaluate search intent, and benchmark competitor content using 3072-dimensional vector embeddings and AI recommendations.',
     canonical: `${TOOLS_BASE_URL}/page-focus-analyzer`,
     category: 'Content & Semantic SEO',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'page focus analyzer',
+      'semantic seo tool',
+      'topic relevance checker',
+      'search intent analysis',
+      'competitor content comparison',
+      'gemini embedding seo',
+      'content gap analyzer',
+      'topical depth analysis',
+      'passage ranking analyzer',
+      'on page semantic seo',
+      'ai content audit tool'
+    ],
     features: [
       'Automatic organic primary and secondary topic detection with centrality scoring',
       'Auditable 6-component Indian Marketers Topic Relevance Index (0–100)',
@@ -874,6 +888,7 @@ export function getToolMetadata(slug: string): Metadata {
   return {
     title: tool.metaTitle,
     description: tool.metaDescription,
+    keywords: tool.keywords || [tool.name, 'SEO Tool', 'Indian Marketers', 'Technical SEO'],
     alternates: {
       canonical: tool.canonical
     },

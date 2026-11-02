@@ -33,6 +33,7 @@ import {
 } from './lib/seo/page-focus/cacheService';
 import {
   checkRateLimit,
+  checkRateLimitAsync,
   getRateLimitConfig,
   resetRateLimits,
 } from './lib/seo/page-focus/rateLimiter';
@@ -486,6 +487,23 @@ test('checkRateLimit allows requests up to configured limit', () => {
   // Different IP should still be allowed
   const diffIp = checkRateLimit('198.51.100.2');
   assert.strictEqual(diffIp.allowed, true);
+  resetRateLimits();
+});
+
+test('checkRateLimitAsync falls back to memory safely and supports strict distributed enforcement', async () => {
+  resetRateLimits();
+  // 1. Unconfigured Redis uses local memory fallback safely
+  const res = await checkRateLimitAsync('198.51.100.99', 1);
+  assert.strictEqual(res.allowed, true);
+  assert.strictEqual(res.storage, 'local-instance');
+
+  // 2. Strict distributed mode fails closed when Redis is not provided
+  process.env.PAGE_FOCUS_ENFORCE_DISTRIBUTED_QUOTA = 'true';
+  const strictRes = await checkRateLimitAsync('198.51.100.100', 1);
+  assert.strictEqual(strictRes.allowed, false);
+  assert(strictRes.reason?.includes('Distributed quota enforcement requires'));
+
+  delete process.env.PAGE_FOCUS_ENFORCE_DISTRIBUTED_QUOTA;
   resetRateLimits();
 });
 

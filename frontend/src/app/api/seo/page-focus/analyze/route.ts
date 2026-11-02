@@ -101,12 +101,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let semanticSimilarityScore: number | null = null;
   let semanticStatus: ComponentStatus = 'failed';
 
-  if (targetTopic) {
-    // Generate real vector embeddings using gemini-embedding-2 for target topic and page sections
+  const effectiveTopic = targetTopic || (aiOutput?.primaryTopic?.name !== 'Unknown' ? aiOutput?.primaryTopic?.name : null) || page.h1 || page.title || null;
+
+  if (effectiveTopic) {
+    // Generate real vector embeddings using gemini-embedding-2 for effective topic and page sections
     try {
       if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
         const textsToEmbed = [
-          targetTopic,
+          effectiveTopic,
           ...page.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 1000)),
         ];
         const vectors = await generateEmbeddings(textsToEmbed);
@@ -124,7 +126,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             }
           }
 
-          if (sectionSimilarities.length > 0) {
+          if (sectionSimilarities.length > 0 && targetTopic) {
             // Aggregate top 5 sections for overall semantic similarity
             const sorted = [...sectionSimilarities].sort((a, b) => b - a);
             const top5 = sorted.slice(0, Math.min(5, sorted.length));
@@ -135,15 +137,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     } catch (embErr) {
       console.warn('Real embedding generation failed:', embErr);
-      semanticSimilarityScore = null;
-      semanticStatus = 'failed';
+      if (targetTopic) {
+        semanticSimilarityScore = null;
+        semanticStatus = 'failed';
+      }
     }
 
-    if (!semanticSimilarityScore && semanticSimilarityScore !== 0) {
+    if (targetTopic && !semanticSimilarityScore && semanticSimilarityScore !== 0) {
       missingComponents.push('Semantic Vector Similarity (Embeddings)');
     }
 
-    const headingAlignment = computeHeadingAlignmentScore(targetTopic, page.headings);
+    const topicForHeadings = targetTopic || effectiveTopic;
+    const headingAlignment = topicForHeadings ? computeHeadingAlignmentScore(topicForHeadings, page.headings) : 0;
     const headingStatus: ComponentStatus = 'available';
 
     let topicalCoherence: number | null = null;
@@ -238,13 +243,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const vecScore = sectionSimilarityMap.get(s.id);
       const combinedScore = vecScore !== undefined && aiFinding
         ? Math.round(vecScore * 0.6 + aiFinding.topicAlignmentScore * 0.4)
-        : (vecScore !== undefined ? vecScore : (aiFinding?.topicAlignmentScore || 0));
+        : (vecScore !== undefined ? vecScore : (aiFinding ? aiFinding.topicAlignmentScore : 0));
 
       let alignmentLabel: 'strong' | 'moderate' | 'weak' | 'off-topic' = 'moderate';
       if (combinedScore >= 75) alignmentLabel = 'strong';
       else if (combinedScore >= 50) alignmentLabel = 'moderate';
       else if (combinedScore >= 25) alignmentLabel = 'weak';
       else alignmentLabel = 'off-topic';
+
+      const defaultExplanation = vecScore !== undefined
+        ? `Section evaluated via 3072-dimensional semantic embeddings (calibrated relevance: ${combinedScore}/100).`
+        : 'Section content analyzed for topical consistency and semantic focus.';
 
       return {
         sectionId: s.id,
@@ -254,7 +263,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         stronglyCoveredConcepts: aiFinding?.stronglyCoveredConcepts || [],
         weaklyCoveredConcepts: aiFinding?.weaklyCoveredConcepts || [],
         missingContext: aiFinding?.missingContext || null,
-        explanation: aiFinding?.explanation || `Section evaluated via 3072-dimensional semantic embeddings (calibrated relevance: ${combinedScore}/100).`,
+        explanation: aiFinding?.explanation || defaultExplanation,
         recommendation: aiFinding?.recommendation || null,
       };
     }),

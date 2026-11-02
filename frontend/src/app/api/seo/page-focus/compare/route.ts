@@ -105,15 +105,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const ourPage = ourPageResult.value;
   const competitorPage = compPageResult.value;
 
-  // Run AI analysis on both in parallel
-  const [ourAI, compAI] = await Promise.allSettled([
-    runAIAnalysis({ page: ourPage, targetTopic }),
-    runAIAnalysis({ page: competitorPage, targetTopic }),
-  ]);
+  // Run AI analysis on both pages sequentially to protect free-tier concurrency limits
+  const ourAI = await runAIAnalysis({ page: ourPage, targetTopic });
+  const compAI = await runAIAnalysis({ page: competitorPage, targetTopic });
 
-  const ourAIOutput = ourAI.status === 'fulfilled' ? ourAI.value.output : null;
-  const compAIOutput = compAI.status === 'fulfilled' ? compAI.value.output : null;
-  const aiProvider = ourAI.status === 'fulfilled' ? ourAI.value.provider : 'none';
+  const ourAIOutput = ourAI.output;
+  const compAIOutput = compAI.output;
+  const aiProvider = ourAI.provider !== 'none' ? ourAI.provider : compAI.provider;
 
   // Generate real vector embeddings for target topic and both pages' sections
   let ourEmbeddingSim: number | null = null;

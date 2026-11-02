@@ -25,7 +25,7 @@ export function getGeminiConfig(): GeminiProviderConfig {
   }
   return {
     apiKey,
-    model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
     embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2',
     timeoutMs: 60000,
   };
@@ -33,7 +33,7 @@ export function getGeminiConfig(): GeminiProviderConfig {
 
 // Define the Gemini response schema using the Type enum from @google/genai
 // This enforces structured JSON output directly from the model
-const RESPONSE_SCHEMA = {
+export const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     pageSummary: { type: Type.STRING },
@@ -178,11 +178,15 @@ export async function analyzeWithGemini(params: {
     extractionNote: params.page.extractionNote,
   });
 
-  // Configurable primary reasoning model: defaults to sustained, fast gemini-3.6-flash, or configurable via GEMINI_MODEL (e.g. gemini-3.8-flash)
-  const primaryModel = config.model || 'gemini-3.6-flash';
-  // If primary is 3.6, fallback is 3.8-flash; if primary is 3.8, fallback is 3.6-flash
-  const fallbackModel = primaryModel === 'gemini-3.6-flash' ? 'gemini-3.8-flash' : 'gemini-3.6-flash';
-  const candidateModels = [primaryModel, fallbackModel].filter((m, idx, arr) => arr.indexOf(m) === idx);
+  // Configurable primary reasoning model: defaults to stable gemini-3.1-flash-lite, with verified fallbacks
+  const primaryModel = config.model || 'gemini-3.1-flash-lite';
+  const candidateModels = [
+    primaryModel,
+    'gemini-3.1-flash-lite',
+    'gemini-3.1-flash-lite-preview',
+    'gemini-3-flash-preview',
+    'gemini-3.8-flash',
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
   let responseText: string | undefined;
   let selectedModelUsed: string = primaryModel;
@@ -320,12 +324,28 @@ export async function analyzeWithGemini(params: {
   const validSectionIds = new Set(params.page.sections.map(s => s.id));
   const validateSectionIds = (ids: string[]) => ids.filter(id => validSectionIds.has(id));
   
-  // Clean up any hallucinated section IDs
+  // Clean up any hallucinated section IDs and normalize 0-1 float scores to 0-100 integers
+  const normalizeScore = (val: unknown): number => {
+    const num = typeof val === 'number' ? val : parseFloat(String(val));
+    if (isNaN(num)) return 0;
+    if (num > 0 && num <= 1) return Math.round(num * 100);
+    return Math.min(100, Math.max(0, Math.round(num)));
+  };
+
   const output = result.data;
+  output.primaryTopic.centralityScore = normalizeScore(output.primaryTopic.centralityScore);
   output.primaryTopic.supportingSectionIds = validateSectionIds(output.primaryTopic.supportingSectionIds);
   output.secondaryTopics = output.secondaryTopics.map(t => ({
     ...t,
+    centralityScore: normalizeScore(t.centralityScore),
     supportingSectionIds: validateSectionIds(t.supportingSectionIds),
+  }));
+  output.aiScoreComponents.searchIntentAlignment = normalizeScore(output.aiScoreComponents.searchIntentAlignment);
+  output.aiScoreComponents.topicalCoverage = normalizeScore(output.aiScoreComponents.topicalCoverage);
+  output.aiScoreComponents.supportingContextDepth = normalizeScore(output.aiScoreComponents.supportingContextDepth);
+  output.sectionFindings = output.sectionFindings.map(f => ({
+    ...f,
+    topicAlignmentScore: normalizeScore(f.topicAlignmentScore),
   }));
 
   // Recommendation Evidence Grounding Verification:

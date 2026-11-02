@@ -250,7 +250,7 @@ export const AIAnalysisOutputSchema = z.object({
     expectedUserBenefit: z.string(),
     confidenceStatus: z.enum(['evidence-based', 'inferred', 'requires-verification']),
   })).min(0).max(10),
-  executiveSummary: z.string().nullable(),
+  executiveSummary: z.string().nullable().optional().default(null),
   aiScoreComponents: z.object({
     searchIntentAlignment: z.number().min(0).max(100),
     topicalCoverage: z.number().min(0).max(100),

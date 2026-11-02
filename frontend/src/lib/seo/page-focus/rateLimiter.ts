@@ -194,33 +194,33 @@ export async function checkRateLimitAsync(ip: string, modelUnitsCost: number = 1
         };
       }
     } catch (err) {
-      if (process.env.NODE_ENV === 'production') {
+      if (process.env.PAGE_FOCUS_ENFORCE_DISTRIBUTED_QUOTA === 'true' || process.env.PAGE_FOCUS_FAIL_CLOSED === 'true') {
         return {
           allowed: false,
           remainingMinute: 0,
           remainingDay: 0,
           retryAfterMs: 30000,
-          reason: 'Distributed quota enforcement service temporarily unavailable. Denying request in production to prevent unbounded API quota consumption.',
+          reason: 'Distributed quota enforcement service temporarily unavailable. Denying request because PAGE_FOCUS_ENFORCE_DISTRIBUTED_QUOTA is enabled.',
           globalBudgetRemaining: 0,
           storage: 'distributed-redis',
         };
       }
       console.warn('Distributed Redis rate limiter failed, falling back to local memory:', err);
     }
-  } else if (process.env.NODE_ENV === 'production') {
-    // In production, refuse silent fallback to ephemeral process memory
+  } else if (process.env.PAGE_FOCUS_ENFORCE_DISTRIBUTED_QUOTA === 'true') {
+    // When strict distributed quota enforcement is explicitly mandated in multi-instance environments
     return {
       allowed: false,
       remainingMinute: 0,
       remainingDay: 0,
       retryAfterMs: 60000,
-      reason: 'Distributed quota enforcement requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in production. In-memory fallback is disabled.',
+      reason: 'Distributed quota enforcement requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN when PAGE_FOCUS_ENFORCE_DISTRIBUTED_QUOTA is enabled. In-memory fallback is disabled.',
       globalBudgetRemaining: 0,
       storage: 'distributed-redis',
     };
   }
 
-  // 2. Concurrency-Safe Local Memory Fallback (development, test, and non-production environments)
+  // 2. Concurrency-Safe Local Memory Fallback (development, test, and standalone/unconfigured environments)
   return checkRateLimit(ip, modelUnitsCost);
 }
 
