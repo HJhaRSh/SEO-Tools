@@ -17,8 +17,8 @@ export interface GeminiProviderConfig {
 }
 
 export function getGeminiConfig(): GeminiProviderConfig {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is not set');
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY (or GOOGLE_API_KEY) environment variable is not set');
   return {
     apiKey,
     model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview',
