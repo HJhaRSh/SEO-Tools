@@ -117,6 +117,9 @@ export default function PageFocusAnalyzerPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        if (res.status === 429) {
+          throw new Error(errData.error || 'Rate limit reached (5 scans/min or 50 scans/day). Please pause for a moment before trying again.');
+        }
         throw new Error(errData.error || `Server returned HTTP ${res.status}`);
       }
 
@@ -200,6 +203,11 @@ export default function PageFocusAnalyzerPage() {
             'Keyword density only counts exact word matches, which leads to artificial keyword stuffing. Our tool uses 3072-dimensional neural embeddings and generative AI to understand meaning, synonyms, related entities, topical breadth, and user search intent regardless of exact phrasing.',
         },
         {
+          question: 'What are the usage and rate limits for this analyzer?',
+          answer:
+            'To ensure fast, reliable performance and fair access for all users, each IP address is allocated 5 analyses per minute and up to 50 analyses per day. Cached reports (valid for 1 hour) do not consume additional quota.',
+        },
+        {
           question: 'Can I analyze competitors targeting the same keyword?',
           answer:
             'Yes. By providing a competitor URL in Competitor mode, both pages are analyzed symmetrically under identical scoring parameters. The system highlights topics the competitor covers that you miss (content gaps), areas you cover better (advantages), and section-by-section semantic alignment.',
@@ -220,10 +228,16 @@ export default function PageFocusAnalyzerPage() {
         {/* Input Panel */}
         <div className="bg-white rounded-2xl border border-[var(--im-border)] p-5 md:p-6 shadow-sm">
           <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-            <h2 className="text-base font-bold text-[var(--im-heading)] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#4caf50]"></span>
-              Webpage &amp; Target Topic Input
-            </h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-base font-bold text-[var(--im-heading)] flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#4caf50]"></span>
+                Webpage &amp; Target Topic Input
+              </h2>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-medium rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Quota: <strong>5 scans/min</strong> · <strong>50 scans/day</strong> per IP</span>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => setIsManualText(!isManualText)}
@@ -304,15 +318,48 @@ export default function PageFocusAnalyzerPage() {
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
-                <span className="font-bold">Error:</span>
-                <span>{error}</span>
+              <div
+                className={`p-3.5 rounded-xl text-xs flex items-start gap-2.5 ${
+                  error.toLowerCase().includes('rate limit')
+                    ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                    : 'bg-red-50 border border-red-200 text-red-700'
+                }`}
+              >
+                {error.toLowerCase().includes('rate limit') ? (
+                  <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                ) : (
+                  <span className="font-bold shrink-0">Error:</span>
+                )}
+                <div className="flex-1">
+                  <div className="font-bold">
+                    {error.toLowerCase().includes('rate limit') ? 'Rate Limit Reached' : 'Analysis Notice'}
+                  </div>
+                  <div className="mt-0.5">{error}</div>
+                  {error.toLowerCase().includes('rate limit') && (
+                    <div className="text-[11px] text-amber-700 mt-1.5 font-medium">
+                      Tip: Each IP is allowed 5 scans per minute and 50 per day to ensure fair server capacity. Please wait a moment before running another scan.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <div className="text-xs text-[var(--im-text-muted)]">
-                {competitorUrl ? 'Mode: Competitor Comparison' : targetTopic ? 'Mode: Topic Relevance & AI Analysis' : 'Mode: Automatic Topic Detection'}
+            <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
+              <div className="flex items-center gap-2 text-xs text-[var(--im-text-muted)] flex-wrap">
+                <span className="font-medium text-gray-700">
+                  {competitorUrl ? 'Mode: Competitor Comparison' : targetTopic ? 'Mode: Topic Relevance & AI Analysis' : 'Mode: Automatic Topic Detection'}
+                </span>
+                {report?.rateLimit ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[11px]">
+                    Remaining quota: <strong>{report.rateLimit.remainingMinute}/{report.rateLimit.perMinute}</strong> this min · <strong>{report.rateLimit.remainingDay}/{report.rateLimit.perDay}</strong> today
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-gray-400">
+                    · Fair Usage Quota: 5/min, 50/day
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2">

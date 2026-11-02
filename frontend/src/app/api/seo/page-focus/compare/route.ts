@@ -11,7 +11,7 @@ import {
 } from '@/lib/seo/page-focus/scoringEngine';
 import { runAIAnalysis } from '@/lib/seo/page-focus/aiProviderFactory';
 import { generateEmbeddings } from '@/lib/seo/page-focus/geminiProvider';
-import { checkRateLimit } from '@/lib/seo/page-focus/rateLimiter';
+import { checkRateLimit, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
 import { SCORING_VERSION, PROMPT_VERSION } from '@/lib/seo/page-focus/types';
 import type { PageFocusReport, ScoreComponents, CompetitorComparison } from '@/lib/seo/page-focus/types';
 import crypto from 'crypto';
@@ -249,7 +249,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       'Section-to-section comparison uses AI classifications, not embedding-based alignment in this version.',
     ],
     aiAvailable: ourAIOutput !== null,
+    rateLimit: {
+      remainingMinute: rateCheck.remainingMinute,
+      remainingDay: rateCheck.remainingDay,
+      perMinute: getRateLimitConfig().perMinute,
+      perDay: getRateLimitConfig().perDay,
+    },
   };
 
-  return NextResponse.json(report);
+  return NextResponse.json(report, {
+    headers: {
+      'X-RateLimit-Limit-Minute': String(getRateLimitConfig().perMinute),
+      'X-RateLimit-Remaining-Minute': String(rateCheck.remainingMinute),
+      'X-RateLimit-Limit-Day': String(getRateLimitConfig().perDay),
+      'X-RateLimit-Remaining-Day': String(rateCheck.remainingDay),
+    },
+  });
 }

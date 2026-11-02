@@ -12,7 +12,7 @@ import {
 import { runAIAnalysis } from '@/lib/seo/page-focus/aiProviderFactory';
 import { generateEmbeddings } from '@/lib/seo/page-focus/geminiProvider';
 import { hashCacheKey, analysisCache } from '@/lib/seo/page-focus/cacheService';
-import { checkRateLimit } from '@/lib/seo/page-focus/rateLimiter';
+import { checkRateLimit, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
 import { SCORING_VERSION, PROMPT_VERSION } from '@/lib/seo/page-focus/types';
 import type { PageFocusReport, ScoreComponents, SectionAnalysis } from '@/lib/seo/page-focus/types';
 import crypto from 'crypto';
@@ -219,10 +219,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       'Indian Marketers Topic Relevance Index reflects this tool\'s methodology, not Google\'s ranking signals.',
     ],
     aiAvailable: aiOutput !== null,
+    rateLimit: {
+      remainingMinute: rateCheck.remainingMinute,
+      remainingDay: rateCheck.remainingDay,
+      perMinute: getRateLimitConfig().perMinute,
+      perDay: getRateLimitConfig().perDay,
+    },
   };
 
   // Cache the result
   analysisCache.set(cacheKey, report);
 
-  return NextResponse.json(report);
+  return NextResponse.json(report, {
+    headers: {
+      'X-RateLimit-Limit-Minute': String(getRateLimitConfig().perMinute),
+      'X-RateLimit-Remaining-Minute': String(rateCheck.remainingMinute),
+      'X-RateLimit-Limit-Day': String(getRateLimitConfig().perDay),
+      'X-RateLimit-Remaining-Day': String(rateCheck.remainingDay),
+    },
+  });
 }

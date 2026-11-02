@@ -157,6 +157,14 @@ export interface PageFocusReport {
   // Limitations
   limitations: string[];
   aiAvailable: boolean;
+
+  // Rate Limiting
+  rateLimit?: {
+    remainingMinute: number;
+    remainingDay: number;
+    perMinute: number;
+    perDay: number;
+  };
 }
 
 // Zod schemas for API request validation
