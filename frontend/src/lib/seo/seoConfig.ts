@@ -667,6 +667,44 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
         answer: 'Clicking Disconnect immediately destroys the server session cookie and attempts token revocation with Google. Your authorization token is discarded.'
       }
     ]
+  },
+
+  'page-focus-analyzer': {
+    slug: 'page-focus-analyzer',
+    name: 'AI Page Focus & Semantic Relevance Analyzer',
+    metaTitle: 'AI Page Focus & Semantic Relevance Analyzer | Indian Marketers',
+    metaDescription: 'Analyse webpage topics, measure semantic relevance, compare competitors and discover AI-powered content improvements with high-dimensional vector embeddings.',
+    canonical: `${TOOLS_BASE_URL}/page-focus-analyzer`,
+    category: 'Content & Semantic SEO',
+    softwareCategory: 'DeveloperApplication',
+    features: [
+      'Automatic organic primary and secondary topic detection with centrality scoring',
+      'Auditable 6-component Indian Marketers Topic Relevance Index (0–100)',
+      '3072-dimensional semantic vector embedding analysis via gemini-embedding-2',
+      'Contextual search intent evaluation (informational, commercial, transactional, local)',
+      'Passage-level semantic alignment heatmap with section-by-section scoring',
+      'Symmetrical competitor comparison with topic gap and advantage analysis',
+      'Dynamic generative AI content improvement engine citing verified document evidence',
+      'Downloadable professional PDF reports and raw JSON export'
+    ],
+    faqs: [
+      {
+        question: 'What is the Indian Marketers Topic Relevance Index?',
+        answer: 'It is a transparent, reproducible 0–100 score measuring how effectively a webpage covers a given subject. It evaluates 6 distinct components: Semantic Vector Similarity (35%), Search Intent Alignment (20%), Topical Coverage (20%), Heading & Structural Alignment (10%), Supporting Context Depth (10%), and Topical Coherence (5%).'
+      },
+      {
+        question: 'How is this different from keyword density checkers?',
+        answer: 'Traditional tools merely count exact keyword matches. This analyzer uses 3072-dimensional neural embeddings and generative AI to understand meaning, synonyms, related concepts, topical breadth, and user search intent regardless of exact phrasing.'
+      },
+      {
+        question: 'Can I compare my webpage against a competitor?',
+        answer: 'Yes. Mode 3 provides a side-by-side comparison under identical evaluation rules, identifying content gaps (topics the competitor addresses that you miss), content advantages, and section-by-section alignment.'
+      },
+      {
+        question: 'How does the tool protect against prompt injection on untrusted webpages?',
+        answer: 'Extracted content is quarantined within isolated XML-like data boundaries (<untrusted_webpage_content>) and the AI model is instructed never to execute instructions found in webpage text. All cited section IDs are strictly validated server-side.'
+      }
+    ]
   }
 };
 

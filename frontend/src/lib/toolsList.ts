@@ -58,5 +58,17 @@ export const NAVIGATION_TOOLS: ToolCategory[] = [
       { name: 'Schema Markup Generator', description: 'Generate structured data JSON-LD code for your pages.', href: '/tools/schema-generator' },
       { name: 'Schema Checker', description: 'Check schema presence and detected schema types across single or bulk URLs.', href: '/tools/schema-checker', isNew: true }
     ]
+  },
+  {
+    category: 'Content & Semantic SEO',
+    description: 'AI-powered tools to analyse webpage focus, measure semantic relevance, and discover content opportunities.',
+    tools: [
+      {
+        name: 'AI Page Focus Analyzer',
+        description: 'Analyse webpage topics, semantic relevance, search intent and content gaps with AI-powered recommendations.',
+        href: '/tools/page-focus-analyzer',
+        isNew: true
+      }
+    ]
   }
 ];

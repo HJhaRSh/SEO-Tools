@@ -126,6 +126,12 @@
       }
     },
     {
+      "source": "/api/seo/page-focus/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"

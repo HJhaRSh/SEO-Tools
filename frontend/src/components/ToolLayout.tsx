@@ -129,10 +129,25 @@ const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; de
     { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate and format XML sitemaps to submit unindexed URLs to Google Search Console.' },
     { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Verify that URLs reported as Not Indexed or Crawl Anomaly are not blocked in robots.txt.' },
     { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect whether JavaScript rendering discrepancies prevent Googlebot from indexing page content.' }
+  ],
+  'ai page focus & semantic relevance analyzer': [
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how search crawlers render JavaScript content and compare with source HTML.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview your title tags and meta descriptions in Google search results.' },
+    { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: "Search Google's Knowledge Graph to identify relevant named entities for semantic SEO." }
+  ],
+  'page focus analyzer': [
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how search crawlers render JavaScript content and compare with source HTML.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview your title tags and meta descriptions in Google search results.' },
+    { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: "Search Google's Knowledge Graph to identify relevant named entities for semantic SEO." }
   ]
 };
 
 const RELATED_TOOLS_MAP: Record<string, { name: string; href: string; desc: string }[]> = {
+  'Content & Semantic SEO': [
+    { name: 'AI Page Focus Analyzer', href: '/tools/page-focus-analyzer', desc: 'Analyse webpage topics, semantic relevance, and content improvements.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview search titles and snippets in Google SERPs.' },
+    { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: 'Explore Google Knowledge Graph entities and semantic topic authority.' }
+  ],
   'Crawling & Access': [
     { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect & debug robots.txt rules under RFC 9309.' },
     { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Check if GPTBot, ClaudeBot, and AI crawlers can access your site.' },
