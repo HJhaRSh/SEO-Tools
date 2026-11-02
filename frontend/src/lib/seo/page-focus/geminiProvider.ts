@@ -21,7 +21,7 @@ export function getGeminiConfig(): GeminiProviderConfig {
   if (!apiKey) throw new Error('GEMINI_API_KEY (or GOOGLE_API_KEY) environment variable is not set');
   return {
     apiKey,
-    model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview',
+    model: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
     embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2',
     timeoutMs: 60000,
   };
@@ -158,20 +158,42 @@ export async function analyzeWithGemini(params: {
     extractionNote: params.page.extractionNote,
   });
 
-  const response = await genai.models.generateContent({
-    model: config.model,
-    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      responseMimeType: 'application/json',
-      responseSchema: RESPONSE_SCHEMA,
-      temperature: 0.2,
-      maxOutputTokens: 8192,
-    },
-  });
+  const candidateModels = [config.model, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash']
+    .filter((m, idx, arr) => arr.indexOf(m) === idx);
 
-  const text = response.text;
-  if (!text) throw new Error('Gemini returned empty response');
+  let responseText: string | undefined;
+  let lastError: unknown;
+
+  for (const model of candidateModels) {
+    try {
+      const response = await genai.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          responseSchema: RESPONSE_SCHEMA,
+          temperature: 0.2,
+          maxOutputTokens: 8192,
+        },
+      });
+      if (response.text) {
+        responseText = response.text;
+        break;
+      }
+    } catch (err: any) {
+      lastError = err;
+      const status = err?.status || err?.code || 0;
+      // If quota exceeded (429), model overloaded (503), or not found (404), fall back to next model
+      if (status === 429 || status === 503 || status === 404 || String(err).includes('quota') || String(err).includes('demand')) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  const text = responseText;
+  if (!text) throw (lastError || new Error('Gemini returned empty response'));
   
   let parsed: unknown;
   try {

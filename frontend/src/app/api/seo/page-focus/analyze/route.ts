@@ -86,7 +86,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Generate real vector embeddings using gemini-embedding-2 for target topic and page sections
     let semanticSimilarityScore = 50;
     try {
-      if (process.env.GEMINI_API_KEY) {
+      if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
         const textsToEmbed = [
           targetTopic,
           ...page.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 800)),
