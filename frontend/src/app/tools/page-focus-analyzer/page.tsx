@@ -7,20 +7,6 @@ import { generatePageFocusPdf } from '@/components/page-focus/pdfExporter';
 
 type ActiveTab = 'topics' | 'relevance' | 'competitor' | 'sections' | 'recommendations';
 
-interface ProgressStage {
-  id: string;
-  label: string;
-}
-
-const STAGES: ProgressStage[] = [
-  { id: 'fetch', label: 'Fetching webpage' },
-  { id: 'extract', label: 'Extracting content' },
-  { id: 'topics', label: 'Analysing topics' },
-  { id: 'semantic', label: 'Calculating semantic relevance' },
-  { id: 'ai', label: 'Running AI analysis' },
-  { id: 'report', label: 'Preparing report' },
-];
-
 export default function PageFocusAnalyzerPage() {
   const [url, setUrl] = useState('');
   const [targetTopic, setTargetTopic] = useState('');
@@ -30,7 +16,6 @@ export default function PageFocusAnalyzerPage() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('topics');
   const [isLoading, setIsLoading] = useState(false);
-  const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<PageFocusReport | null>(null);
 
@@ -79,15 +64,6 @@ export default function PageFocusAnalyzerPage() {
     }
 
     setIsLoading(true);
-    setCurrentStageIndex(0);
-
-    // Simulate progress stages realistically
-    const stageInterval = setInterval(() => {
-      setCurrentStageIndex((prev) => {
-        if (prev < STAGES.length - 2) return prev + 1;
-        return prev;
-      });
-    }, 1200);
 
     try {
       let endpoint = '/api/seo/page-focus/analyze';
@@ -112,9 +88,6 @@ export default function PageFocusAnalyzerPage() {
         body: JSON.stringify(payload),
       });
 
-      clearInterval(stageInterval);
-      setCurrentStageIndex(STAGES.length - 1);
-
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         if (res.status === 429) {
@@ -135,7 +108,6 @@ export default function PageFocusAnalyzerPage() {
         setActiveTab('topics');
       }
     } catch (err) {
-      clearInterval(stageInterval);
       setError(err instanceof Error ? err.message : 'Analysis failed. Please check the URL and try again.');
     } finally {
       setIsLoading(false);
@@ -395,41 +367,42 @@ export default function PageFocusAnalyzerPage() {
           </div>
         </div>
 
-        {/* Loading Stepper */}
+        {/* Truthful Indeterminate Loading Indicator */}
         {isLoading && (
-          <div className="bg-white rounded-2xl border border-[var(--im-border)] p-6 shadow-sm">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">
-              Real Analysis in Progress
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {STAGES.map((st, i) => {
-                const isDone = i < currentStageIndex;
-                const isCurrent = i === currentStageIndex;
-                return (
-                  <div
-                    key={st.id}
-                    className={`p-3 rounded-xl border text-center transition-all ${
-                      isDone
-                        ? 'bg-green-50 border-green-200 text-green-800'
-                        : isCurrent
-                        ? 'bg-[#f0fdf4] border-[#4caf50] text-[#2e7d32] font-bold shadow-2xs scale-102'
-                        : 'bg-gray-50 border-gray-200 text-gray-400'
-                    }`}
-                  >
-                    <div className="w-5 h-5 mx-auto mb-1.5 rounded-full flex items-center justify-center text-xs font-black">
-                      {isDone ? '✓' : isCurrent ? '⚡' : i + 1}
-                    </div>
-                    <div className="text-[11px] leading-tight">{st.label}</div>
-                  </div>
-                );
-              })}
+          <div className="bg-white rounded-2xl border border-[var(--im-border)] p-8 shadow-sm text-center">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-50 text-[#4caf50] mb-4">
+              <svg className="animate-spin h-7 w-7" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
             </div>
+            <h3 className="text-sm font-bold text-[var(--im-heading)]">
+              {competitorUrl ? 'Running Live Cross-Page Semantic Comparison' : 'Performing Live Webpage Focus Analysis'}
+            </h3>
+            <p className="text-xs text-[var(--im-text-muted)] mt-2 max-w-md mx-auto leading-relaxed">
+              Extracting clean DOM content, computing 3072-dimensional vector embeddings, and running empirical semantic relevance calibration...
+            </p>
           </div>
         )}
 
         {/* Results Dashboard */}
         {report && !isLoading && (
           <div className="space-y-6">
+            {/* Partial Report Alert Banner (Strict Truth in Reporting) */}
+            {report.isPartialReport && (
+              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 text-xs text-amber-900 flex items-start gap-3 shadow-xs">
+                <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <h4 className="font-bold text-amber-900 text-sm">Partial Analysis Notice</h4>
+                  <p className="mt-0.5 text-amber-800 leading-relaxed">
+                    Some mandatory scoring components were unavailable: <strong>{report.missingComponents.join(', ')}</strong>.
+                    Per our data integrity policy, estimated or fabricated scores are not shown. The available components and section heatmap below remain accurate.
+                  </p>
+                </div>
+              </div>
+            )}
             {/* Top Bar with Export & Overview */}
             <div className="bg-white rounded-2xl border border-[var(--im-border)] p-5 shadow-sm flex items-center justify-between gap-4 flex-wrap">
               <div>
@@ -661,7 +634,7 @@ export default function PageFocusAnalyzerPage() {
             {/* TAB 2: TOPIC RELEVANCE */}
             {activeTab === 'relevance' && (
               <div className="space-y-6">
-                {report.overallRelevanceScore === null ? (
+                {!report.targetTopic ? (
                   <div className="bg-white rounded-2xl border border-[var(--im-border)] p-8 text-center text-gray-500">
                     <p className="text-sm font-semibold">No target topic was specified during scan.</p>
                     <p className="text-xs mt-1 text-gray-400">Enter a target keyword/topic above to calculate the Topic Relevance Index.</p>
@@ -677,7 +650,7 @@ export default function PageFocusAnalyzerPage() {
                           </span>
                           <div className="mt-3 flex items-baseline justify-center md:justify-start gap-2">
                             <span className="text-5xl font-black text-[#2e7d32]">
-                              {report.overallRelevanceScore.toFixed(1)}
+                              {report.overallRelevanceScore !== null ? report.overallRelevanceScore.toFixed(1) : 'N/A'}
                             </span>
                             <span className="text-gray-400 font-bold text-lg">/ 100</span>
                           </div>
@@ -738,12 +711,18 @@ export default function PageFocusAnalyzerPage() {
                                 <span className="text-xs font-bold text-gray-800">
                                   {item.name} <span className="text-gray-400 font-normal">({item.weight})</span>
                                 </span>
-                                <span className="text-xs font-black text-gray-900">{item.val}/100</span>
+                                {item.val !== null ? (
+                                  <span className="text-xs font-black text-gray-900">{item.val}/100</span>
+                                ) : (
+                                  <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                    Unavailable
+                                  </span>
+                                )}
                               </div>
                               <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mb-1.5">
                                 <div
-                                  className="h-full bg-[#4caf50] rounded-full transition-all duration-500"
-                                  style={{ width: `${Math.max(4, item.val)}%` }}
+                                  className={`h-full rounded-full transition-all duration-500 ${item.val !== null ? 'bg-[#4caf50]' : 'bg-gray-300'}`}
+                                  style={{ width: `${item.val !== null ? Math.max(4, item.val) : 0}%` }}
                                 />
                               </div>
                               <p className="text-[11px] text-gray-500 leading-tight">{item.desc}</p>

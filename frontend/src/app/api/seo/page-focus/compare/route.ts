@@ -11,29 +11,82 @@ import {
 } from '@/lib/seo/page-focus/scoringEngine';
 import { runAIAnalysis } from '@/lib/seo/page-focus/aiProviderFactory';
 import { generateEmbeddings } from '@/lib/seo/page-focus/geminiProvider';
-import { checkRateLimit, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
+import { checkRateLimit, extractClientIp, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
 import { SCORING_VERSION, PROMPT_VERSION } from '@/lib/seo/page-focus/types';
-import type { PageFocusReport, ScoreComponents, CompetitorComparison } from '@/lib/seo/page-focus/types';
+import type { PageFocusReport, ScoreComponents, CompetitorComparison, ComponentStatus } from '@/lib/seo/page-focus/types';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
+/**
+ * Checks semantic equivalence between two concepts using token overlap and string normalization.
+ * Recognizes common synonyms (amenities vs facilities, plots vs land parcels, pricing vs rates).
+ */
+function areConceptsEquivalent(a: string, b: string): boolean {
+  const normA = a.trim().toLowerCase();
+  const normB = b.trim().toLowerCase();
+
+  if (normA === normB) return true;
+  if (normA.includes(normB) || normB.includes(normA)) return true;
+
+  // Normalized synonym groups
+  const synonymGroups = [
+    ['amenity', 'amenities', 'facility', 'facilities', 'features'],
+    ['plot', 'plots', 'land', 'parcels', 'property', 'real estate', 'sites'],
+    ['price', 'pricing', 'cost', 'rates', 'payment', 'budget'],
+    ['infrastructure', 'connectivity', 'roads', 'expressway', 'metro', 'highways', 'access'],
+    ['location', 'neighborhood', 'vicinity', 'corridor', 'region'],
+    ['developer', 'builder', 'hoabl', 'promoter'],
+  ];
+
+  const getTokens = (str: string) => str.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const tokensA = getTokens(normA);
+  const tokensB = getTokens(normB);
+
+  // Check synonym group matches
+  for (const group of synonymGroups) {
+    const hasA = tokensA.some(t => group.includes(t));
+    const hasB = tokensB.some(t => group.includes(t));
+    if (hasA && hasB) {
+      // If they share the same semantic topic domain and any other token overlap, consider equivalent
+      const otherA = tokensA.filter(t => !group.includes(t));
+      const otherB = tokensB.filter(t => !group.includes(t));
+      if (otherA.length === 0 || otherB.length === 0 || otherA.some(t => otherB.includes(t))) {
+        return true;
+      }
+    }
+  }
+
+  // Token Jaccard overlap check
+  if (tokensA.length > 0 && tokensB.length > 0) {
+    const setB = new Set(tokensB);
+    const matches = tokensA.filter(t => setB.has(t)).length;
+    const overlap = matches / Math.min(tokensA.length, tokensB.length);
+    if (overlap >= 0.6) return true;
+  }
+
+  return false;
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const ip = extractClientIp(req.headers);
   const rateCheck = checkRateLimit(ip);
   if (!rateCheck.allowed) {
-    return NextResponse.json({ error: 'Rate limit exceeded.' }, { status: 429 });
+    return NextResponse.json(
+      { error: rateCheck.reason || 'Rate limit exceeded.', retryAfterMs: rateCheck.retryAfterMs },
+      { status: 429 }
+    );
   }
 
   let body: unknown;
   try { body = await req.json(); } catch {
-    return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON request body.' }, { status: 400 });
   }
 
   const parsed = CompareRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid request.', details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request parameters.', details: parsed.error.flatten() }, { status: 400 });
   }
 
   const { url, competitorUrl, targetTopic } = parsed.data;
@@ -65,16 +118,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const aiProvider = ourAI.status === 'fulfilled' ? ourAI.value.provider : 'none';
 
   // Generate real vector embeddings for target topic and both pages' sections
-  let ourEmbeddingSim = 50;
-  let compEmbeddingSim = 50;
+  let ourEmbeddingSim: number | null = null;
+  let compEmbeddingSim: number | null = null;
   const sectionComparisons: CompetitorComparison['sectionComparisons'] = [];
 
   try {
     if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
       const allTexts = [
         targetTopic,
-        ...ourPage.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 800)),
-        ...competitorPage.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 800)),
+        ...ourPage.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 1000)),
+        ...competitorPage.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 1000)),
       ];
       const vectors = await generateEmbeddings(allTexts);
       const topicVec = vectors[0];
@@ -142,85 +195,116 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     }
   } catch (embErr) {
-    console.warn('Competitor comparison embedding fallback:', embErr);
+    console.warn('Competitor comparison embedding failed:', embErr);
+    ourEmbeddingSim = null;
+    compEmbeddingSim = null;
   }
 
-  // Compute scores for both pages using identical scoring engine
-  function computePageScore(
+  // Strictly compute page scores — NEVER fabricate missing scores
+  function computeStrictPageScore(
     page: typeof ourPage,
     aiOutput: typeof ourAIOutput,
-    semanticSimScore: number
-  ): { score: number | null; components: ScoreComponents | null } {
+    semanticSimScore: number | null
+  ): { score: number | null; components: ScoreComponents; isComplete: boolean; missing: string[] } {
     const headingAlignment = computeHeadingAlignmentScore(targetTopic, page.headings);
+    const missing: string[] = [];
 
-    if (aiOutput) {
+    const semanticStatus: ComponentStatus = semanticSimScore !== null ? 'available' : 'failed';
+    if (semanticSimScore === null) missing.push('Semantic Embeddings');
+
+    const intentStatus: ComponentStatus = aiOutput ? 'available' : 'failed';
+    const coverageStatus: ComponentStatus = aiOutput ? 'available' : 'failed';
+    const depthStatus: ComponentStatus = aiOutput ? 'available' : 'failed';
+    if (!aiOutput) missing.push('AI Intent & Depth Analysis');
+
+    let topicalCoherence: number | null = null;
+    let coherenceStatus: ComponentStatus = 'failed';
+    if (aiOutput && page.sections.length > 0) {
       const sectionScores = aiOutput.sectionFindings.map(s => s.topicAlignmentScore);
-      const topicalCoherence = computeTopicalCoherence(sectionScores);
-
-      const components: ScoreComponents = {
-        semanticSimilarity: Math.round(semanticSimScore),
-        searchIntentAlignment: Math.round(aiOutput.aiScoreComponents.searchIntentAlignment),
-        topicalCoverage: Math.round(aiOutput.aiScoreComponents.topicalCoverage),
-        headingStructuralAlignment: Math.round(headingAlignment),
-        supportingContextDepth: Math.round(aiOutput.aiScoreComponents.supportingContextDepth),
-        topicalCoherence: Math.round(topicalCoherence),
-      };
-      return { score: computeFinalScore(components), components };
+      topicalCoherence = computeTopicalCoherence(sectionScores);
+      coherenceStatus = 'available';
     }
 
-    // Resilient fallback: compute deterministic score from vector embeddings, headings, and page length
-    const contextDepth = Math.min(100, Math.round((page.wordCount / 800) * 80 + 20));
-    const intentEst = Math.round(semanticSimScore * 0.9);
-    const coverageEst = Math.round((semanticSimScore * 0.7) + (Math.min(10, page.headings.length) * 3));
     const components: ScoreComponents = {
-      semanticSimilarity: Math.round(semanticSimScore),
-      searchIntentAlignment: Math.min(100, Math.max(15, intentEst)),
-      topicalCoverage: Math.min(100, Math.max(15, coverageEst)),
+      semanticSimilarity: semanticSimScore,
+      searchIntentAlignment: aiOutput ? Math.round(aiOutput.aiScoreComponents.searchIntentAlignment) : null,
+      topicalCoverage: aiOutput ? Math.round(aiOutput.aiScoreComponents.topicalCoverage) : null,
       headingStructuralAlignment: Math.round(headingAlignment),
-      supportingContextDepth: Math.min(100, Math.max(15, contextDepth)),
-      topicalCoherence: Math.min(100, Math.max(15, Math.round(semanticSimScore * 0.85))),
+      supportingContextDepth: aiOutput ? Math.round(aiOutput.aiScoreComponents.supportingContextDepth) : null,
+      topicalCoherence,
+      statuses: {
+        semanticSimilarity: semanticStatus,
+        searchIntentAlignment: intentStatus,
+        topicalCoverage: coverageStatus,
+        headingStructuralAlignment: 'available',
+        supportingContextDepth: depthStatus,
+        topicalCoherence: coherenceStatus,
+      },
     };
-    return { score: computeFinalScore(components), components };
+
+    const isComplete = missing.length === 0;
+    const score = isComplete ? computeFinalScore(components) : null;
+
+    return { score, components, isComplete, missing };
   }
 
-  const { score: ourScore, components: ourComponents } = computePageScore(ourPage, ourAIOutput, ourEmbeddingSim);
-  const { score: compScore, components: compComponents } = computePageScore(competitorPage, compAIOutput, compEmbeddingSim);
+  const ourResult = computeStrictPageScore(ourPage, ourAIOutput, ourEmbeddingSim);
+  const compResult = computeStrictPageScore(competitorPage, compAIOutput, compEmbeddingSim);
 
-  // Determine topic gaps and advantages
-  const ourCoveredConcepts = new Set(
-    (ourAIOutput?.topicCoverage || []).filter(c => c.status === 'covered' || c.status === 'partial').map(c => c.concept.toLowerCase())
-  );
-  const compCoveredConcepts = new Set(
-    (compAIOutput?.topicCoverage || []).filter(c => c.status === 'covered' || c.status === 'partial').map(c => c.concept.toLowerCase())
-  );
+  const missingComparisonComponents = [
+    ...ourResult.missing.map(m => `Your Page: ${m}`),
+    ...compResult.missing.map(m => `Competitor Page: ${m}`),
+  ];
+  const isPartialReport = !ourResult.isComplete || !compResult.isComplete;
+
+  // Determine topic gaps and advantages using SEMANTIC EQUIVALENCE
+  const ourRawConcepts = Array.from(new Set(
+    (ourAIOutput?.topicCoverage || []).filter(c => c.status === 'covered' || c.status === 'partial').map(c => c.concept.trim())
+  ));
+  const compRawConcepts = Array.from(new Set(
+    (compAIOutput?.topicCoverage || []).filter(c => c.status === 'covered' || c.status === 'partial').map(c => c.concept.trim())
+  ));
 
   // If one page lacked AI coverage concepts, infer coverage from headings
-  if (compCoveredConcepts.size === 0 && competitorPage.headings.length > 0) {
-    competitorPage.headings.slice(0, 8).forEach(h => compCoveredConcepts.add(h.text.toLowerCase()));
+  if (compRawConcepts.length === 0 && competitorPage.headings.length > 0) {
+    competitorPage.headings.slice(0, 8).forEach(h => compRawConcepts.push(h.text.trim()));
   }
-  if (ourCoveredConcepts.size === 0 && ourPage.headings.length > 0) {
-    ourPage.headings.slice(0, 8).forEach(h => ourCoveredConcepts.add(h.text.toLowerCase()));
+  if (ourRawConcepts.length === 0 && ourPage.headings.length > 0) {
+    ourPage.headings.slice(0, 8).forEach(h => ourRawConcepts.push(h.text.trim()));
   }
 
-  const topicGaps = Array.from(compCoveredConcepts).filter(c => !ourCoveredConcepts.has(c));
-  const ourAdvantages = Array.from(ourCoveredConcepts).filter(c => !compCoveredConcepts.has(c));
+  // Topic Gaps: concepts competitor covers that we DO NOT cover semantically
+  const topicGaps = compRawConcepts.filter(compConcept => {
+    return !ourRawConcepts.some(ourConcept => areConceptsEquivalent(compConcept, ourConcept));
+  });
+
+  // Our Advantages: concepts we cover that competitor DOES NOT cover semantically
+  const ourAdvantages = ourRawConcepts.filter(ourConcept => {
+    return !compRawConcepts.some(compConcept => areConceptsEquivalent(ourConcept, compConcept));
+  });
 
   let verdict = '';
-  if (ourScore !== null && compScore !== null) {
-    const diff = ourScore - compScore;
-    if (Math.abs(diff) < 3) verdict = `Both pages demonstrate highly comparable topical relevance (${ourScore.toFixed(1)} vs ${compScore.toFixed(1)}) under the Indian Marketers Topic Relevance Index.`;
-    else if (diff > 0) verdict = `Your page demonstrates stronger topical relevance (${ourScore.toFixed(1)} vs ${compScore.toFixed(1)}) under the Indian Marketers Topic Relevance Index.`;
-    else verdict = `The competitor page demonstrates stronger topical relevance (${compScore.toFixed(1)} vs ${ourScore.toFixed(1)}) under the Indian Marketers Topic Relevance Index. Note: a higher relevance index does not guarantee search rankings.`;
+  if (ourResult.score !== null && compResult.score !== null) {
+    const diff = ourResult.score - compResult.score;
+    if (Math.abs(diff) < 3) {
+      verdict = `Both pages demonstrate highly comparable topical relevance (${ourResult.score.toFixed(1)} vs ${compResult.score.toFixed(1)}) under the Indian Marketers Topic Relevance Index.`;
+    } else if (diff > 0) {
+      verdict = `Your page demonstrates stronger topical relevance (${ourResult.score.toFixed(1)} vs ${compResult.score.toFixed(1)}) under the Indian Marketers Topic Relevance Index.`;
+    } else {
+      verdict = `The competitor page demonstrates stronger topical relevance (${compResult.score.toFixed(1)} vs ${ourResult.score.toFixed(1)}) under the Indian Marketers Topic Relevance Index. Note: a higher relevance index does not guarantee search rankings.`;
+    }
   } else {
-    verdict = 'Comparison complete with calibrated passage-level semantic alignment.';
+    verdict = `Comparison partial: AI analysis or semantic vector embeddings could not be completed for one or both pages (${missingComparisonComponents.join(', ')}).`;
   }
 
   const competitorComparison: CompetitorComparison = {
     competitorUrl,
-    ourScore,
-    competitorScore: compScore,
-    ourComponents,
-    competitorComponents: compComponents,
+    ourScore: ourResult.score,
+    competitorScore: compResult.score,
+    ourComponents: ourResult.components,
+    competitorComponents: compResult.components,
+    isPartialReport,
+    missingComponents: missingComparisonComponents,
     verdict,
     topicGaps,
     ourAdvantages,
@@ -248,31 +332,37 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     primaryTopic: ourAIOutput ? { ...ourAIOutput.primaryTopic, isPrimary: true } : { name: 'Unknown', centralityScore: 0, isPrimary: true, explanation: 'AI unavailable', supportingSectionIds: [], type: 'central' },
     secondaryTopics: (ourAIOutput?.secondaryTopics || []).map(t => ({ ...t, isPrimary: false })),
     searchIntent: ourAIOutput?.searchIntent || null,
-    overallRelevanceScore: ourScore,
-    scoreComponents: ourComponents,
-    scoreInterpretation: ourScore !== null ? interpretScore(ourScore) : null,
+    overallRelevanceScore: ourResult.score,
+    isPartialReport,
+    missingComponents: missingComparisonComponents,
+    scoreComponents: ourResult.components,
+    scoreInterpretation: ourResult.score !== null ? interpretScore(ourResult.score) : 'Partial Comparison Report',
     topicCoverage: ourAIOutput?.topicCoverage || [],
     contentGaps: ourAIOutput?.contentGaps || [],
-    sectionAnalyses: (ourAIOutput?.sectionFindings || []).map(f => ({
-      sectionId: f.sectionId,
-      heading: ourPage.sections.find(s => s.id === f.sectionId)?.heading || null,
-      topicAlignmentScore: f.topicAlignmentScore,
-      alignmentLabel: f.alignmentLabel,
-      stronglyCoveredConcepts: f.stronglyCoveredConcepts || [],
-      weaklyCoveredConcepts: f.weaklyCoveredConcepts || [],
-      missingContext: f.missingContext || null,
-      explanation: f.explanation,
-      recommendation: f.recommendation || null,
+    sectionAnalyses: ourPage.sections.map(s => ({
+      sectionId: s.id,
+      heading: s.heading || null,
+      topicAlignmentScore: ourEmbeddingSim || 0,
+      alignmentLabel: 'moderate',
+      stronglyCoveredConcepts: [],
+      weaklyCoveredConcepts: [],
+      missingContext: null,
+      explanation: 'Evaluated in competitor comparison mode.',
+      recommendation: null,
     })),
-    recommendations: (ourAIOutput?.recommendations || []).map(r => ({ ...r, existingEvidence: r.existingEvidence || null, suggestedPlacement: r.suggestedPlacement || null })),
+    recommendations: (ourAIOutput?.recommendations || []).map(r => ({
+      ...r,
+      existingEvidence: r.existingEvidence || null,
+      suggestedPlacement: r.suggestedPlacement || null,
+    })),
     executiveSummary: ourAIOutput?.executiveSummary || null,
     competitorReport: competitorComparison,
     limitations: [
-      'Indian Marketers Topic Relevance Index reflects this tool\'s methodology, not Google\'s ranking signals.',
-      'A higher relevance score does not guarantee higher rankings.',
-      'Section-to-section comparison uses AI classifications, not embedding-based alignment in this version.',
+      ...(ourAIOutput?.limitations || []),
+      ...(isPartialReport ? [`Partial Report: ${missingComparisonComponents.join('; ')}`] : []),
+      'Indian Marketers Topic Relevance Index reflects this tool\'s empirical methodology, not Google\'s ranking signals.',
     ],
-    aiAvailable: ourAIOutput !== null,
+    aiAvailable: ourAIOutput !== null && compAIOutput !== null,
     rateLimit: {
       remainingMinute: rateCheck.remainingMinute,
       remainingDay: rateCheck.remainingDay,

@@ -86,6 +86,24 @@ export function generatePageFocusPdf(report: PageFocusReport): void {
 
   y += 32;
 
+  // Partial Audit Alert in PDF if applicable
+  if (report.isPartialReport) {
+    checkPageBreak(18);
+    doc.setFillColor(254, 243, 199); // light amber
+    doc.setDrawColor(245, 158, 11);
+    doc.roundedRect(margin, y, contentWidth, 14, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(180, 83, 9);
+    doc.text('PARTIAL AUDIT NOTICE:', margin + 4, y + 5.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(146, 64, 14);
+    const noticeText = `Missing: ${report.missingComponents.join(', ')}. Estimated fallback scores are omitted to preserve audit integrity.`;
+    doc.text(doc.splitTextToSize(noticeText, contentWidth - 8), margin + 4, y + 10);
+    y += 19;
+  }
+
   // Overall Score Section (if target topic exists)
   if (report.overallRelevanceScore !== null) {
     checkPageBreak(35);
@@ -138,13 +156,17 @@ export function generatePageFocusPdf(report: PageFocusReport): void {
       doc.setTextColor(55, 65, 81);
       doc.text(c.name, margin + 4, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${c.val} / 100`, margin + contentWidth - 20, y, { align: 'right' });
+      const textVal = c.val !== null ? `${c.val} / 100` : 'Unavailable';
+      doc.text(textVal, margin + contentWidth - 20, y, { align: 'right' });
       
       // Mini score bar
+      const numVal = c.val ?? 0;
       doc.setFillColor(229, 231, 235);
       doc.rect(margin + 90, y - 3, 50, 3, 'F');
-      doc.setFillColor(76, 175, 80);
-      doc.rect(margin + 90, y - 3, (c.val / 100) * 50, 3, 'F');
+      if (c.val !== null) {
+        doc.setFillColor(76, 175, 80);
+        doc.rect(margin + 90, y - 3, (numVal / 100) * 50, 3, 'F');
+      }
 
       y += 6;
     }

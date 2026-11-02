@@ -10,23 +10,23 @@ import {
   calibrateCosineSimilarity,
 } from '@/lib/seo/page-focus/scoringEngine';
 import { runAIAnalysis } from '@/lib/seo/page-focus/aiProviderFactory';
-import { generateEmbeddings } from '@/lib/seo/page-focus/geminiProvider';
-import { hashCacheKey, analysisCache } from '@/lib/seo/page-focus/cacheService';
-import { checkRateLimit, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
+import { generateEmbeddings, getGeminiConfig } from '@/lib/seo/page-focus/geminiProvider';
+import { hashCacheKey, hashContent, analysisCache } from '@/lib/seo/page-focus/cacheService';
+import { checkRateLimit, extractClientIp, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
 import { SCORING_VERSION, PROMPT_VERSION } from '@/lib/seo/page-focus/types';
-import type { PageFocusReport, ScoreComponents, SectionAnalysis } from '@/lib/seo/page-focus/types';
+import type { PageFocusReport, ScoreComponents, SectionAnalysis, ComponentStatus } from '@/lib/seo/page-focus/types';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 export const maxDuration = 90; // Vercel Pro allows 90s; free tier 60s
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Rate limiting
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
+  // Rate limiting with Cloudflare Edge IP resolution
+  const ip = extractClientIp(req.headers);
   const rateCheck = checkRateLimit(ip);
   if (!rateCheck.allowed) {
     return NextResponse.json(
-      { error: 'Rate limit exceeded. Please wait before running another analysis.', retryAfterMs: rateCheck.retryAfterMs, reason: rateCheck.reason },
+      { error: rateCheck.reason || 'Rate limit exceeded. Please wait before retrying.', retryAfterMs: rateCheck.retryAfterMs, reason: rateCheck.reason },
       { status: 429 }
     );
   }
@@ -46,13 +46,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { url, targetTopic, manualText } = parsed.data;
 
-  // Check cache
-  const cacheKey = await hashCacheKey(url, targetTopic);
-  const cached = analysisCache.get(cacheKey);
-  if (cached) {
-    return NextResponse.json({ ...cached, cached: true });
-  }
-
   // Extract page content
   let page;
   try {
@@ -70,26 +63,51 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: page.extractionNote || 'Failed to extract page content.' }, { status: 422 });
   }
 
+  // Check cache (strictly bypassed for manual text inputs to protect privacy)
+  const contentHash = hashContent(page.fullText);
+  let activeModel = 'gemini-3.5-flash';
+  try {
+    activeModel = getGeminiConfig().model;
+  } catch {}
+
+  const cacheKey = await hashCacheKey({
+    url,
+    contentHash,
+    targetTopic: targetTopic || null,
+    model: activeModel,
+    isManualText: !!(manualText && manualText.length > 100),
+  });
+
+  if (cacheKey) {
+    const cached = analysisCache.get(cacheKey);
+    if (cached) {
+      return NextResponse.json({ ...cached, cached: true });
+    }
+  }
+
   // Run AI analysis
   const { output: aiOutput, provider: aiProvider, error: aiError } = await runAIAnalysis({
     page,
     targetTopic: targetTopic || null,
   });
 
-  // Compute deterministic score components and real vector embeddings
+  // Explicit component tracking — NEVER fabricate or estimate missing scores
   let scoreComponents: ScoreComponents | null = null;
   let overallScore: number | null = null;
   let scoreInterpretation: string | null = null;
+  const missingComponents: string[] = [];
   const sectionSimilarityMap = new Map<string, number>();
+
+  let semanticSimilarityScore: number | null = null;
+  let semanticStatus: ComponentStatus = 'failed';
 
   if (targetTopic) {
     // Generate real vector embeddings using gemini-embedding-2 for target topic and page sections
-    let semanticSimilarityScore = 50;
     try {
       if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
         const textsToEmbed = [
           targetTopic,
-          ...page.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 800)),
+          ...page.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 1000)),
         ];
         const vectors = await generateEmbeddings(textsToEmbed);
         const topicVector = vectors[0];
@@ -111,40 +129,75 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             const sorted = [...sectionSimilarities].sort((a, b) => b - a);
             const top5 = sorted.slice(0, Math.min(5, sorted.length));
             semanticSimilarityScore = Math.round(top5.reduce((a, b) => a + b, 0) / top5.length);
+            semanticStatus = 'available';
           }
         }
       }
     } catch (embErr) {
-      console.warn('Real embedding generation fallback:', embErr);
+      console.warn('Real embedding generation failed:', embErr);
+      semanticSimilarityScore = null;
+      semanticStatus = 'failed';
     }
 
-    if (aiOutput) {
-      const headingAlignment = computeHeadingAlignmentScore(targetTopic, page.headings);
-      // Incorporate both AI alignment scores and real vector similarities for sections
+    if (!semanticSimilarityScore && semanticSimilarityScore !== 0) {
+      missingComponents.push('Semantic Vector Similarity (Embeddings)');
+    }
+
+    const headingAlignment = computeHeadingAlignmentScore(targetTopic, page.headings);
+    const headingStatus: ComponentStatus = 'available';
+
+    let topicalCoherence: number | null = null;
+    let coherenceStatus: ComponentStatus = 'failed';
+
+    if (page.sections.length > 0) {
       const sectionScores = page.sections.map(s => {
         const vecScore = sectionSimilarityMap.get(s.id);
-        const aiScore = aiOutput.sectionFindings.find(f => f.sectionId === s.id)?.topicAlignmentScore;
+        const aiScore = aiOutput?.sectionFindings.find(f => f.sectionId === s.id)?.topicAlignmentScore;
         if (vecScore !== undefined && aiScore !== undefined) {
           return Math.round(vecScore * 0.6 + aiScore * 0.4);
         }
-        return vecScore !== undefined ? vecScore : (aiScore !== undefined ? aiScore : 50);
+        return vecScore !== undefined ? vecScore : (aiScore !== undefined ? aiScore : 0);
       });
+      topicalCoherence = computeTopicalCoherence(sectionScores);
+      coherenceStatus = 'available';
+    }
 
-      const topicalCoherence = computeTopicalCoherence(sectionScores);
+    const searchIntentScore = aiOutput ? Math.round(aiOutput.aiScoreComponents.searchIntentAlignment) : null;
+    const topicalCoverageScore = aiOutput ? Math.round(aiOutput.aiScoreComponents.topicalCoverage) : null;
+    const contextDepthScore = aiOutput ? Math.round(aiOutput.aiScoreComponents.supportingContextDepth) : null;
 
-      scoreComponents = {
-        semanticSimilarity: Math.round(semanticSimilarityScore),
-        searchIntentAlignment: Math.round(aiOutput.aiScoreComponents.searchIntentAlignment),
-        topicalCoverage: Math.round(aiOutput.aiScoreComponents.topicalCoverage),
-        headingStructuralAlignment: Math.round(headingAlignment),
-        supportingContextDepth: Math.round(aiOutput.aiScoreComponents.supportingContextDepth),
-        topicalCoherence: Math.round(topicalCoherence),
-      };
+    if (!aiOutput) {
+      missingComponents.push('AI Search Intent & Topical Depth Analysis');
+    }
 
+    scoreComponents = {
+      semanticSimilarity: semanticSimilarityScore,
+      searchIntentAlignment: searchIntentScore,
+      topicalCoverage: topicalCoverageScore,
+      headingStructuralAlignment: Math.round(headingAlignment),
+      supportingContextDepth: contextDepthScore,
+      topicalCoherence,
+      statuses: {
+        semanticSimilarity: semanticStatus,
+        searchIntentAlignment: aiOutput ? 'available' : 'failed',
+        topicalCoverage: aiOutput ? 'available' : 'failed',
+        headingStructuralAlignment: headingStatus,
+        supportingContextDepth: aiOutput ? 'available' : 'failed',
+        topicalCoherence: coherenceStatus,
+      },
+    };
+
+    if (missingComponents.length === 0) {
       overallScore = computeFinalScore(scoreComponents);
-      scoreInterpretation = interpretScore(overallScore);
+      scoreInterpretation = overallScore !== null ? interpretScore(overallScore) : null;
+    } else {
+      // Partial report — never present estimated fallback values as completed AI analysis
+      overallScore = null;
+      scoreInterpretation = 'Partial Report: Mandatory AI / Vector components unavailable';
     }
   }
+
+  const isPartialReport = missingComponents.length > 0;
 
   // Build full report
   const analysisId = crypto.randomUUID();
@@ -174,6 +227,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     secondaryTopics: (aiOutput?.secondaryTopics || []).map(t => ({ ...t, isPrimary: false })),
     searchIntent: aiOutput?.searchIntent || null,
     overallRelevanceScore: overallScore,
+    isPartialReport,
+    missingComponents,
     scoreComponents,
     scoreInterpretation,
     topicCoverage: aiOutput?.topicCoverage || [],
@@ -183,7 +238,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const vecScore = sectionSimilarityMap.get(s.id);
       const combinedScore = vecScore !== undefined && aiFinding
         ? Math.round(vecScore * 0.6 + aiFinding.topicAlignmentScore * 0.4)
-        : (vecScore !== undefined ? vecScore : (aiFinding?.topicAlignmentScore || 50));
+        : (vecScore !== undefined ? vecScore : (aiFinding?.topicAlignmentScore || 0));
 
       let alignmentLabel: 'strong' | 'moderate' | 'weak' | 'off-topic' = 'moderate';
       if (combinedScore >= 75) alignmentLabel = 'strong';
@@ -215,8 +270,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ...(aiError ? [`AI analysis failed: ${aiError.slice(0, 200)}`] : []),
       ...(page.isTruncated ? ['Page content was truncated due to size limits.'] : []),
       ...(page.extractionQuality === 'low' ? ['Page content extraction quality is low (possible JavaScript-rendered page).'] : []),
-      'Semantic similarity uses a keyword-based proxy on the server. For full embedding-based similarity, enable client-side analysis.',
-      'Indian Marketers Topic Relevance Index reflects this tool\'s methodology, not Google\'s ranking signals.',
+      ...(isPartialReport ? [`Partial Report: Missing ${missingComponents.join(', ')}.`] : []),
+      'Indian Marketers Topic Relevance Index reflects this tool\'s empirical methodology, not Google\'s ranking signals.',
     ],
     aiAvailable: aiOutput !== null,
     rateLimit: {
@@ -227,8 +282,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     },
   };
 
-  // Cache the result
-  analysisCache.set(cacheKey, report);
+  // Cache the result only if valid cacheKey exists (manual texts return null and are bypassed)
+  if (cacheKey && !isPartialReport) {
+    analysisCache.set(cacheKey, report);
+  }
 
   return NextResponse.json(report, {
     headers: {

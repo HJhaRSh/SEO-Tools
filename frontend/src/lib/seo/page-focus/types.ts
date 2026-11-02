@@ -45,14 +45,24 @@ export interface DetectedTopic {
   type: 'central' | 'peripheral';
 }
 
+export type ComponentStatus = 'available' | 'failed' | 'partial' | 'skipped';
+
 // Component scores for the relevance index
 export interface ScoreComponents {
-  semanticSimilarity: number;         // 0-100, weight 35%
-  searchIntentAlignment: number;      // 0-100, weight 20%
-  topicalCoverage: number;            // 0-100, weight 20%
-  headingStructuralAlignment: number; // 0-100, weight 10%
-  supportingContextDepth: number;     // 0-100, weight 10%
-  topicalCoherence: number;           // 0-100, weight 5%
+  semanticSimilarity: number | null;         // 0-100, weight 35%
+  searchIntentAlignment: number | null;      // 0-100, weight 20%
+  topicalCoverage: number | null;            // 0-100, weight 20%
+  headingStructuralAlignment: number | null; // 0-100, weight 10%
+  supportingContextDepth: number | null;     // 0-100, weight 10%
+  topicalCoherence: number | null;           // 0-100, weight 5%
+  statuses: {
+    semanticSimilarity: ComponentStatus;
+    searchIntentAlignment: ComponentStatus;
+    topicalCoverage: ComponentStatus;
+    headingStructuralAlignment: ComponentStatus;
+    supportingContextDepth: ComponentStatus;
+    topicalCoherence: ComponentStatus;
+  };
 }
 
 export interface TopicCoverageItem {
@@ -100,6 +110,8 @@ export interface CompetitorComparison {
   competitorScore: number | null;
   ourComponents: ScoreComponents | null;
   competitorComponents: ScoreComponents | null;
+  isPartialReport: boolean;
+  missingComponents: string[];
   verdict: string;
   topicGaps: string[];          // topics competitor covers we don't
   ourAdvantages: string[];      // topics we cover better
@@ -136,7 +148,9 @@ export interface PageFocusReport {
   searchIntent: SearchIntentAnalysis | null;
   
   // Scoring
-  overallRelevanceScore: number | null;  // null if no target topic
+  overallRelevanceScore: number | null;  // null if no target topic or partial report
+  isPartialReport: boolean;
+  missingComponents: string[];
   scoreComponents: ScoreComponents | null;
   scoreInterpretation: string | null;
   

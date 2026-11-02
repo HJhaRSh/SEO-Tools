@@ -183,6 +183,14 @@ test('computeFinalScore computes weighted sum correctly', () => {
     headingStructuralAlignment: 85,
     supportingContextDepth: 75,
     topicalCoherence: 95,
+    statuses: {
+      semanticSimilarity: 'available' as const,
+      searchIntentAlignment: 'available' as const,
+      topicalCoverage: 'available' as const,
+      headingStructuralAlignment: 'available' as const,
+      supportingContextDepth: 'available' as const,
+      topicalCoherence: 'available' as const,
+    },
   };
 
   const expected =
@@ -450,6 +458,7 @@ test('hashCacheKeySync creates deterministic 16-char hex keys', () => {
 
   assert.strictEqual(key1, key2);
   assert.notStrictEqual(key1, key3);
+  assert(key1 !== null);
   assert.strictEqual(key1.length, 16);
 });
 
@@ -478,6 +487,79 @@ test('checkRateLimit allows requests up to configured limit', () => {
   const diffIp = checkRateLimit('198.51.100.2');
   assert.strictEqual(diffIp.allowed, true);
   resetRateLimits();
+});
+
+// ----------------------------------------------------
+// 7. Data Integrity & Calibration Benchmarks (Directives Verification)
+// ----------------------------------------------------
+console.log('\n7. Strict Data Integrity, Calibration & Equivalence:');
+
+test('computeFinalScore returns null if any mandatory component is null (no fabricated scores)', () => {
+  const incompleteComponents = {
+    semanticSimilarity: null,
+    searchIntentAlignment: 85,
+    topicalCoverage: 80,
+    headingStructuralAlignment: 75,
+    supportingContextDepth: 80,
+    topicalCoherence: 90,
+    statuses: {
+      semanticSimilarity: 'failed' as const,
+      searchIntentAlignment: 'available' as const,
+      topicalCoverage: 'available' as const,
+      headingStructuralAlignment: 'available' as const,
+      supportingContextDepth: 'available' as const,
+      topicalCoherence: 'available' as const,
+    },
+  };
+
+  const score = computeFinalScore(incompleteComponents);
+  assert.strictEqual(score, null, 'Score must be null when semantic embeddings are unavailable');
+});
+
+test('calibrateCosineSimilarity rigorously maps raw cosine to empirical relevance bands', () => {
+  const { calibrateCosineSimilarity } = require('./lib/seo/page-focus/scoringEngine');
+  
+  // Irrelevant category: raw cosine <= 0.52 maps to 0-20
+  const irrevScore = calibrateCosineSimilarity(0.48);
+  assert(irrevScore <= 20, `Expected irrelevant score <= 20, got ${irrevScore}`);
+
+  // Partially relevant: raw cosine 0.69 maps to 20-55
+  const partialScore = calibrateCosineSimilarity(0.69);
+  assert(partialScore >= 20 && partialScore <= 55, `Expected partial score between 20 and 55, got ${partialScore}`);
+
+  // Highly relevant: raw cosine 0.88 maps to 80-100
+  const highSc = calibrateCosineSimilarity(0.88);
+  assert(highSc >= 80, `Expected high score >= 80, got ${highSc}`);
+});
+
+test('hashCacheKeySync privacy guarantee: manual text returns null and bypasses cache', () => {
+  const manualKey = hashCacheKeySync({
+    url: 'https://manual-input.local',
+    contentHash: 'abc123hash',
+    targetTopic: 'test topic',
+    isManualText: true,
+  });
+  assert.strictEqual(manualKey, null, 'Private pasted text must return null cache key');
+
+  const urlKey = hashCacheKeySync({
+    url: 'https://example.com/blog',
+    contentHash: 'hash-version-1',
+    targetTopic: 'test topic',
+    isManualText: false,
+  });
+  assert.notStrictEqual(urlKey, null);
+  assert.strictEqual(typeof urlKey, 'string');
+});
+
+test('extractClientIp resolves Cloudflare Edge header cf-connecting-ip', () => {
+  const { extractClientIp } = require('./lib/seo/page-focus/rateLimiter');
+  
+  const headers = new Headers({
+    'cf-connecting-ip': '203.0.113.195',
+    'x-forwarded-for': '10.0.0.1',
+  });
+  const ip = extractClientIp(headers);
+  assert.strictEqual(ip, '203.0.113.195');
 });
 
 console.log('\n=====================================================');

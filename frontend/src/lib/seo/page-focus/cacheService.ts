@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { SCORING_VERSION, type PageFocusReport } from './types';
+import { SCORING_VERSION, PROMPT_VERSION, type PageFocusReport } from './types';
 
 /**
  * Cache entry holding stored payload, creation timestamp, and key.
@@ -17,8 +17,7 @@ export interface CacheEntry<T> {
  * In serverless environments (e.g. AWS Lambda, Vercel Serverless Functions),
  * memory is process-local and ephemeral across instances and cold starts.
  * This cache provides zero-external-dependency deduplication for warm container
- * invocations. If multi-instance distributed caching is needed in the future,
- * a Redis/Upstash adapter should be layered over this interface.
+ * invocations.
  */
 export class LRUCache<T> {
   private map: Map<string, CacheEntry<T>>;
@@ -96,22 +95,78 @@ export class LRUCache<T> {
 }
 
 /**
- * Generates a SHA-256 hash key for caching an analysis result based on URL,
- * target topic, and scoring engine version.
+ * Computes a SHA-256 hash of page content for exact cache invalidation.
  */
-export function hashCacheKeySync(url: string, topic?: string): string {
+export function hashContent(content: string): string {
+  return crypto.createHash('sha256').update(content || '').digest('hex').slice(0, 16);
+}
+
+export interface CacheKeyParams {
+  url: string;
+  contentHash: string;
+  targetTopic?: string | null;
+  model?: string;
+  isManualText?: boolean;
+}
+
+/**
+ * Generates a SHA-256 hash key for caching an analysis result based on:
+ * - URL
+ * - Content hash (guarantees stale content is never served)
+ * - Target topic
+ * - Model identifier
+ * - PROMPT_VERSION & SCORING_VERSION
+ *
+ * PRIVACY GUARANTEE:
+ * Returns null if isManualText is true. Manual / pasted text is NEVER cached
+ * to prevent user data leakage across sessions.
+ *
+ * Supports both modern CacheKeyParams object and legacy (url, topic) overload.
+ */
+export function hashCacheKeySync(
+  paramsOrUrl: CacheKeyParams | string,
+  legacyTopic?: string
+): string | null {
+  if (typeof paramsOrUrl === 'string') {
+    const rawKey = [
+      paramsOrUrl.trim().toLowerCase(),
+      '',
+      (legacyTopic || '').trim().toLowerCase(),
+      'gemini-3.5-flash',
+      PROMPT_VERSION,
+      SCORING_VERSION,
+    ].join('|');
+    return crypto.createHash('sha256').update(rawKey).digest('hex').slice(0, 16);
+  }
+
+  if (paramsOrUrl.isManualText) {
+    return null; // Bypass cache completely for pasted private text
+  }
+
+  const rawKey = [
+    paramsOrUrl.url.trim().toLowerCase(),
+    paramsOrUrl.contentHash || '',
+    (paramsOrUrl.targetTopic || '').trim().toLowerCase(),
+    paramsOrUrl.model || 'gemini-3.5-flash',
+    PROMPT_VERSION,
+    SCORING_VERSION,
+  ].join('|');
+
   return crypto
     .createHash('sha256')
-    .update(`${url}|${topic || ''}|${SCORING_VERSION}`)
+    .update(rawKey)
     .digest('hex')
-    .slice(0, 16);
+    .slice(0, 32);
 }
 
 /**
  * Async wrapper for hashCacheKey adhering to Web Crypto / Async signature.
  */
-export async function hashCacheKey(url: string, targetTopic?: string): Promise<string> {
-  return hashCacheKeySync(url, targetTopic);
+export async function hashCacheKey(
+  paramsOrUrl: CacheKeyParams | string,
+  legacyTopic?: string
+): Promise<string | null> {
+  return hashCacheKeySync(paramsOrUrl, legacyTopic);
 }
 
 // Global process-local cache for analyzed page focus reports (1 hour TTL, max 100 entries)

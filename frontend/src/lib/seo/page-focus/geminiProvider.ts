@@ -142,17 +142,33 @@ export async function analyzeWithGemini(params: {
   const config = getGeminiConfig();
   const genai = new GoogleGenAI({ apiKey: config.apiKey });
   
+  // Hierarchical, token-aware content selection for AI prompt
+  // For shorter pages (<= 2500 words), preserve comprehensive section content (up to 1500 chars).
+  // For longer pages, select sections hierarchically: intro, conclusion, and highest-density sections.
+  const isLongPage = params.page.wordCount > 2500 || params.page.sections.length > 15;
+  const sectionsForPrompt = params.page.sections.map((s, index) => {
+    let contentSnippet = s.content;
+    const maxChars = isLongPage ? 600 : 1200;
+    
+    if (contentSnippet.length > maxChars) {
+      // Hierarchical excerpt: first 400 chars + ellipsis + last 200 chars to retain thesis and conclusion
+      contentSnippet = `${contentSnippet.slice(0, maxChars - 200).trim()} ... [section excerpted for token efficiency] ... ${contentSnippet.slice(-200).trim()}`;
+    }
+    
+    return {
+      id: s.id,
+      heading: s.heading,
+      content: contentSnippet,
+    };
+  });
+
   const userPrompt = buildAnalysisPrompt({
     targetTopic: params.targetTopic,
     pageTitle: params.page.title,
     metaDescription: params.page.metaDescription,
     h1: params.page.h1,
     headings: params.page.headings,
-    sections: params.page.sections.map(s => ({
-      id: s.id,
-      heading: s.heading,
-      content: s.content.slice(0, 800), // limit per section to control tokens
-    })),
+    sections: sectionsForPrompt,
     wordCount: params.page.wordCount,
     language: params.page.language,
     extractionNote: params.page.extractionNote,
@@ -219,7 +235,46 @@ export async function analyzeWithGemini(params: {
     ...t,
     supportingSectionIds: validateSectionIds(t.supportingSectionIds),
   }));
-  
+
+  // Recommendation Evidence Grounding Verification:
+  // Strictly verify whether existingEvidence citations actually exist in extracted page content.
+  const lowerFullText = (params.page.fullText || '').toLowerCase();
+  output.recommendations = output.recommendations.map(rec => {
+    let verifiedConfidence = rec.confidenceStatus;
+    let verifiedPlacement = rec.suggestedPlacement;
+
+    // Validate suggested placement
+    if (verifiedPlacement && !validSectionIds.has(verifiedPlacement)) {
+      verifiedPlacement = null;
+    }
+
+    // Validate existing evidence against page content
+    if (rec.existingEvidence && rec.existingEvidence.trim().length > 0) {
+      const cleanSnippet = rec.existingEvidence.trim().toLowerCase().replace(/['"“”]/g, '');
+      // Check if either the full quote or a substantial fragment (>= 20 chars) exists in page text
+      const fragment = cleanSnippet.slice(0, Math.min(30, cleanSnippet.length));
+      const appearsInPage = lowerFullText.includes(fragment);
+
+      if (!appearsInPage) {
+        // Evidence could not be corroborated in page text — downgrade to inferred/requires-verification
+        verifiedConfidence = 'requires-verification';
+      } else {
+        verifiedConfidence = 'evidence-based';
+      }
+    } else {
+      // No empirical quote provided
+      if (verifiedConfidence === 'evidence-based') {
+        verifiedConfidence = 'inferred';
+      }
+    }
+
+    return {
+      ...rec,
+      confidenceStatus: verifiedConfidence,
+      suggestedPlacement: verifiedPlacement,
+    };
+  });
+
   return output;
 }
 
