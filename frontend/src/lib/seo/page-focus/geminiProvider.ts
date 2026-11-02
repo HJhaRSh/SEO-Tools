@@ -19,9 +19,13 @@ export interface GeminiProviderConfig {
 export function getGeminiConfig(): GeminiProviderConfig {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY (or GOOGLE_API_KEY) environment variable is not set');
+  // If GEMINI_API_KEY is explicitly configured, align GOOGLE_API_KEY to prevent SDK internal conflicts
+  if (process.env.GEMINI_API_KEY && process.env.GOOGLE_API_KEY !== process.env.GEMINI_API_KEY) {
+    process.env.GOOGLE_API_KEY = process.env.GEMINI_API_KEY;
+  }
   return {
     apiKey,
-    model: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
     embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2',
     timeoutMs: 60000,
   };
@@ -174,51 +178,139 @@ export async function analyzeWithGemini(params: {
     extractionNote: params.page.extractionNote,
   });
 
-  const candidateModels = [config.model, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash']
-    .filter((m, idx, arr) => arr.indexOf(m) === idx);
+  // Configurable primary reasoning model: defaults to sustained, fast gemini-3.6-flash, or configurable via GEMINI_MODEL (e.g. gemini-3.8-flash)
+  const primaryModel = config.model || 'gemini-3.6-flash';
+  // If primary is 3.6, fallback is 3.8-flash; if primary is 3.8, fallback is 3.6-flash
+  const fallbackModel = primaryModel === 'gemini-3.6-flash' ? 'gemini-3.8-flash' : 'gemini-3.6-flash';
+  const candidateModels = [primaryModel, fallbackModel].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
   let responseText: string | undefined;
+  let selectedModelUsed: string = primaryModel;
+  let fallbackActivated = false;
+  let totalApiRequestsUsed = 0;
   let lastError: unknown;
 
-  for (const model of candidateModels) {
-    try {
-      const response = await genai.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA,
-          temperature: 0.2,
-          maxOutputTokens: 8192,
-        },
-      });
-      if (response.text) {
-        responseText = response.text;
+  // Bounded retry helper with exponential backoff and jitter (~1s, ~2s, ~4s)
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+    const currentModel = candidateModels[mIdx];
+    const isFallback = mIdx > 0;
+    if (isFallback) {
+      fallbackActivated = true;
+    }
+
+    // Up to 3 attempts (1 initial + 2 backoff retries) per model for transient errors
+    const maxAttempts = 3;
+    let modelSuccess = false;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        totalApiRequestsUsed++;
+
+        // Strict timeout per attempt (25s on primary 3.8-flash, 30s on fallback 3.6-flash)
+        const attemptTimeoutMs = currentModel === primaryModel ? 25000 : 35000;
+        const generatePromise = genai.models.generateContent({
+          model: currentModel,
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            responseMimeType: 'application/json',
+            responseSchema: RESPONSE_SCHEMA,
+            temperature: 0.2,
+            maxOutputTokens: 8192,
+          },
+        });
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error(`Model request timed out after ${attemptTimeoutMs}ms`)), attemptTimeoutMs);
+        });
+
+        const response = await Promise.race([generatePromise, timeoutPromise]);
+
+        if (response.text) {
+          responseText = response.text;
+          selectedModelUsed = currentModel;
+          modelSuccess = true;
+          break;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const errStr = String(err?.message || err);
+        const status = err?.status || err?.code || 0;
+
+        // HTTP 401 / 403: Stop immediately — fatal auth/permission configuration
+        if (status === 401 || status === 403 || errStr.includes('PERMISSION_DENIED') || errStr.includes('API_KEY_INVALID')) {
+          throw new Error(`Authentication/Permission error from Gemini API: ${errStr}`);
+        }
+
+        // HTTP 400: Invalid parameters — do not retry blindly
+        if (status === 400 || errStr.includes('INVALID_ARGUMENT')) {
+          throw new Error(`Invalid request parameters sent to Gemini: ${errStr}`);
+        }
+
+        // HTTP 429: Check if project quota is completely exhausted
+        if (status === 429 || errStr.includes('RESOURCE_EXHAUSTED')) {
+          if (errStr.includes('Quota exceeded') || errStr.includes('daily limit')) {
+            throw new Error(`Gemini project daily quota exhausted (HTTP 429). Will not cycle models to evade quota limits: ${errStr}`);
+          }
+          // Temporary rate spike: backoff if retries remain
+          if (attempt < maxAttempts) {
+            const backoffMs = Math.pow(2, attempt - 1) * 1000 + Math.floor(Math.random() * 500);
+            await delay(backoffMs);
+            continue;
+          }
+          break; // move to fallback
+        }
+
+        // HTTP 500, 502, 503, 504 or network timeout / high demand
+        const isTransientServerIssue = status === 500 || status === 502 || status === 503 || status === 504 ||
+          errStr.includes('high demand') || errStr.includes('UNAVAILABLE') || errStr.includes('fetch failed') ||
+          errStr.includes('timeout') || errStr.includes('ECONNRESET');
+
+        if (isTransientServerIssue) {
+          if (attempt < maxAttempts) {
+            // Exponential backoff: ~1s, ~2s, ~4s + jitter
+            const backoffMs = Math.pow(2, attempt - 1) * 1000 + Math.floor(Math.random() * 500);
+            await delay(backoffMs);
+            continue;
+          }
+          // Retry budget exhausted for this model, step to fallback
+          break;
+        }
+
+        // Model not found or deprecated: immediately attempt verified fallback
+        if (status === 404 || errStr.includes('NOT_FOUND')) {
+          break;
+        }
+
+        // Unclassified error: break to fallback
         break;
       }
-    } catch (err: any) {
-      lastError = err;
-      const status = err?.status || err?.code || 0;
-      // If quota exceeded (429), model overloaded (503), or not found (404), fall back to next model
-      if (status === 429 || status === 503 || status === 404 || String(err).includes('quota') || String(err).includes('demand')) {
-        continue;
-      }
-      throw err;
+    }
+
+    if (modelSuccess && responseText) {
+      break;
     }
   }
 
   const text = responseText;
-  if (!text) throw (lastError || new Error('Gemini returned empty response'));
+  if (!text) throw (lastError || new Error('Gemini returned empty response after retries and fallback'));
   
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
-  } catch {
-    throw new Error('Gemini returned invalid JSON: ' + text.slice(0, 200));
+  } catch (parseErr) {
+    // One controlled JSON repair attempt: trim markdown wrappers or trailing garbage if present
+    const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      throw new Error('Gemini returned invalid structured JSON: ' + text.slice(0, 200));
+    }
   }
   
-  // Validate with Zod
+  // Validate with Zod against identical schema
   const result = AIAnalysisOutputSchema.safeParse(parsed);
   if (!result.success) {
     throw new Error('Gemini response failed schema validation: ' + result.error.message.slice(0, 500));

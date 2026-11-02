@@ -115,7 +115,7 @@ export default function ToolsClient() {
           Free Technical <span className="text-[var(--im-primary)]">SEO Tools</span> Directory
         </h1>
         <p className="text-xs sm:text-sm md:text-base text-[var(--im-text-muted)] max-w-2xl mx-auto mb-4 sm:mb-5 leading-relaxed font-normal">
-          A comprehensive suite of 17 free technical SEO tools engineered for marketers, agencies, and developers. Audit crawl directives, inspect JavaScript rendering, validate Schema.org structured data, and verify Google indexing without subscriptions.
+          A comprehensive suite of 18 free technical SEO tools engineered for marketers, agencies, and developers. Audit crawl directives, inspect JavaScript rendering, validate Schema.org structured data, and verify Google indexing without subscriptions.
         </p>
 
         {/* Search Bar */}

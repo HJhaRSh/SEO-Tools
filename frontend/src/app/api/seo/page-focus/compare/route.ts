@@ -11,7 +11,7 @@ import {
 } from '@/lib/seo/page-focus/scoringEngine';
 import { runAIAnalysis } from '@/lib/seo/page-focus/aiProviderFactory';
 import { generateEmbeddings } from '@/lib/seo/page-focus/geminiProvider';
-import { checkRateLimit, extractClientIp, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
+import { checkRateLimitAsync, extractClientIp, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
 import { SCORING_VERSION, PROMPT_VERSION } from '@/lib/seo/page-focus/types';
 import type { PageFocusReport, ScoreComponents, CompetitorComparison, ComponentStatus } from '@/lib/seo/page-focus/types';
 import crypto from 'crypto';
@@ -20,58 +20,56 @@ export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 /**
- * Checks semantic equivalence between two concepts using token overlap and string normalization.
- * Recognizes common synonyms (amenities vs facilities, plots vs land parcels, pricing vs rates).
+ * Evaluates genuine semantic equivalence between two topical concepts using:
+ * 1. Primary: 3072-dimensional vector embedding cosine similarity (threshold >= 0.75)
+ * 2. Secondary fallback: Normalized token Jaccard overlap when embeddings are offline.
+ *
+ * This reliably recognizes identical meanings using different vocabulary (e.g. "luxury residential plots"
+ * vs "premium villa land parcels") while rejecting overlapping words with distinct meanings
+ * (e.g. "apple juice recipe" vs "apple iphone battery").
  */
-function areConceptsEquivalent(a: string, b: string): boolean {
+function areConceptsSemanticallyEquivalent(
+  a: string,
+  b: string,
+  vectorMap?: Map<string, number[]>
+): boolean {
   const normA = a.trim().toLowerCase();
   const normB = b.trim().toLowerCase();
 
   if (normA === normB) return true;
-  if (normA.includes(normB) || normB.includes(normA)) return true;
 
-  // Normalized synonym groups
-  const synonymGroups = [
-    ['amenity', 'amenities', 'facility', 'facilities', 'features'],
-    ['plot', 'plots', 'land', 'parcels', 'property', 'real estate', 'sites'],
-    ['price', 'pricing', 'cost', 'rates', 'payment', 'budget'],
-    ['infrastructure', 'connectivity', 'roads', 'expressway', 'metro', 'highways', 'access'],
-    ['location', 'neighborhood', 'vicinity', 'corridor', 'region'],
-    ['developer', 'builder', 'hoabl', 'promoter'],
-  ];
-
-  const getTokens = (str: string) => str.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-  const tokensA = getTokens(normA);
-  const tokensB = getTokens(normB);
-
-  // Check synonym group matches
-  for (const group of synonymGroups) {
-    const hasA = tokensA.some(t => group.includes(t));
-    const hasB = tokensB.some(t => group.includes(t));
-    if (hasA && hasB) {
-      // If they share the same semantic topic domain and any other token overlap, consider equivalent
-      const otherA = tokensA.filter(t => !group.includes(t));
-      const otherB = tokensB.filter(t => !group.includes(t));
-      if (otherA.length === 0 || otherB.length === 0 || otherA.some(t => otherB.includes(t))) {
-        return true;
-      }
+  // 1. Primary: Genuine Vector Cosine Similarity
+  if (vectorMap) {
+    const vecA = vectorMap.get(normA);
+    const vecB = vectorMap.get(normB);
+    if (vecA && vecB && vecA.length > 0 && vecB.length > 0) {
+      const cos = cosineSimilarity(vecA, vecB);
+      // Calibrated empirical threshold for concept equivalence
+      return cos >= 0.75;
     }
   }
 
-  // Token Jaccard overlap check
+  // 2. Secondary lexical fallback (only if embeddings offline)
+  const getTokens = (str: string) =>
+    str.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const tokensA = getTokens(normA);
+  const tokensB = getTokens(normB);
+
   if (tokensA.length > 0 && tokensB.length > 0) {
     const setB = new Set(tokensB);
     const matches = tokensA.filter(t => setB.has(t)).length;
     const overlap = matches / Math.min(tokensA.length, tokensB.length);
-    if (overlap >= 0.6) return true;
+    if (overlap >= 0.7) return true;
   }
 
   return false;
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // Distributed quota tracking (3 units: 1 embedding batch + 2 AI reasoning calls)
+  // Concurrency-safe distributed rate limiting & reasoning quota budgeting (2 reasoning units: 1 target page + 1 competitor page)
   const ip = extractClientIp(req.headers);
-  const rateCheck = checkRateLimit(ip);
+  const rateCheck = await checkRateLimitAsync(ip, 2);
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: rateCheck.reason || 'Rate limit exceeded.', retryAfterMs: rateCheck.retryAfterMs },
@@ -257,7 +255,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   ];
   const isPartialReport = !ourResult.isComplete || !compResult.isComplete;
 
-  // Determine topic gaps and advantages using SEMANTIC EQUIVALENCE
+  // Determine topic gaps and advantages using GENUINE EMBEDDING-BASED EQUIVALENCE
   const ourRawConcepts = Array.from(new Set(
     (ourAIOutput?.topicCoverage || []).filter(c => c.status === 'covered' || c.status === 'partial').map(c => c.concept.trim())
   ));
@@ -273,14 +271,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     ourPage.headings.slice(0, 8).forEach(h => ourRawConcepts.push(h.text.trim()));
   }
 
+  // Generate vector embeddings for all unique detected concepts
+  const allConcepts = Array.from(new Set([...ourRawConcepts, ...compRawConcepts]));
+  const conceptVectorMap = new Map<string, number[]>();
+  if (allConcepts.length > 0) {
+    try {
+      const cVectors = await generateEmbeddings(allConcepts);
+      allConcepts.forEach((c, idx) => {
+        if (cVectors[idx] && cVectors[idx].length > 0) {
+          conceptVectorMap.set(c.toLowerCase(), cVectors[idx]);
+        }
+      });
+    } catch (cErr) {
+      console.warn('Concept embedding generation fallback:', cErr);
+    }
+  }
+
   // Topic Gaps: concepts competitor covers that we DO NOT cover semantically
   const topicGaps = compRawConcepts.filter(compConcept => {
-    return !ourRawConcepts.some(ourConcept => areConceptsEquivalent(compConcept, ourConcept));
+    return !ourRawConcepts.some(ourConcept => areConceptsSemanticallyEquivalent(compConcept, ourConcept, conceptVectorMap));
   });
 
   // Our Advantages: concepts we cover that competitor DOES NOT cover semantically
   const ourAdvantages = ourRawConcepts.filter(ourConcept => {
-    return !compRawConcepts.some(compConcept => areConceptsEquivalent(ourConcept, compConcept));
+    return !compRawConcepts.some(compConcept => areConceptsSemanticallyEquivalent(ourConcept, compConcept, conceptVectorMap));
   });
 
   let verdict = '';

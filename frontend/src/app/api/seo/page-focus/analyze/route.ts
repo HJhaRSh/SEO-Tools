@@ -12,7 +12,7 @@ import {
 import { runAIAnalysis } from '@/lib/seo/page-focus/aiProviderFactory';
 import { generateEmbeddings, getGeminiConfig } from '@/lib/seo/page-focus/geminiProvider';
 import { hashCacheKey, hashContent, analysisCache } from '@/lib/seo/page-focus/cacheService';
-import { checkRateLimit, extractClientIp, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
+import { checkRateLimitAsync, extractClientIp, getRateLimitConfig } from '@/lib/seo/page-focus/rateLimiter';
 import { SCORING_VERSION, PROMPT_VERSION } from '@/lib/seo/page-focus/types';
 import type { PageFocusReport, ScoreComponents, SectionAnalysis, ComponentStatus } from '@/lib/seo/page-focus/types';
 import crypto from 'crypto';
@@ -21,9 +21,9 @@ export const runtime = 'nodejs';
 export const maxDuration = 90; // Vercel Pro allows 90s; free tier 60s
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Rate limiting with Cloudflare Edge IP resolution
+  // Concurrency-safe distributed rate limiting & reasoning quota budgeting (1 reasoning unit per single-page analysis)
   const ip = extractClientIp(req.headers);
-  const rateCheck = checkRateLimit(ip);
+  const rateCheck = await checkRateLimitAsync(ip, 1);
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: rateCheck.reason || 'Rate limit exceeded. Please wait before retrying.', retryAfterMs: rateCheck.retryAfterMs, reason: rateCheck.reason },

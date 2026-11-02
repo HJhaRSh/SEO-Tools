@@ -207,7 +207,7 @@ export default function PageFocusAnalyzerPage() {
               </h2>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-medium rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Quota: <strong>5 scans/min</strong> · <strong>50 scans/day</strong> per IP</span>
+                <span>Free-Tier Allocation: <strong>5 scans/min</strong> · <strong>15 scans/day</strong> per IP (Shared daily AI limit: 20 analyses/day)</span>
               </div>
             </div>
             <button

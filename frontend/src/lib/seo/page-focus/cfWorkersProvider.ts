@@ -12,7 +12,9 @@ export function getCFConfig() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_AI_API_TOKEN;
   if (!accountId || !apiToken) return null;
-  return { accountId, apiToken, model: '@cf/meta/llama-3-8b-instruct' };
+  // Use @cf/meta/llama-3.1-8b-instruct (current maintained, free-tier eligible model on Cloudflare Workers AI)
+  const model = process.env.CLOUDFLARE_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct';
+  return { accountId, apiToken, model };
 }
 
 export async function analyzeWithCFWorkers(params: {
