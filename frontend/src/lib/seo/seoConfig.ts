@@ -651,62 +651,61 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
 
   'bulk-google-index-checker': {
     slug: 'bulk-google-index-checker',
-    name: 'Bulk Google Index Checker',
-    metaTitle: 'Bulk Google Index Checker Online - GSC Status | Indian Marketers',
-    metaDescription: 'Check Google indexing status for multiple URLs with Search Console. View indexed pages, coverage reasons, live meta titles and descriptions, and export results.',
+    name: 'Free Bulk Google Index Checker',
+    metaTitle: 'Bulk Google Index Checker – Free Tool | Indian Marketers',
+    metaDescription: "Check Google indexing status for multiple URLs using Search Console with Indian Marketers' free Bulk Google Index Checker. Review index verdicts and metadata.",
     canonical: `${TOOLS_BASE_URL}/bulk-google-index-checker`,
     category: 'Crawling & Access',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'bulk google index checker',
+      'bulk indexing checker',
+      'google index checker',
+      'bulk index checker',
+      'website indexing checker',
+      'google site index checker',
+      'check Google indexing status',
+      'bulk URL index checker',
+      'Google Search Console URL Inspection'
+    ],
     features: [
       'Official Google Search Console URL Inspection API integration',
-      'Batch URL processing up to 100 URLs with automatic inspection',
-      'Real recorded Google index statuses: Indexed, Not Indexed, Alternate / Canonicalized',
-      'Diagnostic coverage reasons, crawl states, and Google-selected canonical URLs',
+      'Batch URL processing up to 100 URLs per session with automated rate limiting',
+      'Real recorded Google index statuses: Indexed, Not Indexed, and Alternate / Canonicalized',
+      'Granular crawl diagnostics: robots.txt state, page fetch state, and Google-selected canonical URLs',
       'Live server-side HTML meta title and description extraction with character counts',
-      'Property scope validation for domain and URL-prefix Search Console properties',
-      'Read-only OAuth 2.0 authorization with PKCE and AES-256-GCM session security',
+      'Property scope validation for domain (sc-domain:) and URL-prefix Search Console properties',
+      'Secure read-only OAuth 2.0 authorization with PKCE and AES-256-GCM encrypted sessions',
       'Spreadsheet formula-safe CSV export and instant tabular clipboard copy'
     ],
     faqs: [
       {
-        question: 'Is the Bulk Google Index Checker free?',
-        answer: 'Yes. The Bulk Google Index Checker is 100% free to use. You simply connect your Google Search Console account with read-only permissions to inspect up to 100 URLs per session.'
+        question: 'What is a bulk Google index checker?',
+        answer: 'A bulk Google index checker is an SEO tool that allows webmasters and SEO professionals to verify the Google indexing status of multiple URLs simultaneously rather than checking them one by one in Google Search Console.'
       },
       {
-        question: 'Why do I need Search Console access?',
-        answer: 'Google treats indexing records, coverage states, crawl history, and canonical choices as private search engine data. Google only shares this information via the official URL Inspection API with accounts that have verified ownership or permission on the property.'
+        question: 'How does this tool check Google indexing status in bulk?',
+        answer: "The tool connects securely to the official Google Search Console URL Inspection API. When you paste up to 100 URLs from a verified property, the tool queries Google's inspection service in batches and retrieves Google's authoritative recorded index status, coverage reasons, and canonical details."
       },
       {
-        question: 'Can I check multiple URLs together?',
-        answer: 'Yes. You can paste up to 100 URLs at a time from your selected property. The tool automatically batches requests and retrieves indexing information directly from Google.'
+        question: 'Why is Google Search Console access required?',
+        answer: 'Google treats indexing records, crawl history, and canonical verdicts as private site data. Google only shares authoritative indexing information through its official URL Inspection API with Google accounts that have verified ownership or permission on the property. Competitor sites cannot be inspected via this API.'
       },
       {
-        question: 'Can I inspect competitor websites?',
-        answer: 'No. The Google URL Inspection API requires verified property ownership in Google Search Console. You can only inspect websites where your Google account has verified property access.'
+        question: 'Is the Bulk Google Index Checker free to use?',
+        answer: "Yes. Indian Marketers' Bulk Google Index Checker is 100% free with no subscription or credit card required. You can inspect up to 100 URLs per batch across any verified Search Console property."
       },
       {
-        question: 'What does Not Indexed mean?',
-        answer: 'Not Indexed means Google has crawled or discovered the URL but chose not to include it in the search index, or excluded it due to reasons such as a noindex tag, crawl anomaly, soft 404, or canonicalization.'
+        question: 'Why are some of my website URLs not indexed by Google?',
+        answer: 'URLs may be excluded from Google\'s index due to noindex directives, robots.txt crawl blocks, canonical tags pointing to alternative URLs, soft 404 errors, server timeouts, thin or duplicate content, or because newly published pages have not yet been evaluated by Googlebot.'
       },
       {
-        question: 'Can I export indexing results?',
-        answer: 'Yes. You can export the complete batch report as an RFC-compliant CSV spreadsheet, including Google indexing verdicts, coverage reasons, canonical URLs, last crawl timestamps, and live metadata.'
+        question: 'How accurate are the indexing results?',
+        answer: "The results are 100% authoritative because they come directly from Google's recorded search index via the official URL Inspection API. Note that the API returns the recorded status from Googlebot's most recent crawl rather than performing an immediate live URL fetch."
       },
       {
-        question: 'Does the tool show meta titles and descriptions?',
-        answer: 'Yes. In addition to Google indexing data, the tool concurrently extracts the live HTML meta title, meta description, and character counts directly from the public webpage.'
-      },
-      {
-        question: "How current is Google's indexing information?",
-        answer: "The data returned is Google's recorded index status from Googlebot's most recent crawl. It reflects what Google's search index currently knows about your page."
-      },
-      {
-        question: 'Does connecting Google give the tool editing permissions?',
-        answer: 'No. The tool requests strictly read-only access (https://www.googleapis.com/auth/webmasters.readonly). It cannot edit your sitemaps, modify settings, or change website verification.'
-      },
-      {
-        question: 'What happens when I disconnect?',
-        answer: 'Clicking Disconnect immediately destroys the server session cookie and attempts token revocation with Google. Your authorization token is discarded.'
+        question: 'Can I request Google indexing or force crawling through this tool?',
+        answer: "No. This tool is strictly an indexing checker, not an indexing submission service. Google's URL Inspection API only permits reading recorded inspection data; it does not support requesting crawls. (Note: Google's Indexing API is a separate service restricted exclusively to JobPosting and BroadcastEvent structured data, not general website URLs.)"
       }
     ]
   },

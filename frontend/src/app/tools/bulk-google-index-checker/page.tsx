@@ -389,68 +389,219 @@ export default function BulkGoogleIndexCheckerPage() {
 
   const faqs = [
     {
-      question: 'Is the Bulk Google Index Checker free?',
-      answer: 'Yes. The Bulk Google Index Checker is 100% free to use. You simply connect your Google Search Console account with read-only permissions to inspect up to 100 URLs per session.'
+      question: 'What is a bulk Google index checker?',
+      answer: 'A bulk Google index checker is an SEO tool that allows webmasters and SEO professionals to verify the Google indexing status of multiple URLs simultaneously rather than checking them one by one in Google Search Console.'
     },
     {
-      question: 'Why do I need Search Console access?',
-      answer: 'Google treats indexing records, coverage states, crawl history, and canonical choices as private search engine data. Google only shares this information via the official URL Inspection API with accounts that have verified ownership or permission on the property.'
+      question: 'How does this tool check Google indexing status in bulk?',
+      answer: "The tool connects securely to the official Google Search Console URL Inspection API. When you paste up to 100 URLs from a verified property, the tool queries Google's inspection service in batches and retrieves Google's authoritative recorded index status, coverage reasons, and canonical details."
     },
     {
-      question: 'Can I check multiple URLs together?',
-      answer: 'Yes. You can paste up to 100 URLs at a time from your selected property. The tool automatically batches requests and retrieves indexing information directly from Google.'
+      question: 'Why is Google Search Console access required?',
+      answer: 'Google treats indexing records, crawl history, and canonical verdicts as private site data. Google only shares authoritative indexing information through its official URL Inspection API with Google accounts that have verified ownership or permission on the property. Competitor sites cannot be inspected via this API.'
     },
     {
-      question: 'Can I inspect competitor websites?',
-      answer: 'No. The Google URL Inspection API requires verified property ownership in Google Search Console. You can only inspect websites where your Google account has verified property access.'
+      question: 'Is the Bulk Google Index Checker free to use?',
+      answer: "Yes. Indian Marketers' Bulk Google Index Checker is 100% free with no subscription or credit card required. You can inspect up to 100 URLs per batch across any verified Search Console property."
     },
     {
-      question: 'What does Not Indexed mean?',
-      answer: 'Not Indexed means Google has crawled or discovered the URL but chose not to include it in the search index, or excluded it due to reasons such as a noindex tag, crawl anomaly, soft 404, or canonicalization.'
+      question: 'Why are some of my website URLs not indexed by Google?',
+      answer: 'URLs may be excluded from Google\'s index due to noindex directives, robots.txt crawl blocks, canonical tags pointing to alternative URLs, soft 404 errors, server timeouts, thin or duplicate content, or because newly published pages have not yet been evaluated by Googlebot.'
     },
     {
-      question: 'Can I export indexing results?',
-      answer: 'Yes. You can export the complete batch report as an RFC-compliant CSV spreadsheet, including Google indexing verdicts, coverage reasons, canonical URLs, last crawl timestamps, and live metadata.'
+      question: 'How accurate are the indexing results?',
+      answer: "The results are 100% authoritative because they come directly from Google's recorded search index via the official URL Inspection API. Note that the API returns the recorded status from Googlebot's most recent crawl rather than performing an immediate live URL fetch."
     },
     {
-      question: 'Does the tool show meta titles and descriptions?',
-      answer: 'Yes. In addition to Google indexing data, the tool concurrently extracts the live HTML meta title, meta description, and character counts directly from the public webpage.'
-    },
-    {
-      question: "How current is Google's indexing information?",
-      answer: "The data returned is Google's recorded index status from Googlebot's most recent crawl. It reflects what Google's search index currently knows about your page."
-    },
-    {
-      question: 'Does connecting Google give the tool editing permissions?',
-      answer: 'No. The tool requests strictly read-only access (https://www.googleapis.com/auth/webmasters.readonly). It cannot edit your sitemaps, modify settings, or change website verification.'
-    },
-    {
-      question: 'What happens when I disconnect?',
-      answer: 'Clicking Disconnect immediately destroys the server session cookie and attempts token revocation with Google. Your authorization token is discarded.'
+      question: 'Can I request Google indexing or force crawling through this tool?',
+      answer: "No. This tool is strictly an indexing checker, not an indexing submission service. Google's URL Inspection API only permits reading recorded inspection data; it does not support requesting crawls. (Note: Google's Indexing API is a separate service restricted exclusively to JobPosting and BroadcastEvent structured data, not general website URLs.)"
     }
   ];
 
-  // Technical explanation of the inspection engine for the bottom SEO section
-  const howTheEngineWorks = [
-    'OAuth 2.0 Authorization: The user signs into Google with read-only Search Console access (https://www.googleapis.com/auth/webmasters.readonly). No passwords or write permissions are granted.',
-    'Property Discovery: The system calls the Google Sites API (GET /webmasters/v3/sites) to retrieve all verified domain and URL-prefix properties the user is authorized to inspect.',
-    'Scope Verification & Batching: URLs pasted into the input field are validated against the selected property boundary. Unrelated URLs are filtered out to protect Google inspection quotas.',
-    'URL Inspection API Execution: Valid URLs are dispatched in small batches to Google\'s official endpoint (POST /urlInspection/index:inspect) with automated exponential backoff on 429 quota responses.',
-    'Live Parity & Reporting: Each URL\'s recorded index verdict (Indexed, Not Indexed, Canonicalized) is mapped alongside its live public HTML meta title and description for instant filtering, diagnostic inspection, and CSV export.'
+  const howItWorks = [
+    'Connect Google Search Console: Click "Connect Google Search Console" to authorize secure, read-only access (webmasters.readonly). The tool never receives write access, passwords, or site modification rights.',
+    'Select Verified Property: Choose your target domain property (e.g. sc-domain:example.com) or URL-prefix property from the authenticated property dropdown.',
+    'Enter Multiple URLs: Paste up to 100 URLs belonging to the selected property into the input field (one URL per line, or click "Load Sample URLs"). The tool automatically normalizes and deduplicates inputs.',
+    'Execute Bulk Inspection: Click "Check Indexing Status" to launch the inspection. The engine queries Google\'s URL Inspection API in batched requests with automated rate handling and exponential backoff.',
+    'Analyze Verdicts and Diagnostics: Review indexed status badges (Indexed, Not Indexed, Alternate / Canonicalized), Google-selected canonical URLs, crawl timestamps, and live HTML metadata.',
+    'Export Batch Reports: Download your complete batch audit as an RFC-compliant CSV spreadsheet or copy formatted tabular rows to your clipboard for client audits and team tracking.'
+  ];
+
+  const aboutText = (
+    <div className="space-y-4">
+      <p>
+        A bulk Google index checker is an essential technical SEO utility designed to audit the Google search indexing status of multiple website URLs simultaneously. For websites managing hundreds or thousands of pages, inspecting URLs one by one in Google Search Console is time-consuming and inefficient. Indian Marketers&apos; free Bulk Google Index Checker automates this verification by querying Google&apos;s official URL Inspection API, allowing site owners and SEO professionals to review index coverage across batches of up to 100 URLs per session.
+      </p>
+      <p>
+        Crucially, <strong>indexing</strong> and <strong>ranking</strong> represent two distinct stages in Google Search. <em>Indexing</em> means Googlebot has crawled and processed a webpage, analyzed its textual content and rendered structure, and stored it in Google&apos;s search index so it is eligible to appear in search results. In contrast, <em>ranking</em> is Google&apos;s algorithmic sorting of eligible indexed pages for specific search queries. A webpage must be indexed before it can rank, but indexing does not guarantee organic impressions or top-three SERP positions.
+      </p>
+    </div>
+  );
+
+  const extraSections = (
+    <>
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding Google Indexing Results</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-4">
+          <p>
+            When inspecting URLs with this tool, each entry is classified according to Google&apos;s recorded Search Console inspection response:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1.5 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                Indexed
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Google has crawled, processed, and included the URL in its search index. Coverage states include &quot;Submitted and indexed&quot; or &quot;Indexed, not submitted in sitemap&quot;. The URL is eligible to appear in organic Google search queries.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1.5 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+                Not Indexed
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Google discovered or crawled the URL but excluded it from the search index. Common coverage reasons include noindex tags, crawl anomalies, Soft 404s, or exclusion under Google&apos;s quality heuristics.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1.5 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                Alternate / Canonicalized
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Google recognized the URL as an alternate version of another page (such as a duplicate page, paginated variation, or URL with an explicit rel=&quot;canonical&quot; pointing to a different primary page). Google indexed the canonical URL instead.
+              </p>
+            </div>
+          </div>
+          <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs sm:text-sm text-amber-900 leading-relaxed">
+            <strong>Important note on inspection data:</strong> The results returned reflect Google&apos;s <em>recorded</em> index status from Googlebot&apos;s most recent crawl of each page. The URL Inspection API does not execute an immediate live web fetch or force Googlebot to re-index pages on demand.
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Why Are Some Website URLs Not Indexed?</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-3">
+          <p>
+            Googlebot crawls trillions of URLs across the web, but Google is selective about which pages it indexes. Common technical and algorithmic causes for unindexed URLs include:
+          </p>
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs sm:text-sm">
+            <li className="p-3 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <strong className="text-[var(--im-heading)] block mb-1">Noindex Directives:</strong>
+              A <code className="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-[var(--im-border)]">&lt;meta name=&quot;robots&quot; content=&quot;noindex&quot;&gt;</code> tag or <code className="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-[var(--im-border)]">X-Robots-Tag: noindex</code> header explicitly prohibits Google from adding the URL to its search index.
+            </li>
+            <li className="p-3 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <strong className="text-[var(--im-heading)] block mb-1">Robots.txt Blocking:</strong>
+              A <code className="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-[var(--im-border)]">Disallow</code> directive blocks Googlebot from crawling the URL. (Note: Google may still index a blocked URL if other web pages link to it, but cannot read its content.)
+            </li>
+            <li className="p-3 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <strong className="text-[var(--im-heading)] block mb-1">Canonicalization Discrepancies:</strong>
+              When multiple URLs share similar content, Google selects one primary canonical version. If the user-declared canonical contradicts internal link signals, Google may select an alternate URL.
+            </li>
+            <li className="p-3 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <strong className="text-[var(--im-heading)] block mb-1">Soft 404 &amp; Server Errors:</strong>
+              Pages returning empty content, thin boilerplate, or broken templates while returning a 200 HTTP status code are classified as Soft 404s and dropped from indexing.
+            </li>
+            <li className="p-3 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <strong className="text-[var(--im-heading)] block mb-1">Crawl Budget &amp; Discovery Delays:</strong>
+              Newly published pages or deeply nested URLs lacking internal links and XML sitemap references may take several crawl cycles before Googlebot schedules them for evaluation.
+            </li>
+            <li className="p-3 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <strong className="text-[var(--im-heading)] block mb-1">Thin or Duplicate Content:</strong>
+              Google&apos;s indexing algorithms evaluate page quality. Pages with duplicate or automated content may be crawled but excluded under &quot;Crawled - currently not indexed&quot;.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What to Do When URLs Are Not Indexed</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-3">
+          <p>
+            When your bulk index check reveals unindexed or excluded URLs, perform these diagnostic follow-up checks:
+          </p>
+          <ol className="list-decimal pl-5 space-y-2 text-xs sm:text-sm">
+            <li>
+              <strong>Verify Crawler Access Directives:</strong> Test whether your robots.txt accidentally blocks Googlebot or critical JavaScript resources using our <a href="/tools/robots-txt-tester" className="text-[var(--im-primary-deep)] font-medium underline hover:opacity-80">robots.txt Tester</a>.
+            </li>
+            <li>
+              <strong>Submit via Valid XML Sitemap:</strong> Ensure all canonical, index-eligible URLs are included in a clean sitemap and submitted to Search Console using our <a href="/tools/sitemap-generator" className="text-[var(--im-primary-deep)] font-medium underline hover:opacity-80">XML Sitemap Generator</a>.
+            </li>
+            <li>
+              <strong>Inspect JavaScript Rendering &amp; Metadata:</strong> Check whether client-side rendering delays or missing initial HTML tags prevent Googlebot from processing your page with our <a href="/tools/fetch-render" className="text-[var(--im-primary-deep)] font-medium underline hover:opacity-80">Fetch &amp; Render</a> tool.
+            </li>
+            <li>
+              <strong>Confirm Mobile-First Parity:</strong> Verify that mobile Googlebot receives identical content, internal links, and canonical tags as desktop bots using our <a href="/tools/mobile-first-index" className="text-[var(--im-primary-deep)] font-medium underline hover:opacity-80">Mobile-First Index Tool</a>.
+            </li>
+            <li>
+              <strong>Strengthen Internal Linking:</strong> Add contextual internal links from relevant, high-authority indexed pages on your domain to help Googlebot discover and prioritize new URLs.
+            </li>
+          </ol>
+          <p className="text-xs text-[var(--im-text-muted)] pt-1 italic">
+            * Note: Resolving crawl and accessibility issues makes URLs eligible for indexing, but search engines ultimately determine indexing based on topical utility, uniqueness, and algorithmic site quality.
+          </p>
+        </div>
+      </section>
+    </>
+  );
+
+  const relatedTools = [
+    {
+      name: 'XML Sitemap Generator',
+      href: '/tools/sitemap-generator',
+      desc: 'Generate, crawl, and validate standard XML sitemaps to submit unindexed URLs to Google Search Console.'
+    },
+    {
+      name: 'robots.txt Tester',
+      href: '/tools/robots-txt-tester',
+      desc: 'Verify whether URLs reported as Not Indexed or Crawl Anomaly are accidentally blocked from Googlebot under RFC 9309.'
+    },
+    {
+      name: 'Fetch & Render',
+      href: '/tools/fetch-render',
+      desc: 'Inspect how Googlebot renders your page in headless Chromium and detect JavaScript rendering discrepancies.'
+    }
   ];
 
   return (
     <ToolLayout
-      title="Bulk Google Index Checker"
-      description="Check Google's indexing status for multiple URLs with Search Console and view live meta titles and descriptions."
+      title="Free Bulk Google Index Checker"
+      description="Check the Google indexing status of multiple URLs using Indian Marketers' free Bulk Google Index Checker. Connect your Google Search Console account with read-only access to inspect recorded indexing verdicts, coverage states, and live page metadata in one place."
       category="Crawling & Access"
       breadcrumbs={[
         { label: 'Tools', href: '/tools' },
         { label: 'Bulk Google Index Checker' }
       ]}
-      aboutText="The Bulk Google Index Checker connects directly to the official Google Search Console URL Inspection API to retrieve Google's authoritative recorded indexing information. Rather than guessing whether a page might be crawlable or scraping search engine results, it reports Google's exact index verdict, coverage state, last crawl timestamp, and Google-selected canonical URLs, alongside live public HTML meta titles and descriptions."
-      howItWorks={howTheEngineWorks}
+      aboutTitle="What Is a Bulk Google Index Checker?"
+      aboutText={aboutText}
+      howItWorksTitle="How to Check Google Indexing Status in Bulk"
+      howItWorks={howItWorks}
+      extraSections={extraSections}
       faq={faqs}
+      relatedTools={relatedTools}
     >
       {/* Toast Notification */}
       {actionNotice && (
