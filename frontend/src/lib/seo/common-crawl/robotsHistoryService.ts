@@ -2,6 +2,9 @@
  * Common Crawl Historical Robots.txt Analysis Service
  * Feature 2 — Historical Robots.txt Retrieval & RFC 9309 Policy Evaluation
  * Tool #19 — Indian Marketers SEO Toolkit
+ *
+ * Fetches and decompresses historical robots.txt directly from official Common Crawl
+ * WARC archives on data.commoncrawl.org and evaluates CCBot permissions on relevant paths.
  */
 
 import { CrawlCollection, HistoricalRobotsRecord } from './types';
@@ -11,9 +14,12 @@ import { parseRobotsTxt, selectRulesForUserAgent, evaluateCrawlability } from '.
 import { formatCdxTimestamp } from './domainAnalysisService';
 
 /**
- * Evaluates robots.txt content for CCBot and wildcard crawler
+ * Evaluates robots.txt content for CCBot and wildcard crawler against a specific URL path
  */
-export function evaluateRobotsContentForCCBot(content: string): {
+export function evaluateRobotsContentForCCBot(
+  content: string,
+  targetPath: string = '/'
+): {
   ccBotStatus: 'ALLOWED' | 'BLOCKED';
   wildcardStatus: 'ALLOWED' | 'BLOCKED';
   appliedRule?: {
@@ -27,14 +33,15 @@ export function evaluateRobotsContentForCCBot(content: string): {
   rawExcerpt?: string;
 } {
   const parsed = parseRobotsTxt(content);
+  const evalPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
   
   // 1. Evaluate CCBot specifically
   const ccBotRules = selectRulesForUserAgent(parsed.groups, 'ccbot');
-  const ccBotMatch = evaluateCrawlability(ccBotRules.rules, '/', 'CCBot', ccBotRules.matchedToken);
+  const ccBotMatch = evaluateCrawlability(ccBotRules.rules, evalPath, 'CCBot', ccBotRules.matchedToken);
 
   // 2. Evaluate Wildcard '*'
   const wildcardRules = selectRulesForUserAgent(parsed.groups, '*');
-  const wildcardMatch = evaluateCrawlability(wildcardRules.rules, '/', '*', '*');
+  const wildcardMatch = evaluateCrawlability(wildcardRules.rules, evalPath, '*', '*');
 
   const ccBotStatus = ccBotMatch.status === 'BLOCKED' ? 'BLOCKED' : 'ALLOWED';
   const wildcardStatus = wildcardMatch.status === 'BLOCKED' ? 'BLOCKED' : 'ALLOWED';
@@ -58,15 +65,14 @@ export function evaluateRobotsContentForCCBot(content: string): {
   };
 }
 
-const HA_ROBOTS_ENDPOINT = 'https://cc-visibility.suganmn.workers.dev/api/robots';
-
 /**
- * Analyzes historical robots.txt across collections
+ * Analyzes historical robots.txt across collections directly from official WARC records
  */
 export async function analyzeHistoricalRobots(
   collections: CrawlCollection[],
   hostname: string,
-  monthlyRecords?: Array<{ collectionId: string; robots?: any[] }>
+  monthlyRecords?: Array<{ collectionId: string; robots?: any[] }>,
+  targetPath: string = '/'
 ): Promise<{
   records: HistoricalRobotsRecord[];
   firstObservedChangeText?: string;
@@ -74,125 +80,69 @@ export async function analyzeHistoricalRobots(
   const records: HistoricalRobotsRecord[] = [];
   const cleanHost = hostname.toLowerCase().replace(/^www\./, '');
 
-  // 1. Try High-Availability Robots Decoding If Coverage Already Identified Robots Pointers
-  try {
-    const needFetches: any[] = [];
-    const crawlByDigest = new Map<string, { colId: string; colName: string; ts?: string }>();
+  // 1. If monthlyRecords identified authentic robots WARC pointers, fetch and decompress from data.commoncrawl.org
+  if (monthlyRecords && monthlyRecords.length > 0) {
+    for (const col of collections) {
+      const mr = monthlyRecords.find(m => m.collectionId === col.id);
+      const robotPointer = mr?.robots?.[0];
 
-    if (monthlyRecords && monthlyRecords.length > 0) {
-      for (const mr of monthlyRecords) {
-        if (Array.isArray(mr.robots) && mr.robots.length > 0) {
-          const col = collections.find(c => c.id === mr.collectionId);
-          // Pick the best robots record for this crawl
-          const r = mr.robots[0];
-          if (r && r.digest) {
-            needFetches.push(r);
-            crawlByDigest.set(r.digest, {
-              colId: mr.collectionId,
-              colName: col?.name || mr.collectionId,
-              ts: r.ts
-            });
-          }
-        }
-      }
-    }
-
-    if (needFetches.length > 0) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(HA_ROBOTS_ENDPOINT, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          domain: cleanHost,
-          fetches: needFetches
-        })
-      });
-
-      clearTimeout(timeout);
-
-      if (res.ok) {
-        const data = await res.json();
-        const results: any[] = data.results || [];
-        const digestMap = new Map<string, any>();
-        for (const item of results) {
-          if (item && item.digest) {
-            digestMap.set(item.digest, item);
-          }
-        }
-
-        // Map for each collection
-        for (const col of collections) {
-          const mr = monthlyRecords?.find(m => m.collectionId === col.id);
-          const r = mr?.robots?.[0];
-          const decoded = r && r.digest ? digestMap.get(r.digest) : undefined;
-
-          if (decoded && decoded.status === 200) {
-            const ccBotAllowed = decoded.tokens?.CCBot !== false;
-            const starAllowed = decoded.starAllowed !== false;
-
+      if (robotPointer && robotPointer.filename && typeof robotPointer.offset === 'number' && typeof robotPointer.length === 'number') {
+        try {
+          const warc = await fetchWarcRecord(robotPointer.filename, robotPointer.offset, robotPointer.length, 5000);
+          if (warc && warc.payloadText) {
+            const evalResult = evaluateRobotsContentForCCBot(warc.payloadText, targetPath);
             records.push({
               collectionId: col.id,
               collectionName: col.name,
-              captureDate: formatCdxTimestamp(r?.ts),
+              captureDate: formatCdxTimestamp(robotPointer.ts),
               isAvailable: true,
-              ccBotStatus: ccBotAllowed ? 'ALLOWED' : 'BLOCKED',
-              wildcardStatus: starAllowed ? 'ALLOWED' : 'BLOCKED',
-              appliedRule: decoded.rules?.CCBot ? {
-                type: decoded.rules.CCBot.toLowerCase().includes('disallow') ? 'disallow' : 'allow',
-                pattern: decoded.rules.CCBot,
-                lineNumber: 1,
-                originalText: decoded.rules.CCBot
-              } : null,
-              sitemapsCount: decoded.tokens ? 1 : 0,
-              rawExcerpt: decoded.excerpt || undefined
+              ccBotStatus: evalResult.ccBotStatus,
+              wildcardStatus: evalResult.wildcardStatus,
+              appliedRule: evalResult.appliedRule,
+              crawlDelay: evalResult.crawlDelay,
+              sitemapsCount: evalResult.sitemapsCount,
+              rawExcerpt: evalResult.rawExcerpt
             });
-          } else {
-            records.push({
-              collectionId: col.id,
-              collectionName: col.name,
-              isAvailable: false,
-              ccBotStatus: 'UNAVAILABLE',
-              wildcardStatus: 'UNAVAILABLE',
-              sitemapsCount: 0
-            });
+            continue;
           }
+        } catch {
+          // Fall through to unavailable or CDX check
         }
+      }
 
-        if (records.length > 0) {
-          // Detect first observed policy change
-          let firstObservedChangeText: string | undefined = undefined;
-          const availableRecords = [...records].filter(r => r.isAvailable).reverse();
+      // If no valid robots pointer or fetch failed
+      records.push({
+        collectionId: col.id,
+        collectionName: col.name,
+        isAvailable: false,
+        ccBotStatus: 'UNAVAILABLE',
+        wildcardStatus: 'UNAVAILABLE',
+        sitemapsCount: 0
+      });
+    }
 
-          if (availableRecords.length > 1) {
-            for (let k = 1; k < availableRecords.length; k++) {
-              const prev = availableRecords[k - 1];
-              const curr = availableRecords[k];
-              if (curr.ccBotStatus !== prev.ccBotStatus) {
-                curr.firstObservedChange = true;
-                firstObservedChangeText = `First observed change in available records: CCBot status changed from ${prev.ccBotStatus} to ${curr.ccBotStatus} between ${prev.collectionName} (${prev.captureDate || 'undated'}) and ${curr.collectionName} (${curr.captureDate || 'undated'}).`;
-                break;
-              }
-            }
-          }
+    // Detect first observed policy change across available historical records
+    let firstObservedChangeText: string | undefined = undefined;
+    const availableRecords = [...records].filter(r => r.isAvailable).reverse();
 
-          return { records, firstObservedChangeText };
+    if (availableRecords.length > 1) {
+      for (let k = 1; k < availableRecords.length; k++) {
+        const prev = availableRecords[k - 1];
+        const curr = availableRecords[k];
+        if (curr.ccBotStatus !== prev.ccBotStatus) {
+          curr.firstObservedChange = true;
+          firstObservedChangeText = `First observed change in available records: CCBot status changed from ${prev.ccBotStatus} to ${curr.ccBotStatus} between ${prev.collectionName} (${prev.captureDate || 'undated'}) and ${curr.collectionName} (${curr.captureDate || 'undated'}).`;
+          break;
         }
       }
     }
-  } catch (err: any) {
-    console.warn('[CommonCrawl] HA robots fetch warning, falling back to direct CDX:', err.message);
+
+    return { records, firstObservedChangeText };
   }
 
-  // 2. Fallback to Direct CDX Index Queries
+  // 2. Direct CDX fallback query if monthlyRecords was omitted
   const robotsQueryUrl = `${cleanHost}/robots.txt`;
 
-  // Query collections in batches of 2
   for (let i = 0; i < collections.length; i += 2) {
     const chunk = collections.slice(i, i + 2);
     await Promise.all(
@@ -211,7 +161,6 @@ export async function analyzeHistoricalRobots(
             const offset = parseInt(rec.offset, 10);
             const length = parseInt(rec.length, 10);
 
-            // Fetch actual archived content from WARC
             let robotsContent = '';
             try {
               if (rec.filename && offset >= 0 && length > 0) {
@@ -219,11 +168,11 @@ export async function analyzeHistoricalRobots(
                 robotsContent = warc.payloadText;
               }
             } catch {
-              // If WARC retrieval fails, use index status info
+              // Ignore
             }
 
             if (robotsContent) {
-              const evalResult = evaluateRobotsContentForCCBot(robotsContent);
+              const evalResult = evaluateRobotsContentForCCBot(robotsContent, targetPath);
               records.push({
                 collectionId: col.id,
                 collectionName: col.name,
@@ -240,7 +189,6 @@ export async function analyzeHistoricalRobots(
             }
           }
 
-          // If no captures found or index query was empty
           records.push({
             collectionId: col.id,
             collectionName: col.name,

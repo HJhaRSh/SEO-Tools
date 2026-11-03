@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { compareSitemapWithCollection, discoverSitemapUrl } from '@/lib/seo/common-crawl/sitemapService';
 import { getLatestCrawlCollections } from '@/lib/seo/common-crawl/collectionService';
+import { checkCommonCrawlRateLimit, extractClientIp } from '@/lib/seo/common-crawl/rateLimiter';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,20 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
+    const clientIp = extractClientIp(request.headers);
+    const rateCheck = await checkCommonCrawlRateLimit(clientIp);
+
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: rateCheck.reason || 'Rate limit exceeded for sitemap coverage check.',
+          retryAfter: rateCheck.retryAfterSeconds
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const hostname = String(body.hostname || '').trim();
     let sitemapUrl = String(body.sitemapUrl || '').trim();

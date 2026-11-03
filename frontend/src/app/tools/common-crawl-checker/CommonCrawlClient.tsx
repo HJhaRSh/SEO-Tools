@@ -724,6 +724,10 @@ export default function CommonCrawlClient() {
                               ? 'bg-blue-50 text-blue-700' 
                               : r.countType === 'estimated' 
                               ? 'bg-purple-50 text-purple-700' 
+                              : r.countType === 'partial'
+                              ? 'bg-amber-50 text-amber-700'
+                              : r.countType === 'unavailable'
+                              ? 'bg-rose-50 text-rose-700'
                               : 'bg-slate-100 text-slate-600'
                           }`}>
                             {r.countType}
@@ -735,6 +739,8 @@ export default function CommonCrawlClient() {
                               ? 'bg-emerald-50 text-emerald-700' 
                               : r.status === 'estimated' 
                               ? 'bg-amber-50 text-amber-700' 
+                              : r.status === 'temporarily_unavailable' || r.status === 'query_error' || r.status === 'rate_limited'
+                              ? 'bg-rose-50 text-rose-700'
                               : 'bg-slate-100 text-slate-600'
                           }`}>
                             {r.status}
@@ -1034,12 +1040,31 @@ export default function CommonCrawlClient() {
                         </div>
                       </div>
                       <div className="p-4 rounded-xl bg-orange-50/60 border border-orange-100">
-                        <div className="text-xs text-orange-700">Crawl Coverage</div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-orange-700">Crawl Coverage</span>
+                          {sitemapAnalysis.isPartial && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                              Partial Sample
+                            </span>
+                          )}
+                        </div>
                         <div className="text-2xl font-bold text-orange-800 mt-1">
                           {sitemapAnalysis.coveragePercentage}%
                         </div>
+                        {sitemapAnalysis.isPartial && (
+                          <div className="text-[10px] text-amber-700 mt-0.5">
+                            Capped at 500 URLs
+                          </div>
+                        )}
                       </div>
                     </div>
+
+                    {sitemapAnalysis.isPartial && (
+                      <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs">
+                        <span className="font-bold">Partial Sitemap Scope: </span>
+                        This sitemap contains more than 500 URLs and was capped at 500 URLs for serverless execution. The {sitemapAnalysis.coveragePercentage}% coverage reflects this 500-URL sample, not verified sitewide coverage.
+                      </div>
+                    )}
 
                     <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
                       <span className="font-bold">Important Transparency Note: </span>

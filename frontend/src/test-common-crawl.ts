@@ -14,12 +14,15 @@ import {
 import {
   buildDomainQueryPattern,
   formatCdxTimestamp,
-  computeTrendSummary
+  computeTrendSummary,
+  toSURTPrefix,
+  matchesScope,
+  isHtmlWebpageRecord
 } from './lib/seo/common-crawl/domainAnalysisService';
 import { generateUrlVariants } from './lib/seo/common-crawl/pageHistoryService';
 import { evaluateRobotsContentForCCBot } from './lib/seo/common-crawl/robotsHistoryService';
 import { detectBlockSource } from './lib/seo/common-crawl/blockSourceDetector';
-import { extractUrlsFromSitemapXml } from './lib/seo/common-crawl/sitemapService';
+import { extractUrlsFromSitemapXml, calculateSitemapCoverage } from './lib/seo/common-crawl/sitemapService';
 import { extractContentFromHtml } from './lib/seo/common-crawl/contentComparisonService';
 import {
   computeOverallStatus,
@@ -102,6 +105,21 @@ async function runTestSuite() {
     assert.strictEqual(p, '*.hoabl.com/*');
   });
 
+  testCase('Constructs canonical SURT prefixes correctly', () => {
+    assert.strictEqual(toSURTPrefix('scaler.com'), 'com,scaler)');
+    assert.strictEqual(toSURTPrefix('www.hoabl.com'), 'com,hoabl)');
+    assert.strictEqual(toSURTPrefix('https://barbequenation.com/'), 'com,barbequenation)');
+    assert.strictEqual(toSURTPrefix('indianmarketers.in'), 'in,indianmarketers)');
+  });
+
+  testCase('Evaluates matchesScope correctly for exact, include_www, and subdomains', () => {
+    assert.strictEqual(matchesScope('https://scaler.com/courses', 'scaler.com', 'exact'), true);
+    assert.strictEqual(matchesScope('https://www.scaler.com/topics', 'scaler.com', 'exact'), false);
+    assert.strictEqual(matchesScope('https://www.scaler.com/topics', 'scaler.com', 'include_www'), true);
+    assert.strictEqual(matchesScope('https://blog.scaler.com/post', 'scaler.com', 'include_www'), false);
+    assert.strictEqual(matchesScope('https://blog.scaler.com/post', 'scaler.com', 'subdomains'), true);
+  });
+
   // 3. URL Variant Generation for Page Archival Tracking
   console.log('\n3. URL Variant Tracking:');
   testCase('Generates exact, slash, protocol, and www variants', () => {
@@ -152,6 +170,42 @@ async function runTestSuite() {
     assert.strictEqual(trend.lowestCount, 1000);
   });
 
+  testCase('Excludes unavailable collections from percentage calculation and does not treat them as zero captures', () => {
+    const mockRecords: MonthlyCrawlRecord[] = [
+      {
+        collectionId: 'CC-MAIN-2026-43',
+        collectionName: 'October 2026',
+        dateRange: 'Oct 2026',
+        capturedCount: 2000,
+        countType: 'exact',
+        status: 'confirmed'
+      },
+      {
+        collectionId: 'CC-MAIN-2026-39',
+        collectionName: 'September 2026',
+        dateRange: 'Sep 2026',
+        capturedCount: 0,
+        countType: 'unavailable',
+        status: 'temporarily_unavailable',
+        statusMessage: 'Official Common Crawl cluster index temporarily unreachable.'
+      },
+      {
+        collectionId: 'CC-MAIN-2026-34',
+        collectionName: 'August 2026',
+        dateRange: 'Aug 2026',
+        capturedCount: 1000,
+        countType: 'exact',
+        status: 'confirmed'
+      }
+    ];
+
+    const trend = computeTrendSummary(mockRecords);
+    assert.strictEqual(trend.latestCaptureCount, 2000);
+    assert.strictEqual(trend.previousCaptureCount, 1000);
+    assert.strictEqual(trend.percentChange, 100);
+    assert.strictEqual(trend.unavailableCollectionsCount, 1);
+  });
+
   // 5. RFC 9309 Historical Robots.txt CCBot Evaluation
   console.log('\n5. RFC 9309 Robots.txt Policy Evaluation:');
   testCase('Allows CCBot by default when no rules disallow', () => {
@@ -175,6 +229,18 @@ async function runTestSuite() {
     const evalRes = evaluateRobotsContentForCCBot(robots);
     assert.strictEqual(evalRes.ccBotStatus, 'ALLOWED');
     assert.strictEqual(evalRes.wildcardStatus, 'BLOCKED');
+  });
+
+  testCase('Evaluates robots.txt rules against specific target path (RFC 9309)', () => {
+    const robots = 'User-agent: CCBot\nDisallow: /checkout/\nAllow: /checkout/success\nDisallow: /admin';
+    const checkBlocked = evaluateRobotsContentForCCBot(robots, '/checkout/cart');
+    assert.strictEqual(checkBlocked.ccBotStatus, 'BLOCKED');
+
+    const checkAllowed = evaluateRobotsContentForCCBot(robots, '/checkout/success');
+    assert.strictEqual(checkAllowed.ccBotStatus, 'ALLOWED');
+
+    const checkRoot = evaluateRobotsContentForCCBot(robots, '/');
+    assert.strictEqual(checkRoot.ccBotStatus, 'ALLOWED');
   });
 
   // 6. Block Source Detection & Attribution
@@ -221,7 +287,7 @@ async function runTestSuite() {
       <url><loc>https://example.com/about</loc></url>
       <url><loc>https://example.com/blog</loc></url>
     </urlset>`;
-    const urls = extractUrlsFromSitemapXml(xml);
+    const { urls } = extractUrlsFromSitemapXml(xml);
     assert.strictEqual(urls.length, 3);
     assert.strictEqual(urls[0], 'https://example.com/');
     assert.strictEqual(urls[1], 'https://example.com/about');
@@ -233,9 +299,45 @@ async function runTestSuite() {
       <sitemap><loc>https://example.com/sitemap-posts.xml</loc></sitemap>
       <sitemap><loc>https://example.com/sitemap-pages.xml</loc></sitemap>
     </sitemapindex>`;
-    const urls = extractUrlsFromSitemapXml(xml);
-    assert.strictEqual(urls.length, 2);
-    assert.strictEqual(urls[0], 'https://example.com/sitemap-posts.xml');
+    const { childSitemaps } = extractUrlsFromSitemapXml(xml);
+    assert.strictEqual(childSitemaps.length, 2);
+    assert.strictEqual(childSitemaps[0], 'https://example.com/sitemap-posts.xml');
+  });
+
+  // 7b. Sitemap Coverage Calculation & Fractional Percentages
+  console.log('\n7b. Sitemap Coverage & Fractional Percentages:');
+  testCase('Calculates fractional percentage correctly (2/500 = 0.4%, not 0%)', () => {
+    const sitemapUrls = Array.from({ length: 500 }, (_, i) => `https://example.com/page-${i}`);
+    const verified = [
+      { url: 'https://example.com/page-0' },
+      { url: 'https://example.com/page-1' }
+    ];
+    const res = calculateSitemapCoverage(
+      'https://example.com/sitemap.xml',
+      sitemapUrls,
+      'CC-MAIN-2026-43',
+      verified,
+      true, // capped sample
+      1200 // total parsed before cap
+    );
+    assert.strictEqual(res.totalSitemapUrls, 500);
+    assert.strictEqual(res.confirmedArchivedUrls, 2);
+    assert.strictEqual(res.coveragePercentage, 0.4);
+    assert.strictEqual(res.isPartial, true);
+  });
+
+  testCase('Calculates 0% and 100% coverage cleanly', () => {
+    const sitemapUrls = ['https://example.com/a', 'https://example.com/b'];
+    const resZero = calculateSitemapCoverage('https://example.com/sitemap.xml', sitemapUrls, 'CC-MAIN-2026-43', []);
+    assert.strictEqual(resZero.coveragePercentage, 0);
+
+    const resFull = calculateSitemapCoverage(
+      'https://example.com/sitemap.xml',
+      sitemapUrls,
+      'CC-MAIN-2026-43',
+      [{ url: 'https://example.com/a' }, { url: 'https://example.com/b' }]
+    );
+    assert.strictEqual(resFull.coveragePercentage, 100);
   });
 
   // 8. WARC Record Validation & Decompression
@@ -349,6 +451,57 @@ async function runTestSuite() {
       const sanitized = /^[=+\-@\t\r]/.test(val) ? `'${val}` : val;
       assert.strictEqual(sanitized.startsWith("'"), true);
     }
+  });
+
+  // 12. HTML Webpage vs Non-HTML / Robots.txt Distinction
+  console.log('\n12. HTML Webpage vs Non-HTML Record Classification:');
+  testCase('Accepts standard text/html webpage records', () => {
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/', mime: 'text/html' }), true);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/blog/article-1', mime: 'text/html; charset=UTF-8' }), true);
+  });
+
+  testCase('Strictly excludes robots.txt regardless of MIME type', () => {
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/robots.txt', mime: 'text/plain' }), false);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://indianmarketers.in/robots.txt', mime: 'text/html' }), false);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/robots.txt?v=1', mime: 'text/plain' }), false);
+  });
+
+  testCase('Strictly excludes XML sitemaps, feeds, and JSON data', () => {
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/sitemap.xml', mime: 'text/xml' }), false);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/sitemap_index.xml', mime: 'application/xml' }), false);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/feed.xml', mime: 'text/xml' }), false);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/api/data.json', mime: 'application/json' }), false);
+  });
+
+  testCase('Strictly excludes static assets, media, styles, and scripts', () => {
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/logo.png', mime: 'image/png' }), false);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/styles.css', mime: 'text/css' }), false);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/bundle.js', mime: 'application/javascript' }), false);
+    assert.strictEqual(isHtmlWebpageRecord({ url: 'https://example.com/manual.pdf', mime: 'application/pdf' }), false);
+  });
+
+  testCase('Ensures MonthlyCrawlRecord distinguishes HTML captures from robots.txt snapshots', () => {
+    // Simulating collection where only robots.txt was archived (as in CC-MAIN-2026-39 for indianmarketers.in)
+    const mockMonthly: MonthlyCrawlRecord = {
+      collectionId: 'CC-MAIN-2026-39',
+      collectionName: 'Sep 2026',
+      dateRange: 'Sep 2026',
+      capturedCount: 0,
+      countType: 'none',
+      status: 'no_records',
+      htmlCapturesCount: 0,
+      robotsCount: 1,
+      redirectsCount: 0,
+      forbiddenCount: 0,
+      otherResourcesCount: 0,
+      statusMessage: 'No captured HTML webpages in this collection (1 robots.txt snapshot archived).'
+    };
+
+    assert.strictEqual(mockMonthly.capturedCount, 0);
+    assert.strictEqual(mockMonthly.countType, 'none');
+    assert.strictEqual(mockMonthly.status, 'no_records');
+    assert.strictEqual(mockMonthly.robotsCount, 1);
+    assert.strictEqual(mockMonthly.htmlCapturesCount, 0);
   });
 
   console.log('\n=====================================================');

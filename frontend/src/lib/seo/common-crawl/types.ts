@@ -30,7 +30,7 @@ export interface MonthlyCrawlRecord {
   collectionName: string;
   dateRange: string;
   capturedCount: number;
-  countType: 'exact' | 'estimated' | 'none';
+  countType: 'exact' | 'estimated' | 'partial' | 'none' | 'unavailable';
   status: CollectionQueryStatus;
   statusMessage?: string;
   lastCapturedDate?: string;
@@ -45,6 +45,11 @@ export interface MonthlyCrawlRecord {
   urls?: Array<{ url: string; ts: string; status: number }>;
   robots?: any[];
   homepageRecord?: any;
+  htmlCapturesCount?: number;
+  robotsCount?: number;
+  redirectsCount?: number;
+  forbiddenCount?: number;
+  otherResourcesCount?: number;
 }
 
 export interface DiscoveredUrlVariant {
@@ -103,7 +108,7 @@ export interface LiveProbeResult {
   contentType: string;
   redirectDestination?: string;
   challengeIndicator?: 'NONE' | 'CLOUDFLARE_CHALLENGE' | 'CLOUDFLARE_BLOCKED' | 'BOT_MANAGEMENT' | 'CAPTCHA' | 'ACCESS_DENIED' | 'SERVER_ERROR';
-  accessResult: 'SERVED_SUCCESSFULLY' | 'CHALLENGED' | 'BLOCKED' | 'ERROR';
+  accessResult: 'SERVED_SUCCESSFULLY' | 'CHALLENGED' | 'BLOCKED' | 'ERROR' | 'UNAVAILABLE';
   relevantHeaders: Record<string, string>;
   limitationDisclaimer: string;
 }

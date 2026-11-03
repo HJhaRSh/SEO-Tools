@@ -2,12 +2,14 @@
  * Common Crawl Sitemap Coverage Service
  * Feature 5 — Sitemap Discovery, XML Parsing & Crawl Comparison
  * Tool #19 — Indian Marketers SEO Toolkit
+ *
+ * Genuine recursive XML sitemap parser with transparent boundary enforcement.
+ * Operates independently without third-party proxy reliance.
  */
 
 import { XMLParser } from 'fast-xml-parser';
 import zlib from 'zlib';
 import { safeFetch } from '../safeFetch';
-import { queryCdxIndex } from './commonCrawlClient';
 import { SitemapCoverageAnalysis, SitemapComparisonUrl } from './types';
 
 const MAX_SITEMAP_URLS = 500; // Bounded limit for serverless execution
@@ -22,8 +24,10 @@ const xmlParser = new XMLParser({
 /**
  * Extracts URL locations from parsed XML sitemap structure
  */
-export function extractUrlsFromSitemapXml(xmlContent: string): string[] {
+export function extractUrlsFromSitemapXml(xmlContent: string): { urls: string[]; childSitemaps: string[] } {
   const urls: string[] = [];
+  const childSitemaps: string[] = [];
+
   try {
     const parsed = xmlParser.parse(xmlContent);
 
@@ -33,7 +37,7 @@ export function extractUrlsFromSitemapXml(xmlContent: string): string[] {
       for (const item of urlList) {
         if (item && item.loc) {
           const locStr = String(item.loc).trim();
-          if (locStr.startsWith('http')) {
+          if (locStr.startsWith('http://') || locStr.startsWith('https://')) {
             urls.push(locStr);
           }
         }
@@ -48,9 +52,8 @@ export function extractUrlsFromSitemapXml(xmlContent: string): string[] {
       for (const item of sitemapList) {
         if (item && item.loc) {
           const locStr = String(item.loc).trim();
-          if (locStr.startsWith('http')) {
-            // Note: caller can recursively fetch sub-sitemaps
-            urls.push(locStr);
+          if (locStr.startsWith('http://') || locStr.startsWith('https://')) {
+            childSitemaps.push(locStr);
           }
         }
       }
@@ -59,66 +62,86 @@ export function extractUrlsFromSitemapXml(xmlContent: string): string[] {
     console.warn('[SitemapParser] XML parsing failed:', err.message);
   }
 
-  return urls;
+  return { urls, childSitemaps };
+}
+
+export interface FetchSitemapResult {
+  urls: string[];
+  isPartial: boolean;
+  totalParsedBeforeCap: number;
 }
 
 /**
- * Fetches and resolves a sitemap URL (handles .gz and sitemap index files)
+ * Fetches and resolves a sitemap URL, handling gzip and sitemap index files recursively
  */
-export async function fetchAndParseSitemap(sitemapUrl: string): Promise<string[]> {
-  const res = await safeFetch(sitemapUrl, {
-    timeoutMs: 8000,
-    maxBytes: MAX_SITEMAP_FETCH_BYTES
-  });
+export async function fetchAndParseSitemap(sitemapUrl: string): Promise<FetchSitemapResult> {
+  const visited = new Set<string>();
+  const queue: string[] = [sitemapUrl];
+  const discoveredUrls: string[] = [];
+  let isPartial = false;
+  let totalCount = 0;
 
-  if (res.statusCode !== 200) {
-    throw new Error(`Sitemap request returned HTTP ${res.statusCode}`);
-  }
+  while (queue.length > 0 && discoveredUrls.length < MAX_SITEMAP_URLS) {
+    const currentUrl = queue.shift()!;
+    if (visited.has(currentUrl)) continue;
+    visited.add(currentUrl);
 
-  let body = res.body;
-
-  // If gzip compressed (.xml.gz)
-  if (sitemapUrl.endsWith('.gz') || (res.headers['content-encoding'] || '').includes('gzip')) {
     try {
-      const decompressed = zlib.gunzipSync(Buffer.from(res.body, 'binary'));
-      body = decompressed.toString('utf8');
-    } catch {
-      // Keep original body if gunzip failed
-    }
-  }
+      const res = await safeFetch(currentUrl, {
+        timeoutMs: 6000,
+        maxBytes: MAX_SITEMAP_FETCH_BYTES
+      });
 
-  const rawUrls = extractUrlsFromSitemapXml(body);
+      if (res.statusCode !== 200) continue;
 
-  // If this is a sitemapindex, take up to 2 child sitemaps and fetch their URLs
-  if (body.includes('<sitemapindex') && rawUrls.length > 0) {
-    const childUrls: string[] = [];
-    const childrenToFetch = rawUrls.slice(0, 2); // fetch at most 2 child sitemaps
-    for (const childUrl of childrenToFetch) {
-      try {
-        const childRes = await safeFetch(childUrl, { timeoutMs: 6000, maxBytes: MAX_SITEMAP_FETCH_BYTES });
-        if (childRes.statusCode === 200) {
-          const extracted = extractUrlsFromSitemapXml(childRes.body);
-          childUrls.push(...extracted);
+      let body = res.body;
+      if (currentUrl.endsWith('.gz') || (res.headers['content-encoding'] || '').includes('gzip')) {
+        try {
+          const decompressed = zlib.gunzipSync(Buffer.from(res.body, 'binary'));
+          body = decompressed.toString('utf8');
+        } catch {
+          // Keep raw body if gunzip failed
         }
-      } catch {
-        // Skip child failures
       }
-    }
-    if (childUrls.length > 0) {
-      return Array.from(new Set(childUrls)).slice(0, MAX_SITEMAP_URLS);
+
+      const { urls, childSitemaps } = extractUrlsFromSitemapXml(body);
+
+      for (const u of urls) {
+        totalCount++;
+        if (discoveredUrls.length < MAX_SITEMAP_URLS) {
+          discoveredUrls.push(u);
+        } else {
+          isPartial = true;
+        }
+      }
+
+      // Add child sitemaps to queue (up to 8 children to prevent unbounded crawling)
+      for (const child of childSitemaps) {
+        if (!visited.has(child) && queue.length < 8) {
+          queue.push(child);
+        }
+      }
+    } catch {
+      // Continue to next item
     }
   }
 
-  // Deduplicate and cap
-  return Array.from(new Set(rawUrls)).slice(0, MAX_SITEMAP_URLS);
+  if (totalCount > MAX_SITEMAP_URLS) {
+    isPartial = true;
+  }
+
+  return {
+    urls: Array.from(new Set(discoveredUrls)).slice(0, MAX_SITEMAP_URLS),
+    isPartial,
+    totalParsedBeforeCap: totalCount
+  };
 }
 
 /**
  * Discovers sitemap URL automatically if not supplied
  * Checks:
  * 1. robots.txt "Sitemap: ..." directives (RFC 9309 standard)
- * 2. High-availability sitemap discovery endpoint
- * 3. Standard candidate paths (/sitemap.xml, /sitemap_index.xml)
+ * 2. Standard candidate paths (/sitemap_index.xml, /sitemap.xml)
  */
 export async function discoverSitemapUrl(hostname: string, userSitemapUrl?: string): Promise<string> {
   if (userSitemapUrl && userSitemapUrl.trim().length > 0) {
@@ -146,31 +169,10 @@ export async function discoverSitemapUrl(hostname: string, userSitemapUrl?: stri
       }
     }
   } catch {
-    // Continue to next discovery method
-  }
-
-  // 2. Check HA endpoint discovery
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    const haRes = await fetch(HA_SITEMAP_ENDPOINT, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domain: cleanHost })
-    });
-    clearTimeout(timeout);
-    if (haRes.ok) {
-      const haData = await haRes.json();
-      if (haData.ok && haData.sourceUrl) {
-        return haData.sourceUrl;
-      }
-    }
-  } catch {
     // Continue to standard probes
   }
 
-  // 3. Fallback candidates
+  // 2. Fallback candidates
   const candidates = [
     `https://${cleanHost}/sitemap_index.xml`,
     `https://${cleanHost}/sitemap.xml`,
@@ -192,142 +194,56 @@ export async function discoverSitemapUrl(hostname: string, userSitemapUrl?: stri
   return `https://${cleanHost}/sitemap.xml`;
 }
 
-const HA_SITEMAP_ENDPOINT = 'https://cc-visibility.suganmn.workers.dev/api/sitemap';
-
 /**
- * Compares sitemap URLs against a Common Crawl collection CDX index
+ * Pure calculation function for evaluating sitemap URLs against verified Common Crawl records.
  */
-export async function compareSitemapWithCollection(
+export function calculateSitemapCoverage(
   sitemapUrl: string,
-  cdxApiUrl: string,
+  sitemapUrls: string[],
   collectionId: string,
-  knownCapturedUrls?: string[]
-): Promise<SitemapCoverageAnalysis> {
-  const cleanHost = new URL(sitemapUrl).hostname.toLowerCase().replace(/^www\./, '');
-
-  // 1. Try High-Availability Sitemap Endpoint
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch(HA_SITEMAP_ENDPOINT, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        domain: cleanHost,
-        sitemaps: [sitemapUrl]
-      })
-    });
-    clearTimeout(timeout);
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.ok && Array.isArray(data.urls) && data.urls.length > 0) {
-        const sitemapUrls: string[] = data.urls.slice(0, MAX_SITEMAP_URLS);
-        const capturedSet = new Set((knownCapturedUrls || []).map(u => u.toLowerCase().replace(/\/$/, '')));
-
-        const comparisonUrls: SitemapComparisonUrl[] = [];
-        let confirmedArchivedCount = 0;
-
-        for (const url of sitemapUrls) {
-          const norm = url.toLowerCase().replace(/\/$/, '');
-          const isArchived = capturedSet.has(norm);
-          if (isArchived) {
-            confirmedArchivedCount++;
-            comparisonUrls.push({
-              url,
-              status: 'ARCHIVED',
-              httpStatus: 200
-            });
-          } else {
-            comparisonUrls.push({
-              url,
-              status: 'NOT_FOUND_IN_COLLECTION'
-            });
-          }
-        }
-
-        const totalSitemapUrls = sitemapUrls.length;
-        const missingUrls = totalSitemapUrls - confirmedArchivedCount;
-        const coveragePercentage = totalSitemapUrls > 0 
-          ? Math.round((confirmedArchivedCount / totalSitemapUrls) * 100) 
-          : 0;
-
-        return {
-          sitemapUrl,
-          collectionId,
-          totalSitemapUrls,
-          confirmedArchivedUrls: confirmedArchivedCount,
-          missingUrls,
-          coveragePercentage,
-          nonSitemapArchivedCount: Math.max(0, (knownCapturedUrls?.length || 0) - confirmedArchivedCount),
-          isPartial: !!data.truncated || totalSitemapUrls >= MAX_SITEMAP_URLS,
-          urls: comparisonUrls
-        };
+  verifiedCapturedRecords?: Array<{ url: string; status?: number; ts?: string }>,
+  isPartial = false,
+  totalParsedBeforeCap = 0
+): SitemapCoverageAnalysis {
+  // Build a lookup map from verified captured records
+  const capturedMap = new Map<string, { status?: number; ts?: string }>();
+  if (Array.isArray(verifiedCapturedRecords)) {
+    for (const rec of verifiedCapturedRecords) {
+      if (rec && rec.url) {
+        const norm = rec.url.toLowerCase().replace(/\/$/, '');
+        capturedMap.set(norm, rec);
       }
     }
-  } catch (err: any) {
-    console.warn('[CommonCrawl] HA sitemap warning, falling back to direct parse:', err.message);
-  }
-
-  // 2. Fallback to Direct Fetch and Parse
-  const sitemapUrls = await fetchAndParseSitemap(sitemapUrl);
-  if (sitemapUrls.length === 0) {
-    throw new Error(`No valid URLs found in sitemap at "${sitemapUrl}".`);
   }
 
   const comparisonUrls: SitemapComparisonUrl[] = [];
   let confirmedArchivedCount = 0;
 
-  // Process in batches of 4
-  for (let i = 0; i < sitemapUrls.length; i += 4) {
-    const chunk = sitemapUrls.slice(i, i + 4);
-    await Promise.all(
-      chunk.map(async (url) => {
-        try {
-          const cdx = await queryCdxIndex(cdxApiUrl, {
-            url,
-            matchType: 'exact',
-            fl: 'url,timestamp,status,mime',
-            limit: 1,
-            timeoutMs: 5000
-          });
+  for (const url of sitemapUrls) {
+    const norm = url.toLowerCase().replace(/\/$/, '');
+    const match = capturedMap.get(norm);
 
-          if (cdx.status === 'confirmed' && cdx.records.length > 0) {
-            const rec = cdx.records[0];
-            confirmedArchivedCount++;
-            comparisonUrls.push({
-              url,
-              status: 'ARCHIVED',
-              captureTimestamp: rec.timestamp,
-              httpStatus: parseInt(rec.status, 10) || 200,
-              mimeType: rec.mime
-            });
-          } else {
-            comparisonUrls.push({
-              url,
-              status: 'NOT_FOUND_IN_COLLECTION'
-            });
-          }
-        } catch {
-          comparisonUrls.push({
-            url,
-            status: 'NOT_FOUND_IN_COLLECTION'
-          });
-        }
-      })
-    );
+    if (match) {
+      confirmedArchivedCount++;
+      comparisonUrls.push({
+        url,
+        status: 'ARCHIVED',
+        httpStatus: match.status || 200,
+        captureTimestamp: match.ts
+      });
+    } else {
+      comparisonUrls.push({
+        url,
+        status: 'NOT_FOUND_IN_COLLECTION'
+      });
+    }
   }
 
   const totalSitemapUrls = sitemapUrls.length;
-  const missingUrls = totalSitemapUrls - confirmedArchivedCount;
-  const coveragePercentage = totalSitemapUrls > 0 
-    ? Math.round((confirmedArchivedCount / totalSitemapUrls) * 100) 
-    : 0;
+  const missingUrls = Math.max(0, totalSitemapUrls - confirmedArchivedCount);
+  const rawPct = totalSitemapUrls > 0 ? (confirmedArchivedCount / totalSitemapUrls) * 100 : 0;
+  // Preserve fractional percentages (e.g. 2/500 = 0.4%) rather than rounding down to 0%
+  const coveragePercentage = rawPct > 0 && rawPct < 1 ? Number(rawPct.toFixed(1)) : Math.round(rawPct * 10) / 10;
 
   return {
     sitemapUrl,
@@ -336,9 +252,34 @@ export async function compareSitemapWithCollection(
     confirmedArchivedUrls: confirmedArchivedCount,
     missingUrls,
     coveragePercentage,
-    nonSitemapArchivedCount: 0,
-    isPartial: totalSitemapUrls >= MAX_SITEMAP_URLS,
+    nonSitemapArchivedCount: Math.max(0, (verifiedCapturedRecords?.length || 0) - confirmedArchivedCount),
+    isPartial: isPartial || totalParsedBeforeCap > MAX_SITEMAP_URLS,
     urls: comparisonUrls
   };
+}
+
+/**
+ * Compares sitemap URLs against verified Common Crawl records
+ * Accepts verified captured records from domain query, never trusting arbitrary client inputs blindly.
+ */
+export async function compareSitemapWithCollection(
+  sitemapUrl: string,
+  cdxApiUrl: string,
+  collectionId: string,
+  verifiedCapturedRecords?: Array<{ url: string; status?: number; ts?: string }>
+): Promise<SitemapCoverageAnalysis> {
+  const { urls: sitemapUrls, isPartial, totalParsedBeforeCap } = await fetchAndParseSitemap(sitemapUrl);
+  if (sitemapUrls.length === 0) {
+    throw new Error(`No valid URLs found in sitemap at "${sitemapUrl}".`);
+  }
+
+  return calculateSitemapCoverage(
+    sitemapUrl,
+    sitemapUrls,
+    collectionId,
+    verifiedCapturedRecords,
+    isPartial,
+    totalParsedBeforeCap
+  );
 }
 

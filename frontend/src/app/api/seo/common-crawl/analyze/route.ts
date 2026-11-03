@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runCommonCrawlAudit } from '@/lib/seo/common-crawl';
 import { ScopeSetting } from '@/lib/seo/common-crawl/types';
+import { checkCommonCrawlRateLimit, extractClientIp } from '@/lib/seo/common-crawl/rateLimiter';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,27 @@ export const maxDuration = 60; // Allow sufficient serverless execution budget f
 
 export async function POST(request: Request) {
   try {
+    const clientIp = extractClientIp(request.headers);
+    const rateCheck = await checkCommonCrawlRateLimit(clientIp);
+
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: rateCheck.reason || 'Rate limit exceeded. Please wait before running another Common Crawl audit.',
+          retryAfter: rateCheck.retryAfterSeconds
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateCheck.retryAfterSeconds || 60),
+            'X-RateLimit-Remaining-Minute': String(rateCheck.remainingMinute),
+            'X-RateLimit-Remaining-Day': String(rateCheck.remainingDay)
+          }
+        }
+      );
+    }
+
     const body = await request.json();
     const input = String(body.input || '').trim();
     const scope = (body.scope as ScopeSetting) || 'include_www';

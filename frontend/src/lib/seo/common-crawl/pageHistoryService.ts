@@ -57,8 +57,6 @@ export function generateUrlVariants(targetUrl: string): { url: string; type: Dis
   });
 }
 
-const HA_PAGEHITS_ENDPOINT = 'https://cc-visibility.suganmn.workers.dev/api/pagehits';
-
 /**
  * Searches archival history for an exact page across collections
  */
@@ -83,87 +81,6 @@ export async function analyzePageCaptureHistory(
     variantType: 'exact',
     captureCount: 0
   });
-
-  // 1. Try High-Availability Pagehits Endpoint
-  try {
-    const parsed = new URL(pageUrl);
-    const domain = parsed.hostname.toLowerCase().replace(/^www\./, '');
-    const path = parsed.pathname || '/';
-
-    for (let k = 0; k < collections.length; k += 4) {
-      const chunk = collections.slice(k, k + 4);
-      const batchIds = chunk.map(c => c.id);
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(HA_PAGEHITS_ENDPOINT, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          domain,
-          path,
-          crawls: batchIds
-        })
-      });
-
-      clearTimeout(timeout);
-
-      if (res.ok) {
-        const data = await res.json();
-        const results = data.results || [];
-        for (const r of results) {
-          if (r.found && r.url) {
-            const capture: PageCaptureRecord = {
-              timestamp: r.ts || '',
-              collectionId: r.crawl,
-              url: r.url,
-              status: r.status || 200,
-              mime: r.mime || 'text/html',
-              digest: '',
-              length: r.length || 0,
-              offset: r.offset || 0,
-              filename: r.filename || ''
-            };
-            captures.push(capture);
-
-            const existingVar: DiscoveredUrlVariant = variantMap.get(r.url) || {
-              url: r.url,
-              variantType: r.url === pageUrl ? 'exact' : 'trailing_slash',
-              captureCount: 0
-            };
-            existingVar.captureCount += 1;
-            if (!existingVar.latestTimestamp || (r.ts && r.ts > existingVar.latestTimestamp)) {
-              existingVar.latestTimestamp = r.ts;
-              existingVar.latestStatus = capture.status;
-            }
-            variantMap.set(r.url, existingVar);
-          }
-        }
-      }
-    }
-
-    if (captures.length > 0) {
-      captures.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-      return {
-        checkedUrl: pageUrl,
-        firstCapture: captures[captures.length - 1].timestamp,
-        lastCapture: captures[0].timestamp,
-        totalCapturesCount: captures.length,
-        collectionsWithCaptures: new Set(captures.map(c => c.collectionId)).size,
-        captures,
-        discoveredVariants: Array.from(variantMap.values())
-      };
-    }
-  } catch (err: any) {
-    console.warn('[CommonCrawl] HA pagehits warning, falling back to direct CDX:', err.message);
-  }
-
-  // 2. Fallback to Direct CDX Index Queries
 
   // Query each collection with exact match type
   // Use batch concurrency of 3
@@ -195,7 +112,7 @@ export async function analyzePageCaptureHistory(
             captures.push(capture);
 
             // Update variant map
-            const existingVar = variantMap.get(rec.url) || {
+            const existingVar: DiscoveredUrlVariant = variantMap.get(rec.url) || {
               url: rec.url,
               variantType: rec.url === pageUrl ? 'exact' : 'trailing_slash',
               captureCount: 0

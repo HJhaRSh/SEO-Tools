@@ -8,8 +8,8 @@ import zlib from 'zlib';
 import { commonCrawlCache } from './cacheService';
 
 const DATA_COMMON_CRAWL_BASE = 'https://data.commoncrawl.org';
-const MAX_WARC_RANGE_BYTES = 5 * 1024 * 1024; // 5 MB max compressed range
-const MAX_DECOMPRESSED_BYTES = 10 * 1024 * 1024; // 10 MB max decompressed payload
+const MAX_WARC_RANGE_BYTES = 2 * 1024 * 1024; // 2 MB max compressed range
+const MAX_DECOMPRESSED_BYTES = 5 * 1024 * 1024; // 5 MB max decompressed payload
 
 export interface WarcRecordPayload {
   warcHeaders: Record<string, string>;
@@ -22,13 +22,21 @@ export interface WarcRecordPayload {
 }
 
 /**
- * Validates and sanitizes a WARC filename returned from Common Crawl index
+ * Validates and sanitizes a WARC filename returned from Common Crawl index.
+ * Rejects path traversal (..), absolute URLs, protocol schemes, and invalid segments.
  */
 export function validateWarcFilename(filename: string): boolean {
   if (!filename || typeof filename !== 'string') return false;
-  // Must match standard Common Crawl path structure e.g. crawl-data/CC-MAIN-2026-43/.../CC-MAIN-....warc.gz
-  return /^crawl-data\/CC-MAIN-[0-9]{4}-[0-9]{2}\/segments\/[0-9.]+\/(warc|robotstxt)\/[A-Za-z0-9._-]+\.(warc|gz)$/.test(filename) ||
-         filename.startsWith('crawl-data/');
+  const trimmed = filename.trim();
+
+  // Strict path traversal defense
+  if (trimmed.includes('..') || trimmed.includes('\\') || trimmed.includes('://')) {
+    return false;
+  }
+
+  // Must match official Common Crawl path structure
+  // e.g. crawl-data/CC-MAIN-2026-43/segments/1791170054319.37/robotstxt/CC-MAIN-20261008182931-20261008212931-00248.warc.gz
+  return /^crawl-data\/CC-MAIN-[0-9]{4}-[0-9]{2}\/segments\/[0-9.]+\/(warc|robotstxt|crawldiagnostics)\/[A-Za-z0-9._-]+\.warc\.gz$/.test(trimmed);
 }
 
 /**

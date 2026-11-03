@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { compareArchivedVsLiveContent } from '@/lib/seo/common-crawl/contentComparisonService';
+import { checkCommonCrawlRateLimit, extractClientIp } from '@/lib/seo/common-crawl/rateLimiter';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -7,6 +8,20 @@ export const maxDuration = 30;
 
 export async function POST(request: Request) {
   try {
+    const clientIp = extractClientIp(request.headers);
+    const rateCheck = await checkCommonCrawlRateLimit(clientIp);
+
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: rateCheck.reason || 'Rate limit exceeded for WARC content retrieval.',
+          retryAfter: rateCheck.retryAfterSeconds
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const targetUrl = String(body.targetUrl || '').trim();
     const warcFilename = String(body.warcFilename || '').trim();

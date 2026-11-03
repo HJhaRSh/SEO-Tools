@@ -1,12 +1,17 @@
 /**
  * Common Crawl Collection Discovery Service
  * Tool #19 — Indian Marketers SEO Toolkit
+ *
+ * Discovers collections directly from official Common Crawl public endpoints:
+ * 1. data.commoncrawl.org/crawl-data/index.html (Official AWS CloudFront directory listing)
+ * 2. index.commoncrawl.org/collinfo.json (Official CDX collection index)
+ * 3. Documented recent crawl collections (Offline deterministic fallback)
  */
 
 import { CrawlCollection } from './types';
 import { commonCrawlCache } from './cacheService';
 
-const HA_CRAWLS_ENDPOINT = 'https://cc-visibility.suganmn.workers.dev/api/crawls';
+const DATA_COMMON_CRAWL_INDEX_URL = 'https://data.commoncrawl.org/crawl-data/index.html';
 const COLLINFO_ENDPOINT = 'https://index.commoncrawl.org/collinfo.json';
 const DEFAULT_TIMEOUT_MS = 6000;
 
@@ -17,39 +22,45 @@ export async function getLatestCrawlCollections(limit = 12): Promise<CrawlCollec
     return cached;
   }
 
-  // 1. Try High-Availability Crawls Endpoint First
+  // 1. Discover directly from official data.commoncrawl.org/crawl-data/index.html
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const res = await fetch(HA_CRAWLS_ENDPOINT, {
+    const res = await fetch(DATA_COMMON_CRAWL_INDEX_URL, {
       signal: controller.signal,
-      headers: { 'Accept': 'application/json' }
+      headers: {
+        'Accept': 'text/html',
+        'User-Agent': 'IndianMarketers-SEO-Tool/1.0 (+https://indianmarketers.in/tools/common-crawl-checker)'
+      }
     });
     clearTimeout(timeout);
 
     if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.crawls) && data.crawls.length > 0) {
-        const collections: CrawlCollection[] = data.crawls
-          .slice(0, limit)
-          .map((item: any) => ({
-            id: String(item.id || ''),
-            name: String(item.name || item.id || ''),
-            timegate: `https://index.commoncrawl.org/${item.id}/`,
-            cdxApi: `https://index.commoncrawl.org/${item.id}-index`,
-            isAvailable: true
-          }))
-          .filter((c: CrawlCollection) => c.id.length > 0);
+      const html = await res.text();
+      const matches = html.match(/CC-MAIN-\d{4}-\d{2}/g) || [];
+      const uniqueIds = Array.from(new Set(matches));
 
-        if (collections.length > 0) {
-          commonCrawlCache.collections.set(cacheKey, collections);
-          return collections;
-        }
+      if (uniqueIds.length > 0) {
+        const collections: CrawlCollection[] = uniqueIds.slice(0, limit).map(id => {
+          const parts = id.split('-');
+          const year = parts[2];
+          const week = parts[3];
+          return {
+            id,
+            name: `${id} (~${year} Week ${week})`,
+            timegate: `https://index.commoncrawl.org/${id}/`,
+            cdxApi: `https://index.commoncrawl.org/${id}-index`,
+            isAvailable: true
+          };
+        });
+
+        commonCrawlCache.collections.set(cacheKey, collections);
+        return collections;
       }
     }
   } catch (err: any) {
-    // Continue to official CDX endpoint
+    // Continue to collinfo.json
   }
 
   // 2. Try Direct Common Crawl collinfo.json

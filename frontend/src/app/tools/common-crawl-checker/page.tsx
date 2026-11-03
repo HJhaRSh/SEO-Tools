@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import CommonCrawlClient from './CommonCrawlClient';
 
@@ -60,83 +59,6 @@ export default function CommonCrawlCheckerPage() {
       <p>
         The <strong>Common Crawl Visibility Checker</strong> is a free, professional-grade technical SEO and AI crawl visibility audit tool developed by <strong>Indian Marketers</strong>. It provides genuine data sourced directly from official Common Crawl CDX APIs (<span className="font-mono text-xs">index.commoncrawl.org</span>) and WARC archives (<span className="font-mono text-xs">data.commoncrawl.org</span>). Unlike proprietary dashboards that report arbitrary AI readiness scores, our tool presents verified historical records, exact vs. estimated crawl capture counts, historical robots.txt snapshots evaluated under official RFC 9309 rules, live edge firewall probes, and comprehensive XML sitemap coverage audits.
       </p>
-
-      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 mt-4">
-        <h3 className="font-bold text-slate-800 text-base mb-2">
-          Recommended Technical SEO Workflows & Internal Links
-        </h3>
-        <p className="text-xs text-slate-600 mb-3">
-          To achieve comprehensive search engine and AI crawler discoverability, pair your Common Crawl visibility audit with these specialized technical tools:
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-          <Link
-            href="/tools/robots-txt-tester"
-            className="p-3 bg-white border border-slate-200 rounded-lg hover:border-orange-500 hover:shadow-sm transition-all group block"
-          >
-            <div className="font-semibold text-slate-900 group-hover:text-orange-600">
-              robots.txt Tester & Validator →
-            </div>
-            <div className="text-slate-500 mt-0.5">
-              Verify RFC 9309 rule syntax, directives, and crawl permissions for CCBot and search engines.
-            </div>
-          </Link>
-          <Link
-            href="/tools/ai-bot-access-tester"
-            className="p-3 bg-white border border-slate-200 rounded-lg hover:border-orange-500 hover:shadow-sm transition-all group block"
-          >
-            <div className="font-semibold text-slate-900 group-hover:text-orange-600">
-              AI Bot Access Tester →
-            </div>
-            <div className="text-slate-500 mt-0.5">
-              Test live edge access across 17 AI bot user-agents including GPTBot, ClaudeBot, and Perplexity.
-            </div>
-          </Link>
-          <Link
-            href="/tools/sitemap-generator"
-            className="p-3 bg-white border border-slate-200 rounded-lg hover:border-orange-500 hover:shadow-sm transition-all group block"
-          >
-            <div className="font-semibold text-slate-900 group-hover:text-orange-600">
-              XML Sitemap Generator →
-            </div>
-            <div className="text-slate-500 mt-0.5">
-              Generate search-engine-ready XML sitemaps to ensure all indexable URLs are discoverable.
-            </div>
-          </Link>
-          <Link
-            href="/tools/prerendering-tester"
-            className="p-3 bg-white border border-slate-200 rounded-lg hover:border-orange-500 hover:shadow-sm transition-all group block"
-          >
-            <div className="font-semibold text-slate-900 group-hover:text-orange-600">
-              Pre-rendering & SPA Tester →
-            </div>
-            <div className="text-slate-500 mt-0.5">
-              Ensure server HTML delivers real content before JavaScript runs so non-JS bots like CCBot can index it.
-            </div>
-          </Link>
-          <Link
-            href="/tools/fetch-render"
-            className="p-3 bg-white border border-slate-200 rounded-lg hover:border-orange-500 hover:shadow-sm transition-all group block"
-          >
-            <div className="font-semibold text-slate-900 group-hover:text-orange-600">
-              Fetch & Render Crawler →
-            </div>
-            <div className="text-slate-500 mt-0.5">
-              Inspect raw HTTP response headers, status codes, and server-side markup across bots.
-            </div>
-          </Link>
-          <Link
-            href="/tools/page-focus-analyzer"
-            className="p-3 bg-white border border-slate-200 rounded-lg hover:border-orange-500 hover:shadow-sm transition-all group block"
-          >
-            <div className="font-semibold text-slate-900 group-hover:text-orange-600">
-              AI Page Focus & Semantic Relevance Analyzer →
-            </div>
-            <div className="text-slate-500 mt-0.5">
-              Audit page topical depth, semantic embeddings, and content quality for ranking algorithms.
-            </div>
-          </Link>
-        </div>
-      </div>
     </div>
   );
 

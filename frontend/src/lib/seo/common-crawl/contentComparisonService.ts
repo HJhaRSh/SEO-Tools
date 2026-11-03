@@ -83,10 +83,8 @@ export function extractContentFromHtml(rawHtml: string): ExtractedHtmlContent {
   };
 }
 
-const HA_GAP_ENDPOINT = 'https://cc-visibility.suganmn.workers.dev/api/render-gap';
-
 /**
- * Compares archived WARC HTML against live server-delivered HTML
+ * Compares archived WARC HTML directly from official data.commoncrawl.org against live server-delivered HTML
  */
 export async function compareArchivedVsLiveContent(
   targetUrl: string,
@@ -95,77 +93,7 @@ export async function compareArchivedVsLiveContent(
   length: number,
   captureTimestamp: string
 ): Promise<ContentComparisonResult> {
-  const cleanHost = new URL(targetUrl).hostname.toLowerCase().replace(/^www\./, '');
-
-  // 1. Try High-Availability Render Gap Endpoint
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch(HA_GAP_ENDPOINT, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        domain: cleanHost,
-        url: targetUrl,
-        record: {
-          url: targetUrl,
-          ts: captureTimestamp,
-          filename: warcFilename,
-          offset,
-          length,
-          mime: 'text/html'
-        }
-      })
-    });
-    clearTimeout(timeout);
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.stored && data.live) {
-        const storedWords = data.stored.words || 0;
-        const liveWords = data.live.words || 0;
-        const storedChars = data.stored.chars || 0;
-        const liveChars = data.live.chars || 0;
-        const ratio = typeof data.ratio === 'number' ? (data.ratio / 100) : (liveWords > 0 ? (storedWords / liveWords) : 1.0);
-        const isEmptyShell = !!data.live.emptyShellMarker;
-
-        const limitations = [
-          'Both archived and live pages are compared as initial server-delivered HTML without client-side JavaScript rendering.',
-          'Common Crawl (CCBot) captures raw HTTP payloads and does not execute heavy client-side scripts during archival.',
-          'Presence in Common Crawl records reflects archival capture, not an assessment of whether an LLM incorporates the text.'
-        ];
-
-        return {
-          url: targetUrl,
-          captureDate: formatCdxTimestamp(captureTimestamp) || captureTimestamp,
-          archivedTextLength: storedChars,
-          liveTextLength: liveChars,
-          archivedWordCount: storedWords,
-          liveWordCount: liveWords,
-          lengthRatio: Math.round(ratio * 100) / 100,
-          isSpaEmptyShell: isEmptyShell,
-          spaIndicators: isEmptyShell ? ['Live page contains minimal server-rendered markup before JavaScript execution.'] : [],
-          archivedHeadings: [],
-          liveHeadings: [],
-          headingParityScore: Math.min(100, Math.round(ratio * 100)),
-          missingSections: [],
-          archivedExcerpt: `Archived content: ~${storedWords.toLocaleString()} words stored in WARC record (${warcFilename.split('/').pop()}).`,
-          liveExcerpt: `Live server content: ~${liveWords.toLocaleString()} words served at HTTP ${data.live.status || 200}.`,
-          limitations
-        };
-      }
-    }
-  } catch (err: any) {
-    console.warn('[CommonCrawl] HA render gap warning, falling back to local WARC reader:', err.message);
-  }
-
-  // 2. Fallback to Local WARC Range Request + safeFetch
-  // 1. Fetch archived HTML from WARC
+  // 1. Fetch archived HTML directly from official WARC storage
   const warcPayload = await fetchWarcRecord(warcFilename, offset, length, 8000);
   const archivedContent = extractContentFromHtml(warcPayload.payloadText);
 

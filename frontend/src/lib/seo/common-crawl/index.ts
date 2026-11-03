@@ -25,7 +25,7 @@ export async function runCommonCrawlAudit(options: AuditRunOptions): Promise<Com
   const { input, scope = 'include_www', limitCollections = 12 } = options;
 
   // 1. Normalize input
-  const { normalized, hostname, isPage } = normalizeTargetInput(input);
+  const { normalized, hostname, isPage, pathname } = normalizeTargetInput(input);
   const mode = isPage ? 'page' : 'domain';
 
   // 2. Discover published collections
@@ -37,8 +37,8 @@ export async function runCommonCrawlAudit(options: AuditRunOptions): Promise<Com
     runLiveCrawlerProbes(normalized)
   ]);
 
-  // 4. Historical robots analysis (utilizing robots records identified during coverage)
-  const robotsAudit = await analyzeHistoricalRobots(collections, hostname, monthlyRecords);
+  // 4. Historical robots analysis (utilizing robots records identified during coverage against specific target path)
+  const robotsAudit = await analyzeHistoricalRobots(collections, hostname, monthlyRecords, isPage ? pathname : '/');
 
   // 4. Compute trend summary
   const trendSummary = computeTrendSummary(monthlyRecords);
@@ -86,12 +86,12 @@ export async function runCommonCrawlAudit(options: AuditRunOptions): Promise<Com
     const discoveredSitemap = await discoverSitemapUrl(hostname);
     if (discoveredSitemap && collections.length > 0) {
       const latestCol = collections[0];
-      const capturedUrls = monthlyRecords[0]?.urls?.map(u => u.url) || [];
+      const capturedRecords = monthlyRecords[0]?.urls || [];
       sitemapCoverage = await compareSitemapWithCollection(
         discoveredSitemap,
         latestCol.cdxApi,
         latestCol.id,
-        capturedUrls
+        capturedRecords
       );
     }
   } catch (sitemapErr: any) {
