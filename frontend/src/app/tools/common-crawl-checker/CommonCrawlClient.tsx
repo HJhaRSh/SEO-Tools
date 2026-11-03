@@ -52,7 +52,19 @@ export default function CommonCrawlClient() {
         })
       });
 
-      const data = await res.json();
+      let data: any;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(
+          res.status === 504 || res.status === 408
+            ? 'Analysis request timed out on server. Please try with fewer collections (e.g. 6 or 3).'
+            : `Server returned HTTP ${res.status}: ${text.slice(0, 100) || 'Unknown error'}`
+        );
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to complete Common Crawl analysis.');
       }
@@ -87,7 +99,15 @@ export default function CommonCrawlClient() {
           capturedUrls: auditReport.monthlyTrend[0]?.urls?.map((u: any) => u.url) || []
         })
       });
-      const data = await res.json();
+      let data: any;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server returned HTTP ${res.status}: ${text.slice(0, 100) || 'Unknown error'}`);
+      }
+
       if (res.ok && data.success && data.coverage) {
         setSitemapAnalysis(data.coverage);
         setSitemapInput(data.coverage.sitemapUrl || '');
@@ -116,7 +136,15 @@ export default function CommonCrawlClient() {
         })
       });
 
-      const data = await res.json();
+      let data: any;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server returned HTTP ${res.status}: ${text.slice(0, 100) || 'Unknown error'}`);
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Sitemap coverage analysis failed.');
       }

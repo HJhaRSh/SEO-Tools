@@ -126,6 +126,12 @@
       }
     },
     {
+      "source": "/api/seo/common-crawl/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/seo/page-focus/(.*)",
       "destination": {
         "service": "frontend"
