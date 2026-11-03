@@ -19,6 +19,7 @@ import {
   matchesScope,
   isHtmlWebpageRecord
 } from './lib/seo/common-crawl/domainAnalysisService';
+import { formatCollectionFriendlyName } from './lib/seo/common-crawl/collectionService';
 import { generateUrlVariants } from './lib/seo/common-crawl/pageHistoryService';
 import { evaluateRobotsContentForCCBot } from './lib/seo/common-crawl/robotsHistoryService';
 import { detectBlockSource } from './lib/seo/common-crawl/blockSourceDetector';
@@ -134,6 +135,14 @@ async function runTestSuite() {
 
   // 4. Timestamp & Trend Computations
   console.log('\n4. Date & Trend Calculation:');
+  testCase('Formats cryptic Common Crawl archive IDs into user-friendly month labels', () => {
+    assert.strictEqual(formatCollectionFriendlyName('CC-MAIN-2026-43'), 'October 2026 Crawl');
+    assert.strictEqual(formatCollectionFriendlyName('CC-MAIN-2026-39'), 'September 2026 Crawl');
+    assert.strictEqual(formatCollectionFriendlyName('CC-MAIN-2026-34'), 'August 2026 Crawl');
+    assert.strictEqual(formatCollectionFriendlyName('CC-MAIN-2026-04'), 'January 2026 Crawl');
+    assert.strictEqual(formatCollectionFriendlyName('CC-MAIN-2025-51'), 'December 2025 Crawl');
+  });
+
   testCase('Formats CDX 14-char timestamp string to ISO date', () => {
     const d = formatCdxTimestamp('20261012143025');
     assert.strictEqual(d, '2026-10-12');

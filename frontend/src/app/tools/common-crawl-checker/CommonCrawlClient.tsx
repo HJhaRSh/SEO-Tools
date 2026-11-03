@@ -9,6 +9,19 @@ import {
 } from '@/lib/seo/common-crawl/types';
 import jsPDF from 'jspdf';
 
+function formatCollectionFriendlyName(id: string): string {
+  if (!id) return '';
+  const match = id.match(/CC-MAIN-(\d{4})-(\d{2})/i);
+  if (!match) return id;
+  const year = parseInt(match[1], 10);
+  const week = parseInt(match[2], 10);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7;
+  const targetDate = new Date(jan4.getTime() + ((week - 1) * 7 + (1 - dayOfWeek)) * 86400000);
+  const monthName = targetDate.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+  return `${monthName} ${year} Crawl`;
+}
+
 export default function CommonCrawlClient() {
   const [inputUrl, setInputUrl] = useState('');
   const [scope, setScope] = useState<ScopeSetting>('include_www');
@@ -277,6 +290,47 @@ export default function CommonCrawlClient() {
 
   return (
     <div className="space-y-8">
+      {/* Educational Guide: What is Common Crawl & CCBot? */}
+      <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50/40 rounded-2xl border border-orange-200/80 p-5 md:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0 mt-0.5">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="space-y-2 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900">
+                What is Common Crawl (CC) & Why Does It Matter for AI?
+              </h2>
+              <span className="px-2.5 py-0.5 text-[11px] font-semibold bg-orange-100 text-orange-800 rounded-full">
+                AI Knowledge Base
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <strong>Common Crawl</strong> is the world&apos;s largest non-profit open web repository. Each month, its web crawler (<strong>CCBot</strong>) crawls the public internet and publishes an open monthly archive (identified by IDs like <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-orange-200 text-slate-800 text-[11px]">CC-MAIN-YYYY-WW</code>, which represent monthly crawl releases like <em>October 2026 Crawl</em>).
+            </p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Leading AI labs—including <strong>OpenAI (ChatGPT)</strong>, <strong>Anthropic (Claude)</strong>, <strong>Google</strong>, and <strong>Meta (LLaMA)</strong>—use Common Crawl as the core dataset to train Large Language Models. If your site is missing from Common Crawl or blocked in <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-orange-200 text-slate-800 text-[11px]">robots.txt</code>, AI models are blind to your brand and content.
+            </p>
+            <div className="pt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] text-slate-600 font-medium border-t border-orange-200/50 mt-1">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                <span><strong>CCBot:</strong> Common Crawl&apos;s Web Crawler</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                <span><strong>CC-MAIN-YYYY-WW:</strong> Monthly Crawl Release Archive</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span><strong>AI Training:</strong> Powers ChatGPT, Claude, and Gemini</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Search & Audit Form */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
         <form onSubmit={handleAudit} className="space-y-6">
@@ -477,8 +531,8 @@ export default function CommonCrawlClient() {
                 <div className="text-2xl font-bold text-slate-900 mt-1">
                   {report.trendSummary.latestCaptureCount.toLocaleString()}
                 </div>
-                <div className="text-xs text-slate-500 mt-1">
-                  Collection: {report.trendSummary.latestCollection || 'N/A'}
+                <div className="text-xs text-slate-500 mt-1 truncate" title={report.trendSummary.latestCollection ? `${formatCollectionFriendlyName(report.trendSummary.latestCollection)} (${report.trendSummary.latestCollection})` : 'N/A'}>
+                  {report.trendSummary.latestCollection ? formatCollectionFriendlyName(report.trendSummary.latestCollection) : 'N/A'}
                 </div>
               </div>
 
@@ -509,7 +563,10 @@ export default function CommonCrawlClient() {
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <div className="text-xs text-slate-500 font-medium">Live CCBot Probe</div>
+                <div className="text-xs text-slate-500 font-medium flex items-center justify-between">
+                  <span>Live Bot Simulation</span>
+                  <span className="font-mono text-[10px] text-slate-400 bg-slate-200/60 px-1 rounded">CCBot</span>
+                </div>
                 <div className={`text-xl font-bold mt-1 ${
                   report.liveProbes.find(p => p.profileName.includes('CCBot'))?.accessResult === 'SERVED_SUCCESSFULLY'
                     ? 'text-emerald-600'
@@ -520,7 +577,7 @@ export default function CommonCrawlClient() {
                     : report.liveProbes.find(p => p.profileName.includes('CCBot'))?.challengeIndicator || 'Challenged'}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
-                  Server network simulation
+                  Common Crawl AI bot access
                 </div>
               </div>
             </div>
@@ -605,22 +662,36 @@ export default function CommonCrawlClient() {
 
               {/* Monthly Visual Trend Bar Chart */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-1">
-                  Monthly Crawl Visibility History
-                </h3>
-                <p className="text-xs text-slate-500 mb-6">
-                  Unique successfully captured HTML URLs per published Common Crawl collection.
-                </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">
+                      Monthly AI Crawl Visibility History
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Unique HTML webpages captured by Common Crawl (CCBot) in each monthly crawl release.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-600 bg-orange-50 border border-orange-200/70 px-2.5 py-1 rounded-lg font-medium self-start sm:self-auto">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                    <span>AI Training Corpus (ChatGPT, Claude & Gemini)</span>
+                  </div>
+                </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3.5">
                   {report.monthlyTrend.map((record) => {
                     const percent = Math.min(100, Math.max(2, Math.round((record.capturedCount / maxMonthlyCount) * 100)));
                     const isAvailable = record.status === 'confirmed' || record.status === 'estimated';
+                    const friendlyName = formatCollectionFriendlyName(record.collectionId) || record.collectionName;
 
                     return (
                       <div key={record.collectionId} className="space-y-1">
                         <div className="flex justify-between items-center text-xs">
-                          <span className="font-semibold text-slate-800">{record.collectionName}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-800">{friendlyName}</span>
+                            <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/70" title={`Official Common Crawl Archive ID: ${record.collectionId}`}>
+                              {record.collectionId}
+                            </span>
+                          </div>
                           <span className="font-mono text-slate-600">
                             {isAvailable ? `${record.capturedCount.toLocaleString()} captured` : record.status}
                             {record.countType === 'estimated' && ' (est.)'}
@@ -688,17 +759,17 @@ export default function CommonCrawlClient() {
           {activeTab === 'history' && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h3 className="text-lg font-bold text-slate-900 mb-1">
-                Published Crawl Collections Breakdown
+                Monthly AI Crawl Releases Breakdown
               </h3>
               <p className="text-xs text-slate-500 mb-6">
-                Official capture counts, estimation methods, and last observed capture dates across queried indexes.
+                Common Crawl captures and publishes web snapshots roughly once a month. Official capture counts, estimation methods, and last observed capture dates across queried archives:
               </p>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-700">
-                      <th className="py-3 px-3 font-semibold">Collection</th>
+                      <th className="py-3 px-3 font-semibold">Crawl Release</th>
                       <th className="py-3 px-3 font-semibold">Crawl Period</th>
                       <th className="py-3 px-3 font-semibold">Captured Count</th>
                       <th className="py-3 px-3 font-semibold">Metric Type</th>
@@ -711,8 +782,8 @@ export default function CommonCrawlClient() {
                     {report.monthlyTrend.map((r) => (
                       <tr key={r.collectionId} className="hover:bg-slate-50/60">
                         <td className="py-3 px-3 font-medium text-slate-900">
-                          <div>{r.collectionName}</div>
-                          <div className="font-mono text-[10px] text-slate-400">{r.collectionId}</div>
+                          <div className="font-semibold text-slate-800">{formatCollectionFriendlyName(r.collectionId) || r.collectionName}</div>
+                          <div className="font-mono text-[10px] text-slate-400">Archive ID: {r.collectionId}</div>
                         </td>
                         <td className="py-3 px-3 text-slate-600">{r.dateRange}</td>
                         <td className="py-3 px-3 font-mono font-bold text-slate-900">
@@ -894,9 +965,9 @@ export default function CommonCrawlClient() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-700">
-                        <th className="py-3 px-3 font-semibold">Collection</th>
+                        <th className="py-3 px-3 font-semibold">Crawl Release</th>
                         <th className="py-3 px-3 font-semibold">Captured Date</th>
-                        <th className="py-3 px-3 font-semibold">CCBot Status</th>
+                        <th className="py-3 px-3 font-semibold">CCBot (AI Crawler)</th>
                         <th className="py-3 px-3 font-semibold">Wildcard (*)</th>
                         <th className="py-3 px-3 font-semibold">Matched Rule</th>
                         <th className="py-3 px-3 font-semibold">Sitemaps</th>
@@ -906,10 +977,11 @@ export default function CommonCrawlClient() {
                       {report.robotsHistory.map((rh) => (
                         <tr key={rh.collectionId} className="hover:bg-slate-50/60">
                           <td className="py-3 px-3 font-medium text-slate-900">
-                            {rh.collectionName}
+                            <div className="font-semibold text-slate-800">{formatCollectionFriendlyName(rh.collectionId) || rh.collectionName}</div>
+                            <div className="font-mono text-[10px] text-slate-400">Archive ID: {rh.collectionId}</div>
                             {rh.firstObservedChange && (
-                              <span className="ml-2 px-2 py-0.5 rounded text-[10px] bg-orange-100 text-orange-800 font-semibold">
-                                Changed
+                              <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] bg-orange-100 text-orange-800 font-semibold">
+                                Policy Changed
                               </span>
                             )}
                           </td>

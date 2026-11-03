@@ -15,6 +15,25 @@ const DATA_COMMON_CRAWL_INDEX_URL = 'https://data.commoncrawl.org/crawl-data/ind
 const COLLINFO_ENDPOINT = 'https://index.commoncrawl.org/collinfo.json';
 const DEFAULT_TIMEOUT_MS = 6000;
 
+/**
+ * Formats a cryptic Common Crawl ID (e.g. "CC-MAIN-2026-43") into a human-friendly label (e.g. "October 2026 Crawl").
+ */
+export function formatCollectionFriendlyName(id: string): string {
+  if (!id) return '';
+  const match = id.match(/CC-MAIN-(\d{4})-(\d{2})/i);
+  if (!match) return id;
+  const year = parseInt(match[1], 10);
+  const week = parseInt(match[2], 10);
+
+  // ISO 8601 week calculation: Jan 4 is always in week 1
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7;
+  const targetDate = new Date(jan4.getTime() + ((week - 1) * 7 + (1 - dayOfWeek)) * 86400000);
+  const monthName = targetDate.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+
+  return `${monthName} ${year} Crawl`;
+}
+
 export async function getLatestCrawlCollections(limit = 12): Promise<CrawlCollection[]> {
   const cacheKey = `collections:latest:${limit}`;
   const cached = commonCrawlCache.collections.get(cacheKey);
@@ -43,12 +62,9 @@ export async function getLatestCrawlCollections(limit = 12): Promise<CrawlCollec
 
       if (uniqueIds.length > 0) {
         const collections: CrawlCollection[] = uniqueIds.slice(0, limit).map(id => {
-          const parts = id.split('-');
-          const year = parts[2];
-          const week = parts[3];
           return {
             id,
-            name: `${id} (~${year} Week ${week})`,
+            name: formatCollectionFriendlyName(id),
             timegate: `https://index.commoncrawl.org/${id}/`,
             cdxApi: `https://index.commoncrawl.org/${id}-index`,
             isAvailable: true
@@ -83,15 +99,18 @@ export async function getLatestCrawlCollections(limit = 12): Promise<CrawlCollec
       if (Array.isArray(rawData) && rawData.length > 0) {
         const collections: CrawlCollection[] = rawData
           .slice(0, limit)
-          .map((item: any) => ({
-            id: String(item.id || ''),
-            name: String(item.name || item.id || ''),
-            timegate: String(item.timegate || `https://index.commoncrawl.org/${item.id}/`),
-            cdxApi: String(item['cdx-api'] || `https://index.commoncrawl.org/${item.id}-index`),
-            from: item.from ? String(item.from) : undefined,
-            to: item.to ? String(item.to) : undefined,
-            isAvailable: true
-          }))
+          .map((item: any) => {
+            const id = String(item.id || '');
+            return {
+              id,
+              name: formatCollectionFriendlyName(id) || String(item.name || id),
+              timegate: String(item.timegate || `https://index.commoncrawl.org/${item.id}/`),
+              cdxApi: String(item['cdx-api'] || `https://index.commoncrawl.org/${item.id}-index`),
+              from: item.from ? String(item.from) : undefined,
+              to: item.to ? String(item.to) : undefined,
+              isAvailable: true
+            };
+          })
           .filter(c => c.id.length > 0);
 
         commonCrawlCache.collections.set(cacheKey, collections);
@@ -112,18 +131,18 @@ export async function getLatestCrawlCollections(limit = 12): Promise<CrawlCollec
 function getFallbackCollections(limit = 12): CrawlCollection[] {
   // Common Crawl publishes ~monthly with IDs like CC-MAIN-2026-43, CC-MAIN-2026-39, etc.
   const fallbackList: CrawlCollection[] = [
-    { id: 'CC-MAIN-2026-43', name: 'October 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-43/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-43-index', from: '2026-10-05', to: '2026-10-18' },
-    { id: 'CC-MAIN-2026-39', name: 'September 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-39/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-39-index', from: '2026-09-04', to: '2026-09-17' },
-    { id: 'CC-MAIN-2026-34', name: 'August 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-34/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-34-index', from: '2026-08-07', to: '2026-08-20' },
-    { id: 'CC-MAIN-2026-30', name: 'July 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-30/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-30-index', from: '2026-07-06', to: '2026-07-19' },
-    { id: 'CC-MAIN-2026-25', name: 'June 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-25/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-25-index', from: '2026-06-08', to: '2026-06-21' },
-    { id: 'CC-MAIN-2026-21', name: 'May 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-21/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-21-index', from: '2026-05-11', to: '2026-05-24' },
-    { id: 'CC-MAIN-2026-17', name: 'April 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-17/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-17-index', from: '2026-04-06', to: '2026-04-19' },
-    { id: 'CC-MAIN-2026-12', name: 'March 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-12/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-12-index', from: '2026-03-09', to: '2026-03-22' },
-    { id: 'CC-MAIN-2026-08', name: 'February 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-08/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-08-index', from: '2026-02-09', to: '2026-02-22' },
-    { id: 'CC-MAIN-2026-04', name: 'January 2026 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-04/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-04-index', from: '2026-01-12', to: '2026-01-25' },
-    { id: 'CC-MAIN-2025-51', name: 'December 2025 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2025-51/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2025-51-index', from: '2025-12-08', to: '2025-12-21' },
-    { id: 'CC-MAIN-2025-47', name: 'November 2025 Index', timegate: 'https://index.commoncrawl.org/CC-MAIN-2025-47/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2025-47-index', from: '2025-11-10', to: '2025-11-23' }
+    { id: 'CC-MAIN-2026-43', name: 'October 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-43/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-43-index', from: '2026-10-05', to: '2026-10-18' },
+    { id: 'CC-MAIN-2026-39', name: 'September 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-39/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-39-index', from: '2026-09-04', to: '2026-09-17' },
+    { id: 'CC-MAIN-2026-34', name: 'August 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-34/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-34-index', from: '2026-08-07', to: '2026-08-20' },
+    { id: 'CC-MAIN-2026-30', name: 'July 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-30/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-30-index', from: '2026-07-06', to: '2026-07-19' },
+    { id: 'CC-MAIN-2026-25', name: 'June 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-25/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-25-index', from: '2026-06-08', to: '2026-06-21' },
+    { id: 'CC-MAIN-2026-21', name: 'May 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-21/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-21-index', from: '2026-05-11', to: '2026-05-24' },
+    { id: 'CC-MAIN-2026-17', name: 'April 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-17/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-17-index', from: '2026-04-06', to: '2026-04-19' },
+    { id: 'CC-MAIN-2026-12', name: 'March 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-12/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-12-index', from: '2026-03-09', to: '2026-03-22' },
+    { id: 'CC-MAIN-2026-08', name: 'February 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-08/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-08-index', from: '2026-02-09', to: '2026-02-22' },
+    { id: 'CC-MAIN-2026-04', name: 'January 2026 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2026-04/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2026-04-index', from: '2026-01-12', to: '2026-01-25' },
+    { id: 'CC-MAIN-2025-51', name: 'December 2025 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2025-51/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2025-51-index', from: '2025-12-08', to: '2025-12-21' },
+    { id: 'CC-MAIN-2025-47', name: 'November 2025 Crawl', timegate: 'https://index.commoncrawl.org/CC-MAIN-2025-47/', cdxApi: 'https://index.commoncrawl.org/CC-MAIN-2025-47-index', from: '2025-11-10', to: '2025-11-23' }
   ];
 
   return fallbackList.slice(0, limit);

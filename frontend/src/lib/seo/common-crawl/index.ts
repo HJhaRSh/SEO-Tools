@@ -137,3 +137,5 @@ export async function runCommonCrawlAudit(options: AuditRunOptions): Promise<Com
   };
 }
 
+export { formatCollectionFriendlyName } from './collectionService';
+
