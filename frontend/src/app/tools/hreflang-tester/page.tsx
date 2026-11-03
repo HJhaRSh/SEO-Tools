@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import {
   HreflangTestUrlResponse,
@@ -218,42 +219,236 @@ export default function HreflangTester() {
     downloadCsvFile(csvData, `hreflang-validation-${dateStr}.csv`);
   };
 
+  const aboutText = (
+    <div className="space-y-4">
+      <p>
+        An <strong>hreflang checker</strong> is an essential international technical SEO diagnostic tool designed to evaluate language and regional annotations implemented on multilingual and multi-regional websites. When a website serves localized versions of content for distinct geographies or languages, hreflang annotations instruct search engines like Google and Bing which regional variant to display in local search results. Operating under official Google Search Central guidelines, our free <strong>hreflang validator</strong> parses declarations across HTML header tags, HTTP headers, and XML sitemaps to verify that localized URL variations are connected correctly.
+      </p>
+      <p>
+        Implementing hreflang correctly is notoriously challenging because search engines enforce strict technical requirements: language codes must adhere to ISO 639-1, country codes must follow ISO 3166-1 Alpha-2, each alternate URL must include a self-referencing tag, and all localized variants must confirm reciprocal return links. While hreflang helps Google match the right regional page to the right searcher, it does not guarantee rank or substitute for canonical tags. To inspect how search bots render your initial HTML head tags, use our <Link href="/tools/fetch-render" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Fetch &amp; Render</Link> tool. To confirm that your international URLs are indexed in Google, inspect them with the <Link href="/tools/bulk-google-index-checker" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Bulk Google Index Checker</Link>.
+      </p>
+    </div>
+  );
+
+  const howItWorksSteps = [
+    "Select testing mode: single Webpage URL, XML Sitemap URL, or local XML sitemap file upload.",
+    "Enter the target URL or upload your sitemap file, then optionally customize the crawler user agent and alternate crawl depth.",
+    "Click 'Test Webpage Hreflang' or 'Test Sitemap Hreflang' to begin automated fetching and validation.",
+    "The engine extracts hreflang declarations across HTML head link elements, HTTP response headers, and XML sitemaps.",
+    "It verifies ISO 639-1 language codes, ISO 3166-1 region codes, self-referencing declarations, and x-default annotations.",
+    "It inspects live alternate URLs for reciprocal return tags, HTTP 200 status, redirect chains, canonical alignment, and indexability."
+  ];
+
+  const extraSections = (
+    <>
+      {/* WHAT DOES OUR HREFLANG VALIDATOR CHECK? */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What Does Our Hreflang Validator Check?</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              ISO Language and Region Codes
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Verifies that language codes strictly follow two-letter ISO 639-1 standards (e.g., <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">en</code>, <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">es</code>, <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">de</code>) and optional region codes adhere to ISO 3166-1 Alpha-2 (e.g., <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">en-US</code>, <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">en-GB</code>). Flags invalid country codes such as <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-rose-600">en-UK</code>.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Reciprocal Return Links
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Performs bidirectional link validation. If Page A designates Page B as an alternate language version, Page B must confirm that relationship by declaring Page A as an alternate. Missing reciprocal return links cause Google to disregard the affected hreflang annotations.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Self-Referencing Hreflang Tags
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Confirms that the inspected URL includes a self-referencing alternate link pointing directly to itself with its assigned language and regional tag. Google requires self-referencing tags to validate the complete cluster of localized variations.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              x-default Fallback Annotations
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Inspects the presence and formatting of the <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">x-default</code> value. While not mandatory for every site, x-default provides an intentional fallback page for global users whose language or region is not specifically targeted.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* CHECKING HREFLANG ACROSS HTML, HTTP HEADERS, AND XML SITEMAPS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Checking Hreflang Across HTML, HTTP Headers, and XML Sitemaps</h2>
+        </div>
+        <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs space-y-4 text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+          <p>
+            Google supports three equivalent methods to implement hreflang annotations. Website operators should choose the method that best aligns with their architecture rather than attempting to duplicate annotations across all three:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <div className="p-4 rounded-xl bg-[var(--im-surface)] border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm text-[var(--im-heading)] mb-1.5">1. HTML Head Link Elements</h3>
+              <p className="text-xs text-[var(--im-text-muted)] leading-relaxed">
+                Placed inside the <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">&lt;head&gt;</code> element of each HTML page. Ideal for smaller websites with server-rendered markup.
+              </p>
+            </div>
+            <div className="p-4 rounded-xl bg-[var(--im-surface)] border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm text-[var(--im-heading)] mb-1.5">2. HTTP Link Response Headers</h3>
+              <p className="text-xs text-[var(--im-text-muted)] leading-relaxed">
+                Delivered directly via HTTP headers (<code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">Link: &lt;url&gt;; rel=&quot;alternate&quot;; hreflang=&quot;...&quot;</code>). Essential for non-HTML assets like multi-language PDF downloads.
+              </p>
+            </div>
+            <div className="p-4 rounded-xl bg-[var(--im-surface)] border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm text-[var(--im-heading)] mb-1.5">3. XML Sitemap Annotations</h3>
+              <p className="text-xs text-[var(--im-text-muted)] leading-relaxed">
+                Defined within XML sitemaps using <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">&lt;xhtml:link&gt;</code> elements. Reduces HTML payload size and centralizes validation. Build clean sitemaps with our <Link href="/tools/sitemap-generator" className="text-[var(--im-primary-deep)] font-semibold hover:underline">XML Sitemap Generator</Link>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* COMMON HREFLANG ERRORS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Common Hreflang Errors &amp; Practical Fixes</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 text-rose-600 dark:text-rose-400">
+              Invalid Language or Country Codes
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Using standalone country codes (such as <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">es</code> when intending Spain, which Google reads as Spanish language) or unofficial codes like <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">en-UK</code> instead of <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded font-semibold text-emerald-600">en-GB</code>. Always use ISO 639-1 for language and ISO 3166-1 Alpha-2 for region.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 text-rose-600 dark:text-rose-400">
+              Missing Reciprocal Return Links
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Declaring an alternate page without that page linking back. When return links are omitted, Google will not confirm the relationship and may ignore the annotations for the affected URL pair to prevent unverified association.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 text-rose-600 dark:text-rose-400">
+              Pointing Hreflang to Redirected or Non-Canonical URLs
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Hreflang URLs should always point directly to canonical, self-resolving HTTP 200 URLs. If an alternate URL redirects (HTTP 301/302) or points to a URL that specifies a different canonical URL, search engines face conflicting indexing signals.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 text-rose-600 dark:text-rose-400">
+              Blocked by Robots.txt or Noindex Directives
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              If an alternate language URL is blocked from crawling in robots.txt or carries a <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">noindex</code> directive, search engines cannot index the localized version or verify return link markup.
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
+  const faqItems = [
+    {
+      question: 'What is a hreflang checker?',
+      answer: 'A hreflang checker is an international SEO validation tool that inspects the alternate language and regional annotations implemented on a website. It verifies that search engines like Google can correctly discover, parse, and associate localized page variations with their intended regional audiences across search engine results.'
+    },
+    {
+      question: 'How do I check hreflang tags on a website?',
+      answer: 'To check hreflang tags, enter your webpage URL or XML sitemap URL into our free Hreflang Checker (or upload a local sitemap XML file) and click test. The tool automatically fetches your annotations from HTML head link elements, HTTP headers, or XML sitemap tags, validating ISO language codes, return links, self-references, and alternate URL indexability.'
+    },
+    {
+      question: 'What is the difference between a hreflang checker and validator?',
+      answer: 'While the terms are often used interchangeably, an hreflang checker typically identifies and extracts declared alternate language tags from a page or sitemap, whereas an hreflang validator actively audits their syntax against ISO 639-1 language codes, ISO 3166-1 region codes, self-referencing presence, and live reciprocal return links.'
+    },
+    {
+      question: "What is a 'Return Tag' (Reciprocal Link) error?",
+      answer: 'If Page A declares Page B as its French alternate via hreflang, Page B must declare Page A as its English alternate. If Page B does not link back, Google ignores the hreflang relationship between those two pages to prevent third parties from falsely associating themselves with your content.'
+    },
+    {
+      question: 'What is a self-referencing hreflang tag and why is it required?',
+      answer: "A self-referencing hreflang tag is an annotation on a page that points back to the page's own URL with its matching language and region code. Google's international SEO guidelines require every localized page version to include its own self-reference in the alternate link cluster to ensure consistent clustering across all language variations."
+    },
+    {
+      question: "What is 'x-default' and when should it be used?",
+      answer: 'The x-default hreflang attribute designates a fallback URL for international searchers when no other page variant matches their language or country preferences. It is commonly implemented for homepage language selectors, country redirect splash pages, or generic international versions.'
+    },
+    {
+      question: "Can I use 'en-UK' for users in the United Kingdom?",
+      answer: "No. 'UK' is not an ISO 3166-1 Alpha-2 country code. Google officially requires the ISO 3166-1 Alpha-2 code 'GB' for the United Kingdom (e.g., 'en-GB'). Specifying 'en-UK' invalidates the regional component of the hreflang declaration."
+    },
+    {
+      question: 'Do hreflang annotations need to be in the HTML head?',
+      answer: "Yes. When implementing hreflang via HTML markup, <link rel='alternate' hreflang='...' href='...'> tags must reside within the <head> element. Tags placed in the <body> are invalid and ignored by Googlebot. Alternatively, hreflang can be implemented via HTTP Link response headers or XML sitemaps."
+    },
+    {
+      question: 'Can hreflang tags be added through XML sitemaps?',
+      answer: "Yes. XML sitemaps support hreflang using the <xhtml:link rel='alternate' hreflang='...' href='...'/> extension. Sitemap hreflang eliminates page weight overhead in HTML head and is especially effective for large multilingual sites or non-HTML documents like PDFs."
+    },
+    {
+      question: 'What is the difference between hreflang and canonical tags?',
+      answer: "Hreflang indicates localized equivalents for different languages and regions, whereas canonical tags (rel='canonical') specify the single master version among duplicate or near-identical URLs within the same language. Each localized variant should have a self-referencing canonical tag alongside reciprocal hreflang tags."
+    },
+    {
+      question: 'Does hreflang improve Google rankings?',
+      answer: 'Hreflang is not a direct ranking factor and does not inherently boost search rankings. Instead, it ensures search engines serve the most linguistically and regionally appropriate version of your content to international searchers, reducing bounce rates and improving international user experience.'
+    }
+  ];
+
+  const relatedTools = [
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate valid multilingual XML sitemaps with XHTML alternate namespace tags.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect crawler rendering, HTTP response headers, and international HTML head tags.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: 'Inspect Google Search Console index status across international URL variants.' }
+  ];
+
   return (
     <ToolLayout
-      title="hreflang Tags Tester"
-      description="Validate hreflang tags for international targeting across HTML head, HTTP response headers, and XML sitemaps."
+      title="Free Hreflang Checker & Validator"
+      description="Use Indian Marketers' free Hreflang Checker to validate language and region tags across webpages and XML sitemaps. Check language codes, self-referencing tags, reciprocal return links and x-default annotations to identify common international SEO issues."
       category="International SEO"
-      breadcrumbs={[{ label: 'hreflang Tags Tester' }]}
-      aboutText="Hreflang annotations instruct search engines which regional or language variation of a URL to serve to international searchers. Because hreflang requires strictly formatted ISO 639-1 language codes, optional ISO 3166-1 Alpha-2 region codes, absolute URLs, self-referencing declarations, and bi-directional reciprocal return links, implementations are notoriously error-prone. This tool performs comprehensive, live validation against Google's official international SEO specifications."
-      howItWorks={[
-        "Select testing mode: single Webpage URL, XML Sitemap URL, or local XML sitemap file upload.",
-        "The server securely fetches the page or sitemap, strictly filtering out private IPs, localhost, and SSRF threats.",
-        "It parses hreflang annotations from HTML head <link rel='alternate'> tags, HTTP Link headers, or XML sitemaps.",
-        "It validates ISO language and region syntax, self-referencing presence, and x-default configuration.",
-        "It checks live alternate URLs for return links, HTTP status codes, redirects, canonical alignment, and indexing blocks."
-      ]}
-      faq={[
-        {
-          question: "What is a 'Return Tag' (Reciprocal Link) error?",
-          answer: "If Page A declares Page B as its French alternate via hreflang, Page B MUST declare Page A as its English alternate. If Page B does not link back, Google will ignore the hreflang annotation for both pages to prevent third parties from falsely associating themselves with your content."
-        },
-        {
-          question: "Can I use 'en-UK' for users in the United Kingdom?",
-          answer: "No. 'UK' is not an ISO 3166-1 Alpha-2 country code. Google officially requires 'en-GB' for the United Kingdom. Using 'en-UK' causes Google to reject the country specification."
-        },
-        {
-          question: "What is 'x-default'?",
-          answer: "x-default is a special hreflang value reserved for international fallback pages, such as a country/language selector or a default global page when no specific region/language matches the searcher."
-        },
-        {
-          question: "Do hreflang annotations need to be in the HTML head?",
-          answer: "Yes. HTML hreflang tags must be placed inside the <head> element. Tags placed inside the <body> are non-compliant and may be ignored by Googlebot. Alternatively, hreflang can be served via HTTP Link headers (ideal for PDFs) or XML sitemaps."
-        },
-        {
-          question: "Does this tool work with XML sitemaps?",
-          answer: "Yes! You can enter an XML sitemap URL or upload a local sitemap XML file directly. The tool parses <xhtml:link> annotations and cross-verifies reciprocal return relationships across the sitemap dataset."
-        }
-      ]}
+      breadcrumbs={[{ label: 'Hreflang Checker' }]}
+      aboutTitle="What Is a Hreflang Checker?"
+      aboutText={aboutText}
+      howItWorksTitle="How to Check Hreflang Tags"
+      howItWorks={howItWorksSteps}
+      extraSections={extraSections}
+      faqTitle="Frequently Asked Questions"
+      faq={faqItems}
+      relatedTools={relatedTools}
     >
       {/* Input Section Card */}
       <div className="card" style={{ marginBottom: '32px' }}>
