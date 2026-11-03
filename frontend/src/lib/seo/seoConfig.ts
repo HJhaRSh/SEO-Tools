@@ -620,59 +620,75 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'domain-age-checker': {
     slug: 'domain-age-checker',
     name: 'Domain Age Checker',
-    metaTitle: 'Domain Age Checker - Check Domain Age Online | Indian Marketers',
-    metaDescription: 'Check domain age online and find authoritative RDAP registration, update, and expiration dates. Analyze single or bulk domains with free CSV export.',
+    metaTitle: 'Domain Age Checker – Check Domain Age Free | Indian Marketers',
+    metaDescription: "Check domain age and registration dates free with Indian Marketers' Domain Age Checker. View domain creation, expiry and registrar details, or check up to 20 domains.",
     canonical: `${TOOLS_BASE_URL}/domain-age-checker`,
     category: 'Crawling & Access',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'domain age checker',
+      'check domain age',
+      'domain registration date checker',
+      'bulk domain age checker',
+      'check domain registration date',
+      'domain name age checker',
+      'check age of domain',
+      'how old is a domain',
+      'domain age',
+      'website domain age'
+    ],
     features: [
       'Authoritative RFC 9083 / RFC 9224 RDAP registration data retrieval engine',
       'Accurate calendar domain age calculation (years, months, days, total elapsed days)',
-      'Single and bulk domain lookup supporting up to 20 domains per batch',
-      'Expiration date tracking and remaining lifespan calculation',
-      'Authoritative registrar, registration status, and nameserver detection',
+      'Single and bulk domain age checking supporting up to 20 domains per batch',
+      'Domain registration creation date and expiration date lookup',
+      'Authoritative registrar, registration status, and nameserver inspection',
       'Formula-injection protected CSV report export and one-click summary copying'
     ],
     faqs: [
       {
         question: 'How do I check the age of a domain?',
-        answer: 'Enter any website URL or domain name (e.g. google.com or https://example.co.uk) into the input field and click "Check Domain Age". The tool automatically normalizes the domain, discovers its authoritative registry, and displays the exact creation date and calculated age.'
+        answer: 'Enter any domain name or website URL (such as google.com or https://example.com) into the input field and click "Check Domain Age". The tool normalizes the input, queries the authoritative registry via RDAP, and calculates the exact elapsed age in years, months, and days.'
       },
       {
-        question: 'Is this Domain Age Checker completely free?',
-        answer: 'Yes. Our Domain Age Checker is 100% free with no account registration, no API key requirements, and no hidden subscriptions.'
+        question: 'Is this Domain Age Checker free?',
+        answer: 'Yes. Our Domain Age Checker is 100% free with no account registration, no API key required, and no hidden subscriptions.'
       },
       {
         question: 'Can I check multiple domains at once?',
-        answer: 'Yes! Switch to the "Bulk Domains" tab to check up to 20 domains in a single batch. Lookups are processed with bounded concurrency to respect registry rate limits, and results can be exported as a spreadsheet CSV.'
+        answer: 'Yes. Switch to the "Bulk Domains" tab to check up to 20 domains in a single batch. The bulk domain age checker queries authoritative registries with bounded concurrency to respect rate limits, and results can be exported as a spreadsheet CSV.'
       },
       {
         question: 'How is domain age calculated?',
-        answer: 'We use real calendar arithmetic from the authoritative UTC registration timestamp to the current UTC date. This accounts for leap years, varying month lengths, and anniversary boundaries rather than approximating 365 days per year.'
+        answer: 'Domain age is calculated using calendar arithmetic from the authoritative UTC registration creation timestamp to the current date. This accounts for leap years, varying month lengths, and anniversary boundaries rather than approximating 365 days per year.'
       },
       {
         question: 'Is domain age the same as website age?',
-        answer: 'No. Domain age measures the time since the domain name was first registered with an authoritative domain registry. A domain may have been registered years before any website content was published, or it may have been bought, parked, or changed owners multiple times.'
+        answer: 'No. Domain age measures the time since the domain name was registered with an authoritative registry. Website age refers to how long an active, crawlable website has published content on that domain. A domain can remain parked for years without hosting a website.'
       },
       {
-        question: "Can a domain's creation date change?",
-        answer: 'If a domain registration lapses completely and the domain is deleted and later re-registered by someone else, the registry assigns a new creation date. However, standard renewals and registrar transfers preserve the original creation date.'
+        question: "Can a domain's registration date change?",
+        answer: 'Yes. If a domain registration lapses completely and the domain is deleted from the registry and later re-registered, the registry assigns a new creation date. However, standard renewals and registrar transfers preserve the original creation date.'
       },
       {
         question: "Why is a domain's registration date unavailable?",
-        answer: 'Some country-code top-level domains (ccTLDs) do not operate public RDAP servers or withhold registration dates under local privacy laws. In such cases, we transparently report that the date is unavailable rather than inventing fake data.'
+        answer: 'Some country-code top-level domains (ccTLDs) do not operate public RDAP servers or withhold registration timestamps under local privacy regulations. When registry records omit this data, the tool clearly states that it is unavailable rather than guessing.'
       },
       {
-        question: 'Does domain age directly boost Google search rankings?',
-        answer: 'No. Google search advocates have clarified that domain registration age is not an algorithmic ranking factor. Older websites often perform well in search because they have built content depth, high-quality backlinks, and brand authority over time, not solely because of their registration date.'
+        question: 'Does domain age affect Google rankings?',
+        answer: 'No. Google search representatives have confirmed that domain registration age is not an algorithmic ranking factor. Older websites often perform well in search because they have built content depth, high-quality backlinks, and brand authority over time, not solely because of their registration date.'
       },
       {
         question: 'Can I check domain expiration dates?',
         answer: 'Yes. When exposed by the authoritative registry, the tool reports the official expiration date and calculates the exact days remaining until renewal.'
       },
       {
-        question: 'How accurate is RDAP compared to legacy WHOIS?',
-        answer: 'RDAP is the modern, standardized protocol specified by ICANN and the IETF (RFC 9083). It returns machine-readable JSON directly from authoritative registry databases, eliminating the formatting inconsistencies and fragile text scraping of legacy WHOIS.'
+        question: 'How accurate is RDAP compared with WHOIS?',
+        answer: 'RDAP (Registration Data Access Protocol) is the modern, standardized protocol specified by ICANN and the IETF (RFC 9083). It returns machine-readable JSON directly from authoritative registry databases, eliminating the formatting inconsistencies and fragile text scraping of legacy WHOIS.'
+      },
+      {
+        question: 'How do I check when a domain was first registered?',
+        answer: 'Our tool displays the creation date from the current authoritative registry record. If a domain was dropped in the past and subsequently re-registered, the registry record reflects the latest registration cycle. To research historical website deployments from prior cycles, review historical snapshots on the Internet Archive (Wayback Machine).'
       }
     ]
   },

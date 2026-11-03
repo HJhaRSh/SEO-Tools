@@ -265,64 +265,234 @@ export default function DomainAgeCheckerPage() {
     setSingleResult(null);
   };
 
+  const aboutText = (
+    <div className="space-y-4 text-sm sm:text-base leading-relaxed text-[var(--im-text)]">
+      <p>
+        <strong>Domain age</strong> is the elapsed time since a domain name was registered with an authoritative top-level domain (TLD) registry, calculated from the creation date recorded in its active registry file. It is determined by measuring the calendar difference between that authoritative registration timestamp and today&apos;s date in completed years, months, and days.
+      </p>
+      <p>
+        When using a <strong>domain registration date checker</strong>, it is important to understand registry record lifecycles. Standard domain renewals and registrar transfers preserve the original registration creation date. However, if a domain expires, lapses past all redemption grace periods, and is purged from the registry, any subsequent registration creates a brand new record with a new registration date. As a result, the current registry creation date reflects the ongoing registration cycle rather than proof of uninterrupted historical website activity.
+      </p>
+    </div>
+  );
+
+  const howItWorks = [
+    'Enter a domain name or complete website URL (e.g. google.com or https://example.com). To audit multiple web addresses at once, switch to the "Bulk Domains" tab.',
+    'Click "Check Domain Age" (or "Check Bulk Domains"). As a high-performance bulk domain age checker, the tool supports batches of up to 20 domains with bounded concurrency to prevent registry throttling.',
+    'The tool normalizes each domain name, queries the official IANA bootstrap registry, and retrieves authoritative registration records directly via the Registration Data Access Protocol (RDAP).',
+    'Review the exact registration creation date, calculated domain age in years, months, and days, total elapsed days, upcoming expiration date, sponsoring registrar, and authoritative nameservers, with one-click report copying and spreadsheet CSV export.'
+  ];
+
+  const extraSections = (
+    <>
+      {/* Section: Domain Age vs. Website Age */}
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Domain Age vs. Website Age</h2>
+        </div>
+        <div className="space-y-4 text-sm sm:text-base leading-relaxed text-[var(--im-text)]">
+          <p>
+            When people search for a <em>website age checker</em> or look to <em>check website domain age</em>, they often treat domain age and website age as interchangeable. However, they represent fundamentally different metrics in web architecture:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-2">
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] text-sm mb-1.5">Domain Registration Age</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Reflects the registry record creation timestamp. An investor may register a domain name and leave it parked on a blank page or default placeholder for ten years. The domain age is ten years, but it possesses no website history or search indexation.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] text-sm mb-1.5">Website Publication Age</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Reflects how long an active, crawlable website with substantive content has been live, accessible to users, and indexed by search engines. A domain registration date cannot confirm when an actual business launched or when content was first published.
+              </p>
+            </div>
+          </div>
+          <p className="text-xs sm:text-sm text-[var(--im-text-muted)]">
+            Additionally, an older domain may have changed hands multiple times, experienced complete topic shifts, or been dropped and re-registered. An authoritative domain registration record verifies registry longevity, not continuous website operation or historical editorial continuity.
+          </p>
+        </div>
+      </section>
+
+      {/* Section: How Does Our Domain Age Checker Work? */}
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">How Does Our Domain Age Checker Work?</h2>
+        </div>
+        <div className="space-y-4 text-sm sm:text-base leading-relaxed text-[var(--im-text)]">
+          <p>
+            Unlike legacy online utilities that rely on brittle text scraping of obsolete WHOIS port 43 servers, the Indian Marketers Domain Age Checker queries the <strong>Registration Data Access Protocol (RDAP)</strong>. Under ICANN consensus policy effective January 28, 2025, RDAP serves as the primary, authoritative protocol for generic top-level domain (gTLD) registration data across accredited registries and registrars.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-2 text-xs sm:text-sm">
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] mb-1">IANA Bootstrap Discovery</h3>
+              <p className="text-[var(--im-text-muted)] leading-relaxed">
+                The tool resolves the domain&apos;s public suffix against the authoritative IANA RDAP bootstrap registry, discovering the correct authoritative endpoint without intermediary proxies.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] mb-1">Exact Calendar Calculation</h3>
+              <p className="text-[var(--im-text-muted)] leading-relaxed">
+                Domain age is calculated using UTC calendar arithmetic accounting for leap years, month lengths, and anniversary dates, giving you exact completed years, months, days, and total elapsed days.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] mb-1">Authoritative Transparency</h3>
+              <p className="text-[var(--im-text-muted)] leading-relaxed">
+                We show registry timestamps, sponsoring registrar names, and nameservers. If a ccTLD restricts public registration dates under local privacy laws, we disclose that clearly rather than estimating.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Section: Does Domain Age Affect Google Rankings? */}
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Does Domain Age Affect Google Rankings?</h2>
+        </div>
+        <div className="space-y-4 text-sm sm:text-base leading-relaxed text-[var(--im-text)]">
+          <p>
+            Google Search representatives have repeatedly stated that <strong>domain registration age is not an algorithmic ranking factor</strong>. Simply holding an older domain name does not confer an automatic advantage in Google Search, nor does registering a domain for multiple years in advance boost search rankings.
+          </p>
+          <p>
+            When older websites rank competitively, their search performance is typically driven by assets accumulated over years of active development:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-2">
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] text-sm mb-1">Editorial Backlink Equity</h3>
+              <p className="text-xs text-[var(--im-text-muted)]">Natural inbound links earned over time from relevant industry websites and publications.</p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] text-sm mb-1">Topic Authority & Content Depth</h3>
+              <p className="text-xs text-[var(--im-text-muted)]">Extensive, well-maintained content architectures covering user search queries comprehensively.</p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] text-sm mb-1">Established Brand Signals</h3>
+              <p className="text-xs text-[var(--im-text-muted)]">Recognizable brand demand, direct navigation, and habitual audience engagement.</p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
+              <h3 className="font-bold text-[var(--im-heading)] text-sm mb-1">Crawling & Indexing Stability</h3>
+              <p className="text-xs text-[var(--im-text-muted)]">Clean site architecture, persistent internal links, and a historical record of reliable server uptime.</p>
+            </div>
+          </div>
+          <p className="text-xs sm:text-sm text-[var(--im-text-muted)]">
+            A newly registered domain featuring fast performance, rigorous technical SEO, and genuinely helpful content can readily outrank an older, neglected domain. Registration age alone does not establish authority or quality.
+          </p>
+        </div>
+      </section>
+
+      {/* Section: Practical Uses of Domain Age Verification */}
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Practical Uses of Domain Age Verification</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+          <div className="space-y-2">
+            <h3 className="font-bold text-[var(--im-heading)] text-base">Domain Acquisition Due Diligence</h3>
+            <p className="text-[var(--im-text)] leading-relaxed">
+              Before purchasing a domain on secondary marketplaces, verify that its registration history aligns with seller claims. Check whether the domain was continuously renewed or dropped and recently re-registered. Once acquired, use our <Link href="/tools/bulk-google-index-checker" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Bulk Google Index Checker</Link> to inspect which URLs remain indexed by Google.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-bold text-[var(--im-heading)] text-base">Competitor Registration Auditing</h3>
+            <p className="text-[var(--im-text)] leading-relaxed">
+              Audit the registration timelines of competing domains within your industry. Compare how long competitors have held their domains and verify nameserver configurations. If restructuring a newly acquired domain asset, test crawler directives with our <Link href="/tools/robots-txt-tester" className="text-[var(--im-primary-deep)] font-semibold hover:underline">robots.txt Tester</Link>.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-bold text-[var(--im-heading)] text-base">Portfolio Expiration Monitoring</h3>
+            <p className="text-[var(--im-text)] leading-relaxed">
+              Track renewal schedules and days remaining until expiration across client or company domain portfolios. For newly launched or transferred web properties, generate an updated sitemap using our <Link href="/tools/sitemap-generator" className="text-[var(--im-primary-deep)] font-semibold hover:underline">XML Sitemap Generator</Link> to accelerate search discovery.
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
+  const faqs = [
+    {
+      question: 'How do I check the age of a domain?',
+      answer: 'Enter any domain name or website URL (such as google.com or https://example.com) into the input field and click "Check Domain Age". The tool normalizes the input, queries the authoritative registry via RDAP, and calculates the exact elapsed age in years, months, and days.'
+    },
+    {
+      question: 'Is this Domain Age Checker free?',
+      answer: 'Yes. Our Domain Age Checker is 100% free with no account registration, no API key required, and no hidden subscriptions.'
+    },
+    {
+      question: 'Can I check multiple domains at once?',
+      answer: 'Yes. Switch to the "Bulk Domains" tab to check up to 20 domains in a single batch. The bulk domain age checker queries authoritative registries with bounded concurrency to respect rate limits, and results can be exported as a spreadsheet CSV.'
+    },
+    {
+      question: 'How is domain age calculated?',
+      answer: 'Domain age is calculated using calendar arithmetic from the authoritative UTC registration creation timestamp to the current date. This accounts for leap years, varying month lengths, and anniversary boundaries rather than approximating 365 days per year.'
+    },
+    {
+      question: 'Is domain age the same as website age?',
+      answer: 'No. Domain age measures the time since the domain name was registered with an authoritative registry. Website age refers to how long an active, crawlable website has published content on that domain. A domain can remain parked for years without hosting a website.'
+    },
+    {
+      question: "Can a domain's registration date change?",
+      answer: 'Yes. If a domain registration lapses completely and the domain is deleted from the registry and later re-registered, the registry assigns a new creation date. However, standard renewals and registrar transfers preserve the original creation date.'
+    },
+    {
+      question: "Why is a domain's registration date unavailable?",
+      answer: 'Some country-code top-level domains (ccTLDs) do not operate public RDAP servers or withhold registration timestamps under local privacy regulations. When registry records omit this data, the tool clearly states that it is unavailable rather than guessing.'
+    },
+    {
+      question: 'Does domain age affect Google rankings?',
+      answer: 'No. Google search representatives have confirmed that domain registration age is not an algorithmic ranking factor. Older websites often perform well in search because they have built content depth, high-quality backlinks, and brand authority over time, not solely because of their registration date.'
+    },
+    {
+      question: 'Can I check domain expiration dates?',
+      answer: 'Yes. When exposed by the authoritative registry, the tool reports the official expiration date and calculates the exact days remaining until renewal.'
+    },
+    {
+      question: 'How accurate is RDAP compared with WHOIS?',
+      answer: 'RDAP (Registration Data Access Protocol) is the modern, standardized protocol specified by ICANN and the IETF (RFC 9083). It returns machine-readable JSON directly from authoritative registry databases, eliminating the formatting inconsistencies and fragile text scraping of legacy WHOIS.'
+    },
+    {
+      question: 'How do I check when a domain was first registered?',
+      answer: 'Our tool displays the creation date from the current authoritative registry record. If a domain was dropped in the past and subsequently re-registered, the registry record reflects the latest registration cycle. To research historical website deployments from prior cycles, review historical snapshots on the Internet Archive (Wayback Machine).'
+    }
+  ];
+
   return (
     <ToolLayout
       title="Free Domain Age Checker Online"
-      description="Check when a domain was registered, calculate its exact age in years, months, and days, and inspect authoritative registration, registrar, and expiration details."
+      description="Use Indian Marketers' free Domain Age Checker to find when a domain was registered and calculate its age in years, months and days. Check a single domain or up to 20 domains at once, with available registration, expiration and registrar details."
       category="Crawling & Access"
       breadcrumbs={[
         { label: 'Tools', href: '/tools' },
         { label: 'Domain Age Checker' }
       ]}
-      aboutText="The Indian Marketers Domain Age Checker retrieves authoritative registration data using the official Registration Data Access Protocol (RDAP) mandated by ICANN. It calculates the exact elapsed age of any registrable domain using calendar arithmetic, reports last-updated timestamps, displays expiration dates, and identifies registrars and nameservers without relying on outdated WHOIS scraping."
-      howItWorks={[
-        'Enter a domain name or URL (e.g. google.com or https://example.com). For multiple domains, select the "Bulk Domains" tab.',
-        'Click "Check Domain Age". The system identifies the registrable domain and discovers its authoritative RDAP endpoint via the official IANA bootstrap registry.',
-        'Authoritative registration records are retrieved directly from registry servers, safely parsed according to RFC 9083 standards, and verified.',
-        'The dashboard displays domain age in completed years, months, days, total elapsed days, creation dates, expiration dates, registrar names, and nameservers with one-click report copying and CSV export.'
-      ]}
-      faq={[
-        {
-          question: 'How do I check the age of a domain?',
-          answer: 'Enter any website URL or domain name (e.g. google.com or https://example.co.uk) into the input field and click "Check Domain Age". The tool automatically normalizes the domain, discovers its authoritative registry, and displays the exact creation date and calculated age.'
-        },
-        {
-          question: 'Is this Domain Age Checker completely free?',
-          answer: 'Yes. Our Domain Age Checker is 100% free with no account registration, no API key requirements, and no hidden subscriptions.'
-        },
-        {
-          question: 'Can I check multiple domains at once?',
-          answer: 'Yes! Switch to the "Bulk Domains" tab to check up to 20 domains in a single batch. Lookups are processed with bounded concurrency to respect registry rate limits, and results can be exported as a spreadsheet CSV.'
-        },
-        {
-          question: 'How is domain age calculated?',
-          answer: 'We use real calendar arithmetic from the authoritative UTC registration timestamp to the current UTC date. This accounts for leap years, varying month lengths, and anniversary boundaries rather than approximating 365 days per year.'
-        },
-        {
-          question: 'Is domain age the same as website age?',
-          answer: 'No. Domain age measures the time since the domain name was first registered with an authoritative domain registry. A domain may have been registered years before any website content was published, or it may have been bought, parked, or changed owners multiple times.'
-        },
-        {
-          question: "Can a domain's creation date change?",
-          answer: 'If a domain registration lapses completely and the domain is deleted and later re-registered by someone else, the registry assigns a new creation date. However, standard renewals and registrar transfers preserve the original creation date.'
-        },
-        {
-          question: "Why is a domain's registration date unavailable?",
-          answer: 'Some country-code top-level domains (ccTLDs) do not operate public RDAP servers or withhold registration dates under local privacy laws. In such cases, we transparently report that the date is unavailable rather than inventing fake data.'
-        },
-        {
-          question: 'Does domain age directly boost Google search rankings?',
-          answer: 'No. Google search advocates have clarified that domain registration age is not an algorithmic ranking factor. Older websites often perform well in search because they have built content depth, high-quality backlinks, and brand authority over time, not solely because of their registration date.'
-        },
-        {
-          question: 'Can I check domain expiration dates?',
-          answer: 'Yes. When exposed by the authoritative registry, the tool reports the official expiration date and calculates the exact days remaining until renewal.'
-        },
-        {
-          question: 'How accurate is RDAP compared to legacy WHOIS?',
-          answer: 'RDAP is the modern, standardized protocol specified by ICANN and the IETF (RFC 9083). It returns machine-readable JSON directly from authoritative registry databases, eliminating the formatting inconsistencies and fragile text scraping of legacy WHOIS.'
-        }
-      ]}
+      aboutTitle="What Is Domain Age?"
+      aboutText={aboutText}
+      howItWorksTitle="How to Check Domain Age and Registration Date"
+      howItWorks={howItWorks}
+      extraSections={extraSections}
+      faq={faqs}
     >
       <div className="space-y-6">
         
@@ -890,111 +1060,6 @@ export default function DomainAgeCheckerPage() {
           </div>
         )}
 
-        {/* Detailed Explanatory Sections */}
-        <div className="mt-12 space-y-12">
-          
-          {/* Section: What Is Domain Age? */}
-          <section className="bg-[var(--im-surface)] border border-[var(--im-border)] rounded-[var(--im-radius-md)] p-6 sm:p-8 shadow-[var(--im-shadow-sm)]">
-            <h2 className="text-xl sm:text-2xl font-bold text-[var(--im-heading)] mb-4">
-              What Is Domain Age?
-            </h2>
-            <div className="space-y-4 text-sm sm:text-base leading-relaxed text-[var(--im-text)]">
-              <p>
-                <strong>Domain age</strong> is the elapsed duration since a domain name was first officially created and registered with an authoritative top-level domain (TLD) registry. It is derived mathematically by comparing the domain record&apos;s authoritative creation timestamp against the current date.
-              </p>
-              <p>
-                Under official ICANN guidelines and RFC 9083 standards, this information is stored in registry databases through the Registration Data Access Protocol (RDAP). A domain&apos;s registration timeline remains intact through renewals and registrar transfers. However, if a domain name is allowed to expire, completes all redemption grace periods, and is subsequently deleted from the registry, any future registration creates a brand new record with a new creation date.
-              </p>
-            </div>
-          </section>
-
-          {/* Section: Domain Age vs Website Age */}
-          <section className="bg-[var(--im-surface)] border border-[var(--im-border)] rounded-[var(--im-radius-md)] p-6 sm:p-8 shadow-[var(--im-shadow-sm)]">
-            <h2 className="text-xl sm:text-2xl font-bold text-[var(--im-heading)] mb-4">
-              Domain Age vs. Website Age: Understanding the Crucial Difference
-            </h2>
-            <div className="space-y-4 text-sm sm:text-base leading-relaxed text-[var(--im-text)]">
-              <p>
-                A widespread misconception in digital marketing is confusing <strong>domain age</strong> with <strong>website age</strong> or content history:
-              </p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>
-                  <strong>Domain Age:</strong> Represents when the domain name string was registered at the registry level. An investor could have purchased a domain name in 2005 and left it parked on a blank placeholder page for two decades. The domain age is 20+ years, yet it has zero website history.
-                </li>
-                <li>
-                  <strong>Website Age:</strong> Measures how long an active, crawlable website with meaningful content has been published on that domain and indexed by search engines.
-                </li>
-                <li>
-                  <strong>Ownership Continuity:</strong> An older domain may have changed hands multiple times, experienced complete topic shifts, or spent years inactive. Domain registration records reflect registry longevity, not continuous business operation.
-                </li>
-              </ul>
-            </div>
-          </section>
-
-          {/* Section: Does Domain Age Affect SEO? */}
-          <section className="bg-[var(--im-surface)] border border-[var(--im-border)] rounded-[var(--im-radius-md)] p-6 sm:p-8 shadow-[var(--im-shadow-sm)]">
-            <h2 className="text-xl sm:text-2xl font-bold text-[var(--im-heading)] mb-4">
-              Does Domain Age Affect Google Rankings?
-            </h2>
-            <div className="space-y-4 text-sm sm:text-base leading-relaxed text-[var(--im-text)]">
-              <p>
-                Google Search advocates have repeatedly clarified that <strong>domain registration age is not a direct ranking factor</strong>. Simply owning an old domain name does not grant an automatic advantage in search results, nor does purchasing an expired domain guarantee ranking success.
-              </p>
-              <p>
-                Older domains frequently rank prominently in search results not because of their registration timestamp, but because they have had years to build:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-2">
-                <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
-                  <h4 className="font-bold text-[var(--im-heading)] text-sm mb-1">Backlink Equity</h4>
-                  <p className="text-xs text-[var(--im-text-muted)]">Accumulated natural editorial references from reputable industry sources over many years.</p>
-                </div>
-                <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
-                  <h4 className="font-bold text-[var(--im-heading)] text-sm mb-1">Content Depth</h4>
-                  <p className="text-xs text-[var(--im-text-muted)]">Comprehensive topic clusters and informational architecture refined across thousands of articles.</p>
-                </div>
-                <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
-                  <h4 className="font-bold text-[var(--im-heading)] text-sm mb-1">Brand Recognition</h4>
-                  <p className="text-xs text-[var(--im-text-muted)]">Consistent user search intent, direct navigation volume, and verified brand signals.</p>
-                </div>
-                <div className="p-4 bg-[var(--im-bg-soft)] rounded-lg border border-[var(--im-border)]">
-                  <h4 className="font-bold text-[var(--im-heading)] text-sm mb-1">Technical Stability</h4>
-                  <p className="text-xs text-[var(--im-text-muted)]">Established crawl history, clean internal link structures, and fast server performance.</p>
-                </div>
-              </div>
-              <p className="text-sm text-[var(--im-text-muted)] italic">
-                A newly registered domain with superior technical architecture, outstanding helpful content, and relevant links can outrank a 15-year-old neglected domain.
-              </p>
-            </div>
-          </section>
-
-          {/* Section: Why Check Domain Age? */}
-          <section className="bg-[var(--im-surface)] border border-[var(--im-border)] rounded-[var(--im-radius-md)] p-6 sm:p-8 shadow-[var(--im-shadow-sm)]">
-            <h2 className="text-xl sm:text-2xl font-bold text-[var(--im-heading)] mb-4">
-              Practical Uses of Domain Age Verification
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-              <div className="space-y-2">
-                <h3 className="font-bold text-[var(--im-heading)] text-base">Domain Due Diligence</h3>
-                <p className="text-[var(--im-text)] leading-relaxed">
-                  Before acquiring an existing domain name, verify whether its claimed history matches the authoritative registry record. Confirm creation dates and check whether the domain was dropped and recently re-registered.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-bold text-[var(--im-heading)] text-base">Competitor Analysis</h3>
-                <p className="text-[var(--im-text)] leading-relaxed">
-                  Audit when competing companies launched their web presences. Determine whether market leaders have had decades to build authority or if newer entrants achieved top rankings through agility.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-bold text-[var(--im-heading)] text-base">Expiration Monitoring</h3>
-                <p className="text-[var(--im-text)] leading-relaxed">
-                  View upcoming domain renewal dates and remaining lifespan. Ensure your portfolio domains have multi-year renewals and are protected against accidental expiration lapses.
-                </p>
-              </div>
-            </div>
-          </section>
-
-        </div>
       </div>
     </ToolLayout>
   );
