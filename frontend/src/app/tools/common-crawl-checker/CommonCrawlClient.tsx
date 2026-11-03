@@ -290,47 +290,6 @@ export default function CommonCrawlClient() {
 
   return (
     <div className="space-y-8">
-      {/* Educational Guide: What is Common Crawl & CCBot? */}
-      <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50/40 rounded-2xl border border-orange-200/80 p-5 md:p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0 mt-0.5">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="space-y-2 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-bold text-slate-900">
-                What is Common Crawl (CC) & Why Does It Matter for AI?
-              </h2>
-              <span className="px-2.5 py-0.5 text-[11px] font-semibold bg-orange-100 text-orange-800 rounded-full">
-                AI Knowledge Base
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              <strong>Common Crawl</strong> is the world&apos;s largest non-profit open web repository. Each month, its web crawler (<strong>CCBot</strong>) crawls the public internet and publishes an open monthly archive (identified by IDs like <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-orange-200 text-slate-800 text-[11px]">CC-MAIN-YYYY-WW</code>, which represent monthly crawl releases like <em>October 2026 Crawl</em>).
-            </p>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Leading AI labs—including <strong>OpenAI (ChatGPT)</strong>, <strong>Anthropic (Claude)</strong>, <strong>Google</strong>, and <strong>Meta (LLaMA)</strong>—use Common Crawl as the core dataset to train Large Language Models. If your site is missing from Common Crawl or blocked in <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-orange-200 text-slate-800 text-[11px]">robots.txt</code>, AI models are blind to your brand and content.
-            </p>
-            <div className="pt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] text-slate-600 font-medium border-t border-orange-200/50 mt-1">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                <span><strong>CCBot:</strong> Common Crawl&apos;s Web Crawler</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <span><strong>CC-MAIN-YYYY-WW:</strong> Monthly Crawl Release Archive</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span><strong>AI Training:</strong> Powers ChatGPT, Claude, and Gemini</span>
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Search & Audit Form */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
         <form onSubmit={handleAudit} className="space-y-6">
