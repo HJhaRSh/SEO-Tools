@@ -580,6 +580,110 @@ test('extractClientIp resolves Cloudflare Edge header cf-connecting-ip', () => {
   assert.strictEqual(ip, '203.0.113.195');
 });
 
+// ----------------------------------------------------
+// 8. Targeted Production Hardening (3 Nov Code Review)
+// ----------------------------------------------------
+console.log('\n8. Targeted Production Hardening:');
+
+test('Gemini environment variable isolation: GEMINI_API_KEY never mutates GOOGLE_API_KEY', () => {
+  const { getGeminiConfig } = require('./lib/seo/page-focus/geminiProvider');
+  const originalGoogleKey = 'original-google-kg-key-12345';
+  process.env.GOOGLE_API_KEY = originalGoogleKey;
+  process.env.GEMINI_API_KEY = 'dedicated-gemini-key-67890';
+
+  const cfg = getGeminiConfig();
+  assert.strictEqual(cfg.apiKey, 'dedicated-gemini-key-67890');
+  // Ensure GOOGLE_API_KEY remained strictly untouched
+  assert.strictEqual(process.env.GOOGLE_API_KEY, originalGoogleKey, 'GOOGLE_API_KEY must never be mutated by Tool #18');
+
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.GOOGLE_API_KEY;
+});
+
+test('Model configuration: defaults to gemini-3.1-flash-lite and gemini-3-flash-preview', () => {
+  const { getGeminiConfig } = require('./lib/seo/page-focus/geminiProvider');
+  process.env.GEMINI_API_KEY = 'test-key';
+  delete process.env.GEMINI_MODEL;
+  delete process.env.GEMINI_FALLBACK_MODEL;
+
+  const cfg = getGeminiConfig();
+  assert.strictEqual(cfg.model, 'gemini-3.1-flash-lite');
+  assert.strictEqual(cfg.fallbackModel, 'gemini-3-flash-preview');
+  assert.strictEqual(cfg.embeddingModel, 'gemini-embedding-2');
+
+  delete process.env.GEMINI_API_KEY;
+});
+
+test('Section failure states: handles null topicAlignmentScore and unavailable label', () => {
+  const unavailableSection = {
+    sectionId: 'sec-0',
+    heading: 'Overview',
+    topicAlignmentScore: null,
+    alignmentLabel: 'unavailable' as const,
+    stronglyCoveredConcepts: [],
+    weaklyCoveredConcepts: [],
+    missingContext: null,
+    explanation: 'Section analysis unavailable: semantic vectors and AI evaluation could not be completed.',
+    recommendation: null,
+  };
+
+  assert.strictEqual(unavailableSection.topicAlignmentScore, null);
+  assert.strictEqual(unavailableSection.alignmentLabel, 'unavailable');
+});
+
+test('Production fail-closed behavior: fails closed when Redis missing in production', async () => {
+  const prevNodeEnv = process.env.NODE_ENV;
+  (process.env as any).NODE_ENV = 'production';
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  const res = await checkRateLimitAsync('203.0.113.1', 1);
+  assert.strictEqual(res.allowed, false);
+  assert(res.reason?.includes('Distributed quota enforcement requires UPSTASH_REDIS_REST_URL'));
+
+  (process.env as any).NODE_ENV = prevNodeEnv;
+  resetRateLimits();
+});
+
+test('Separate reasoning and embedding tracking via recordActualModelCall', async () => {
+  const { recordActualModelCall } = require('./lib/seo/page-focus/rateLimiter');
+  resetRateLimits();
+
+  // Test embedding record
+  const embResult1 = await recordActualModelCall('embedding', 5);
+  assert.strictEqual(embResult1.allowed, true);
+
+  // Test reasoning record
+  const reasonResult1 = await recordActualModelCall('reasoning', 1);
+  assert.strictEqual(reasonResult1.allowed, true);
+
+  resetRateLimits();
+});
+
+test('Atomic check-and-reserve: rejected requests do not consume quota', () => {
+  resetRateLimits();
+  // Set budget limit to 2 for testing
+  process.env.PAGE_FOCUS_GLOBAL_DAILY_BUDGET = '2';
+
+  // Request 1: 1 unit -> allowed (1 consumed)
+  const r1 = checkRateLimit('192.0.2.1', 1);
+  assert.strictEqual(r1.allowed, true);
+
+  // Request 2: 1 unit -> allowed (2 consumed, at limit)
+  const r2 = checkRateLimit('192.0.2.2', 1);
+  assert.strictEqual(r2.allowed, true);
+
+  // Request 3: 1 unit -> rejected (would exceed limit)
+  const r3 = checkRateLimit('192.0.2.3', 1);
+  assert.strictEqual(r3.allowed, false);
+
+  // Request 4: check that remaining budget stayed at 0 and was NOT driven negative
+  assert.strictEqual(r3.globalBudgetRemaining, 0);
+
+  delete process.env.PAGE_FOCUS_GLOBAL_DAILY_BUDGET;
+  resetRateLimits();
+});
+
 console.log('\n=====================================================');
 console.log(`TOTAL TOOL 18 BACKEND TESTS: ${passCount} | PASSED: ${passCount} | FAILED: 0`);
 console.log('=====================================================');

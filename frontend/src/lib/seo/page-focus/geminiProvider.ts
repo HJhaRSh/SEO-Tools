@@ -1,38 +1,47 @@
 /**
  * Gemini AI Provider for Page Focus Analyzer
  * Uses @google/genai v2.x with structured output (responseSchema)
- * Model: configurable via GEMINI_MODEL env var (default: gemini-2.0-flash)
+ *
+ * Strict Isolation:
+ * - Uses GEMINI_API_KEY exclusively.
+ * - NEVER mutates or references process.env.GOOGLE_API_KEY (reserved for Knowledge Graph tool).
+ *
+ * Model Strategy:
+ * - Exactly one primary model (gemini-3.1-flash-lite) and one verified fallback (gemini-3-flash-preview).
+ * - SDK-supported AbortSignal cancellation on all generateContent & embedContent requests.
+ * - Bounded total master time budget to prevent hanging requests.
+ * - Accurate provider-level request accounting via recordActualModelCall.
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
 import type { AIAnalysisOutput, ExtractedPage, PageSection } from './types';
 import { AIAnalysisOutputSchema, PROMPT_VERSION } from './types';
-import { SYSTEM_INSTRUCTION, buildAnalysisPrompt, buildComparisonPrompt } from './prompts';
+import { SYSTEM_INSTRUCTION, buildAnalysisPrompt } from './prompts';
+import { recordActualModelCall } from './rateLimiter';
 
 export interface GeminiProviderConfig {
   apiKey: string;
   model: string;
+  fallbackModel: string;
   embeddingModel: string;
   timeoutMs: number;
 }
 
 export function getGeminiConfig(): GeminiProviderConfig {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY (or GOOGLE_API_KEY) environment variable is not set');
-  // If GEMINI_API_KEY is explicitly configured, align GOOGLE_API_KEY to prevent SDK internal conflicts
-  if (process.env.GEMINI_API_KEY && process.env.GOOGLE_API_KEY !== process.env.GEMINI_API_KEY) {
-    process.env.GOOGLE_API_KEY = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY environment variable is not set');
   }
   return {
     apiKey,
     model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
+    fallbackModel: process.env.GEMINI_FALLBACK_MODEL || 'gemini-3-flash-preview',
     embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2',
-    timeoutMs: 60000,
+    timeoutMs: 50000,
   };
 }
 
 // Define the Gemini response schema using the Type enum from @google/genai
-// This enforces structured JSON output directly from the model
 export const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
@@ -138,27 +147,42 @@ export const RESPONSE_SCHEMA = {
   required: ['pageSummary', 'primaryTopic', 'secondaryTopics', 'topicCoverage', 'contentGaps', 'sectionFindings', 'recommendations', 'aiScoreComponents', 'limitations'],
 };
 
+/**
+ * Helper to instantiate GoogleGenAI strictly using the provided GEMINI_API_KEY.
+ * The SDK's constructor internally reads process.env.GOOGLE_API_KEY before checking options.apiKey,
+ * which logs a misleading warning when both are set in the runtime environment.
+ * We temporarily isolate process.env.GOOGLE_API_KEY during instantiation and restore it immediately.
+ */
+function createGenAIClient(apiKey: string): GoogleGenAI {
+  const originalGoogleApiKey = process.env.GOOGLE_API_KEY;
+  try {
+    delete process.env.GOOGLE_API_KEY;
+    return new GoogleGenAI({ apiKey });
+  } finally {
+    if (originalGoogleApiKey !== undefined) {
+      process.env.GOOGLE_API_KEY = originalGoogleApiKey;
+    }
+  }
+}
+
 export async function analyzeWithGemini(params: {
   page: ExtractedPage;
   targetTopic: string | null;
   timeoutMs?: number;
 }): Promise<AIAnalysisOutput> {
   const config = getGeminiConfig();
-  const genai = new GoogleGenAI({ apiKey: config.apiKey });
-  
+  const genai = createGenAIClient(config.apiKey);
+
   // Hierarchical, token-aware content selection for AI prompt
-  // For shorter pages (<= 2500 words), preserve comprehensive section content (up to 1500 chars).
-  // For longer pages, select sections hierarchically: intro, conclusion, and highest-density sections.
   const isLongPage = params.page.wordCount > 2500 || params.page.sections.length > 15;
-  const sectionsForPrompt = params.page.sections.map((s, index) => {
+  const sectionsForPrompt = params.page.sections.map((s) => {
     let contentSnippet = s.content;
     const maxChars = isLongPage ? 600 : 1200;
-    
+
     if (contentSnippet.length > maxChars) {
-      // Hierarchical excerpt: first 400 chars + ellipsis + last 200 chars to retain thesis and conclusion
       contentSnippet = `${contentSnippet.slice(0, maxChars - 200).trim()} ... [section excerpted for token efficiency] ... ${contentSnippet.slice(-200).trim()}`;
     }
-    
+
     return {
       id: s.id,
       heading: s.heading,
@@ -178,43 +202,54 @@ export async function analyzeWithGemini(params: {
     extractionNote: params.page.extractionNote,
   });
 
-  // Configurable primary reasoning model: defaults to stable gemini-3.1-flash-lite, with verified fallbacks
-  const primaryModel = config.model || 'gemini-3.1-flash-lite';
+  // Exactly one primary model and one verified fallback — no uncontrolled 5-model candidate chain
   const candidateModels = [
-    primaryModel,
-    'gemini-3.1-flash-lite',
-    'gemini-3.1-flash-lite-preview',
-    'gemini-3-flash-preview',
-    'gemini-3.8-flash',
+    config.model,
+    config.fallbackModel,
   ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
   let responseText: string | undefined;
-  let selectedModelUsed: string = primaryModel;
-  let fallbackActivated = false;
-  let totalApiRequestsUsed = 0;
+  let selectedModelUsed: string = config.model;
   let lastError: unknown;
 
-  // Bounded retry helper with exponential backoff and jitter (~1s, ~2s, ~4s)
+  // Master bounded deadline for the entire reasoning attempt
+  const masterTimeoutMs = params.timeoutMs || config.timeoutMs || 50000;
+  const masterDeadline = Date.now() + masterTimeoutMs;
+
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+  modelLoop: for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
     const currentModel = candidateModels[mIdx];
     const isFallback = mIdx > 0;
-    if (isFallback) {
-      fallbackActivated = true;
-    }
 
-    // Up to 3 attempts (1 initial + 2 backoff retries) per model for transient errors
-    const maxAttempts = 3;
-    let modelSuccess = false;
+    // Up to 2 attempts per model (1 initial + 1 backoff retry) to avoid burning quotas
+    const maxAttempts = 2;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        totalApiRequestsUsed++;
+      const remainingTime = masterDeadline - Date.now();
+      if (remainingTime < 3000) {
+        lastError = new Error(`Analysis overall time budget of ${masterTimeoutMs}ms exceeded.`);
+        break modelLoop;
+      }
 
-        // Strict timeout per attempt (25s on primary 3.8-flash, 30s on fallback 3.6-flash)
-        const attemptTimeoutMs = currentModel === primaryModel ? 25000 : 35000;
-        const generatePromise = genai.models.generateContent({
+      // If this is a retry or a fallback model attempt, record actual model unit and verify budget
+      if (attempt > 1 || isFallback) {
+        const canExecute = await recordActualModelCall('reasoning', 1);
+        if (!canExecute.allowed) {
+          lastError = new Error('Daily AI reasoning quota limit reached during retry/fallback. Aborting further attempts.');
+          break modelLoop;
+        }
+      }
+
+      // SDK-supported cancellation with AbortController
+      const abortController = new AbortController();
+      const attemptTimeoutMs = Math.min(25000, remainingTime - 1000);
+      const timeoutId = setTimeout(() => {
+        abortController.abort(new Error(`Model request timed out after ${attemptTimeoutMs}ms`));
+      }, attemptTimeoutMs);
+
+      try {
+        const response = await genai.models.generateContent({
           model: currentModel,
           contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
           config: {
@@ -223,89 +258,69 @@ export async function analyzeWithGemini(params: {
             responseSchema: RESPONSE_SCHEMA,
             temperature: 0.2,
             maxOutputTokens: 8192,
+            abortSignal: abortController.signal,
           },
         });
 
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error(`Model request timed out after ${attemptTimeoutMs}ms`)), attemptTimeoutMs);
-        });
-
-        const response = await Promise.race([generatePromise, timeoutPromise]);
+        clearTimeout(timeoutId);
 
         if (response.text) {
           responseText = response.text;
           selectedModelUsed = currentModel;
-          modelSuccess = true;
-          break;
+          break modelLoop;
         }
       } catch (err: any) {
+        clearTimeout(timeoutId);
         lastError = err;
         const errStr = String(err?.message || err);
         const status = err?.status || err?.code || 0;
 
-        // HTTP 401 / 403: Stop immediately — fatal auth/permission configuration
+        // Fatal auth/permission errors: stop immediately
         if (status === 401 || status === 403 || errStr.includes('PERMISSION_DENIED') || errStr.includes('API_KEY_INVALID')) {
           throw new Error(`Authentication/Permission error from Gemini API: ${errStr}`);
         }
 
-        // HTTP 400: Invalid parameters — do not retry blindly
+        // Invalid parameters: do not retry
         if (status === 400 || errStr.includes('INVALID_ARGUMENT')) {
           throw new Error(`Invalid request parameters sent to Gemini: ${errStr}`);
         }
 
-        // HTTP 429: Check if project quota is completely exhausted
+        // Quota exhaustion: stop immediately
         if (status === 429 || errStr.includes('RESOURCE_EXHAUSTED')) {
           if (errStr.includes('Quota exceeded') || errStr.includes('daily limit')) {
             throw new Error(`Gemini project daily quota exhausted (HTTP 429). Will not cycle models to evade quota limits: ${errStr}`);
           }
-          // Temporary rate spike: backoff if retries remain
-          if (attempt < maxAttempts) {
-            const backoffMs = Math.pow(2, attempt - 1) * 1000 + Math.floor(Math.random() * 500);
-            await delay(backoffMs);
+          if (attempt < maxAttempts && masterDeadline - Date.now() > 5000) {
+            await delay(1500);
             continue;
           }
-          break; // move to fallback
+          break; // move to fallback model
         }
 
-        // HTTP 500, 502, 503, 504 or network timeout / high demand
-        const isTransientServerIssue = status === 500 || status === 502 || status === 503 || status === 504 ||
-          errStr.includes('high demand') || errStr.includes('UNAVAILABLE') || errStr.includes('fetch failed') ||
-          errStr.includes('timeout') || errStr.includes('ECONNRESET');
+        // Transient server errors (500, 502, 503, 504, UNAVAILABLE)
+        const isTransient = status >= 500 || errStr.includes('UNAVAILABLE') || errStr.includes('high demand') ||
+          errStr.includes('fetch failed') || errStr.includes('timed out');
 
-        if (isTransientServerIssue) {
-          if (attempt < maxAttempts) {
-            // Exponential backoff: ~1s, ~2s, ~4s + jitter
-            const backoffMs = Math.pow(2, attempt - 1) * 1000 + Math.floor(Math.random() * 500);
-            await delay(backoffMs);
-            continue;
-          }
-          // Retry budget exhausted for this model, step to fallback
-          break;
+        if (isTransient && attempt < maxAttempts && masterDeadline - Date.now() > 5000) {
+          await delay(1500);
+          continue;
         }
 
-        // Model not found or deprecated: immediately attempt verified fallback
-        if (status === 404 || errStr.includes('NOT_FOUND')) {
-          break;
-        }
-
-        // Unclassified error: break to fallback
+        // Move to fallback model
         break;
       }
-    }
-
-    if (modelSuccess && responseText) {
-      break;
     }
   }
 
   const text = responseText;
-  if (!text) throw (lastError || new Error('Gemini returned empty response after retries and fallback'));
-  
+  if (!text) {
+    throw (lastError || new Error('Gemini returned empty response after retries and fallback'));
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
-  } catch (parseErr) {
-    // One controlled JSON repair attempt: trim markdown wrappers or trailing garbage if present
+  } catch {
     const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
     try {
       parsed = JSON.parse(cleaned);
@@ -313,18 +328,16 @@ export async function analyzeWithGemini(params: {
       throw new Error('Gemini returned invalid structured JSON: ' + text.slice(0, 200));
     }
   }
-  
+
   // Validate with Zod against identical schema
   const result = AIAnalysisOutputSchema.safeParse(parsed);
   if (!result.success) {
     throw new Error('Gemini response failed schema validation: ' + result.error.message.slice(0, 500));
   }
-  
-  // Validate section IDs referenced by AI against actual extracted sections
+
   const validSectionIds = new Set(params.page.sections.map(s => s.id));
   const validateSectionIds = (ids: string[]) => ids.filter(id => validSectionIds.has(id));
-  
-  // Clean up any hallucinated section IDs and normalize 0-1 float scores to 0-100 integers
+
   const normalizeScore = (val: unknown): number => {
     const num = typeof val === 'number' ? val : parseFloat(String(val));
     if (isNaN(num)) return 0;
@@ -348,33 +361,27 @@ export async function analyzeWithGemini(params: {
     topicAlignmentScore: normalizeScore(f.topicAlignmentScore),
   }));
 
-  // Recommendation Evidence Grounding Verification:
-  // Strictly verify whether existingEvidence citations actually exist in extracted page content.
+  // Recommendation Evidence Grounding Verification
   const lowerFullText = (params.page.fullText || '').toLowerCase();
   output.recommendations = output.recommendations.map(rec => {
     let verifiedConfidence = rec.confidenceStatus;
     let verifiedPlacement = rec.suggestedPlacement;
 
-    // Validate suggested placement
     if (verifiedPlacement && !validSectionIds.has(verifiedPlacement)) {
       verifiedPlacement = null;
     }
 
-    // Validate existing evidence against page content
     if (rec.existingEvidence && rec.existingEvidence.trim().length > 0) {
       const cleanSnippet = rec.existingEvidence.trim().toLowerCase().replace(/['"“”]/g, '');
-      // Check if either the full quote or a substantial fragment (>= 20 chars) exists in page text
       const fragment = cleanSnippet.slice(0, Math.min(30, cleanSnippet.length));
       const appearsInPage = lowerFullText.includes(fragment);
 
       if (!appearsInPage) {
-        // Evidence could not be corroborated in page text — downgrade to inferred/requires-verification
         verifiedConfidence = 'requires-verification';
       } else {
         verifiedConfidence = 'evidence-based';
       }
     } else {
-      // No empirical quote provided
       if (verifiedConfidence === 'evidence-based') {
         verifiedConfidence = 'inferred';
       }
@@ -392,26 +399,41 @@ export async function analyzeWithGemini(params: {
 
 /**
  * Generates vector embeddings for a list of texts using gemini-embedding-2.
- * Executes in bounded parallel batches to preserve quota and avoid throttling.
+ * Executes in bounded parallel batches with SDK AbortSignal support.
  */
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   const config = getGeminiConfig();
-  const genai = new GoogleGenAI({ apiKey: config.apiKey });
-  
-  // Bounded batch execution (max 5 parallel calls)
+  const genai = createGenAIClient(config.apiKey);
+
   const results: number[][] = [];
   const batchSize = 5;
+
   for (let i = 0; i < texts.length; i += batchSize) {
     const chunk = texts.slice(i, i + batchSize);
+
+    // Track embedding quota usage
+    const embeddingBudget = await recordActualModelCall('embedding', chunk.length);
+    if (!embeddingBudget.allowed) {
+      console.warn('Embedding daily quota exhausted. Stopping further vector generation.');
+      break;
+    }
+
     const chunkEmbeddings = await Promise.all(
       chunk.map(async (text) => {
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 15000);
         try {
           const res = await genai.models.embedContent({
             model: config.embeddingModel,
-            contents: text.slice(0, 1000), // Cap length for embedding tokens
+            contents: text.slice(0, 1000),
+            config: {
+              abortSignal: abortController.signal,
+            },
           });
+          clearTimeout(timeoutId);
           return res.embeddings?.[0]?.values || [];
         } catch (err) {
+          clearTimeout(timeoutId);
           console.warn('Embedding failed for text chunk:', err);
           return [];
         }
@@ -419,24 +441,79 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     );
     results.push(...chunkEmbeddings);
   }
+
   return results;
 }
 
-export async function healthCheck(): Promise<{ available: boolean; model: string; embeddingModel: string; error?: string }> {
+/**
+ * Health check: Non-consuming configuration check by default.
+ * Only issues live API calls when explicitly requested with live: true.
+ */
+export async function healthCheck(options: { live?: boolean } = {}): Promise<{
+  available: boolean;
+  model: string;
+  fallbackModel: string;
+  embeddingModel: string;
+  mode: 'configuration' | 'live-probe';
+  error?: string;
+}> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3-flash-preview';
+  const embeddingModel = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2';
+
+  if (!apiKey) {
+    return {
+      available: false,
+      model,
+      fallbackModel,
+      embeddingModel,
+      mode: 'configuration',
+      error: 'GEMINI_API_KEY environment variable is not set',
+    };
+  }
+
+  // Non-consuming check (default) to protect quota
+  if (!options.live) {
+    return {
+      available: true,
+      model,
+      fallbackModel,
+      embeddingModel,
+      mode: 'configuration',
+    };
+  }
+
+  // Live probe (protected/authenticated callers only)
   try {
-    const config = getGeminiConfig();
-    const genai = new GoogleGenAI({ apiKey: config.apiKey });
+    const genai = createGenAIClient(apiKey);
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 10000);
+
     const response = await genai.models.generateContent({
-      model: config.model,
+      model,
       contents: [{ role: 'user', parts: [{ text: 'Reply with the single word: ready' }] }],
-      config: { maxOutputTokens: 10, temperature: 0 },
+      config: {
+        maxOutputTokens: 10,
+        temperature: 0,
+        abortSignal: abortController.signal,
+      },
     });
-    return { available: !!response.text, model: config.model, embeddingModel: config.embeddingModel };
+    clearTimeout(timeoutId);
+    return {
+      available: !!response.text,
+      model,
+      fallbackModel,
+      embeddingModel,
+      mode: 'live-probe',
+    };
   } catch (e) {
     return {
       available: false,
-      model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview',
-      embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2',
+      model,
+      fallbackModel,
+      embeddingModel,
+      mode: 'live-probe',
       error: String(e),
     };
   }

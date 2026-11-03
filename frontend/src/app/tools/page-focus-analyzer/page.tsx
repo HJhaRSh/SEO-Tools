@@ -549,14 +549,20 @@ export default function PageFocusAnalyzerPage() {
 
                     <div className="text-right bg-green-50/60 border border-green-200/80 rounded-xl p-4 min-w-[150px]">
                       <div className="text-3xl font-black text-[#2e7d32]">
-                        {report.primaryTopic.centralityScore}
-                        <span className="text-xs font-normal text-gray-500">/100</span>
+                        {report.primaryTopic.centralityScore !== null ? report.primaryTopic.centralityScore : 'N/A'}
+                        {report.primaryTopic.centralityScore !== null && <span className="text-xs font-normal text-gray-500">/100</span>}
                       </div>
                       <div className="text-[11px] font-semibold text-gray-700 mt-0.5">
                         Focus Score
                       </div>
                       <div className="text-[10px] text-gray-500 mt-0.5">
-                        {report.primaryTopic.centralityScore >= 80 ? 'Heavy Core Focus' : report.primaryTopic.centralityScore >= 60 ? 'Moderate Core Focus' : 'Weakly Focused'}
+                        {report.primaryTopic.centralityScore === null
+                          ? 'Unavailable'
+                          : report.primaryTopic.centralityScore >= 80
+                          ? 'Heavy Core Focus'
+                          : report.primaryTopic.centralityScore >= 60
+                          ? 'Moderate Core Focus'
+                          : 'Weakly Focused'}
                       </div>
                     </div>
                   </div>
@@ -640,14 +646,14 @@ export default function PageFocusAnalyzerPage() {
                       <div key={i} className="space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="font-semibold text-gray-800">{t.name}</span>
-                          <span className="font-mono text-gray-500">{t.centralityScore}%</span>
+                          <span className="font-mono text-gray-500">{t.centralityScore !== null ? `${t.centralityScore}%` : '—'}</span>
                         </div>
                         <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${
                               i === 0 ? 'bg-[#4caf50]' : 'bg-[#81c784]'
                             }`}
-                            style={{ width: `${Math.max(5, t.centralityScore)}%` }}
+                            style={{ width: `${t.centralityScore !== null ? Math.max(5, t.centralityScore) : 0}%` }}
                           />
                         </div>
                       </div>
@@ -1053,15 +1059,41 @@ export default function PageFocusAnalyzerPage() {
                       <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span> Moderate (50-74)</span>
                       <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400"></span> Weak (25-49)</span>
                       <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-400"></span> Off-Topic (&lt;25)</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-300"></span> Unavailable</span>
                     </div>
                   </div>
 
                   <div className="space-y-3">
                     {report.sectionAnalyses.map((sec, idx) => {
                       const score = sec.topicAlignmentScore;
-                      const borderCol = score >= 75 ? 'border-green-300 hover:border-green-500' : score >= 50 ? 'border-yellow-300 hover:border-yellow-500' : score >= 25 ? 'border-orange-300 hover:border-orange-500' : 'border-red-300 hover:border-red-500';
-                      const bgCol = score >= 75 ? 'bg-green-50/30' : score >= 50 ? 'bg-yellow-50/30' : score >= 25 ? 'bg-orange-50/30' : 'bg-red-50/30';
-                      const labelText = score >= 75 ? 'Strong Focus' : score >= 50 ? 'Moderate Context' : score >= 25 ? 'Weak Relevance' : 'Off-Topic';
+                      const isUnavailable = score === null || sec.alignmentLabel === 'unavailable';
+                      const borderCol = isUnavailable
+                        ? 'border-gray-200 hover:border-gray-300'
+                        : score >= 75
+                        ? 'border-green-300 hover:border-green-500'
+                        : score >= 50
+                        ? 'border-yellow-300 hover:border-yellow-500'
+                        : score >= 25
+                        ? 'border-orange-300 hover:border-orange-500'
+                        : 'border-red-300 hover:border-red-500';
+                      const bgCol = isUnavailable
+                        ? 'bg-gray-50/50'
+                        : score >= 75
+                        ? 'bg-green-50/30'
+                        : score >= 50
+                        ? 'bg-yellow-50/30'
+                        : score >= 25
+                        ? 'bg-orange-50/30'
+                        : 'bg-red-50/30';
+                      const labelText = isUnavailable
+                        ? 'Unavailable'
+                        : score >= 75
+                        ? 'Strong Focus'
+                        : score >= 50
+                        ? 'Moderate Context'
+                        : score >= 25
+                        ? 'Weak Relevance'
+                        : 'Off-Topic';
 
                       return (
                         <div
@@ -1086,7 +1118,7 @@ export default function PageFocusAnalyzerPage() {
 
                             <div className="text-right shrink-0">
                               <span className="text-lg font-black text-gray-900">
-                                {score}
+                                {score !== null ? score : '—'}
                               </span>
                               <span className="text-[10px] text-gray-500 block font-semibold">
                                 {labelText}
@@ -1125,10 +1157,12 @@ export default function PageFocusAnalyzerPage() {
                         <div>
                           <span className="font-bold text-gray-700 block mb-1">Topic Alignment Score:</span>
                           <span className="text-xl font-black text-[#2e7d32]">
-                            {selectedSection.topicAlignmentScore}/100
+                            {selectedSection.topicAlignmentScore !== null ? `${selectedSection.topicAlignmentScore}/100` : 'Unavailable'}
                           </span>
                           <span className="text-gray-500 ml-2 font-medium">
-                            ({selectedSection.topicAlignmentScore >= 75 ? 'Deeply aligned with core search intent' : selectedSection.topicAlignmentScore >= 50 ? 'Helpful secondary information' : 'Weakly aligned with query'})
+                            {selectedSection.topicAlignmentScore !== null
+                              ? `(${selectedSection.topicAlignmentScore >= 75 ? 'Deeply aligned with core search intent' : selectedSection.topicAlignmentScore >= 50 ? 'Helpful secondary information' : 'Weakly aligned with query'})`
+                              : '(Semantic vector embeddings / AI evaluation unavailable)'}
                           </span>
                         </div>
 

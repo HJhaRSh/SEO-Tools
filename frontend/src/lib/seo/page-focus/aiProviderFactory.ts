@@ -7,7 +7,7 @@ export type ProviderName = 'gemini' | 'cloudflare' | 'none';
 export function getPreferredProvider(): ProviderName {
   const configured = process.env.PAGE_FOCUS_AI_PROVIDER || 'gemini';
   if (configured === 'cloudflare' && getCFConfig()) return 'cloudflare';
-  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return 'gemini';
+  if (process.env.GEMINI_API_KEY) return 'gemini';
   if (getCFConfig()) return 'cloudflare';
   return 'none';
 }

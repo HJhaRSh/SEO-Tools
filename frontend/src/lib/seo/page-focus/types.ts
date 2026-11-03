@@ -38,7 +38,7 @@ export interface ExtractedPage {
 // Topic detected on the page
 export interface DetectedTopic {
   name: string;
-  centralityScore: number;  // 0-100
+  centralityScore: number | null;  // 0-100 or null if unavailable
   isPrimary: boolean;
   explanation: string;
   supportingSectionIds: string[];
@@ -83,8 +83,8 @@ export interface SearchIntentAnalysis {
 export interface SectionAnalysis {
   sectionId: string;
   heading: string | null;
-  topicAlignmentScore: number; // 0-100
-  alignmentLabel: 'strong' | 'moderate' | 'weak' | 'off-topic';
+  topicAlignmentScore: number | null; // 0-100 or null if unavailable
+  alignmentLabel: 'strong' | 'moderate' | 'weak' | 'off-topic' | 'unavailable';
   stronglyCoveredConcepts: string[];
   weaklyCoveredConcepts: string[];
   missingContext: string | null;

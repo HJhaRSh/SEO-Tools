@@ -23,10 +23,6 @@ export const maxDuration = 120;
  * Evaluates genuine semantic equivalence between two topical concepts using:
  * 1. Primary: 3072-dimensional vector embedding cosine similarity (threshold >= 0.75)
  * 2. Secondary fallback: Normalized token Jaccard overlap when embeddings are offline.
- *
- * This reliably recognizes identical meanings using different vocabulary (e.g. "luxury residential plots"
- * vs "premium villa land parcels") while rejecting overlapping words with distinct meanings
- * (e.g. "apple juice recipe" vs "apple iphone battery").
  */
 function areConceptsSemanticallyEquivalent(
   a: string,
@@ -44,7 +40,6 @@ function areConceptsSemanticallyEquivalent(
     const vecB = vectorMap.get(normB);
     if (vecA && vecB && vecA.length > 0 && vecB.length > 0) {
       const cos = cosineSimilarity(vecA, vecB);
-      // Calibrated empirical threshold for concept equivalence
       return cos >= 0.75;
     }
   }
@@ -66,19 +61,11 @@ function areConceptsSemanticallyEquivalent(
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Distributed quota tracking (3 units: 1 embedding batch + 2 AI reasoning calls)
-  // Concurrency-safe distributed rate limiting & reasoning quota budgeting (2 reasoning units: 1 target page + 1 competitor page)
-  const ip = extractClientIp(req.headers);
-  const rateCheck = await checkRateLimitAsync(ip, 2);
-  if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: rateCheck.reason || 'Rate limit exceeded.', retryAfterMs: rateCheck.retryAfterMs },
-      { status: 429 }
-    );
-  }
-
+  // 1. Parse + validate request parameters first (0 quota consumed on invalid input)
   let body: unknown;
-  try { body = await req.json(); } catch {
+  try {
+    body = await req.json();
+  } catch {
     return NextResponse.json({ error: 'Invalid JSON request body.' }, { status: 400 });
   }
 
@@ -89,7 +76,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { url, competitorUrl, targetTopic } = parsed.data;
 
-  // Fetch both pages in parallel
+  // 2. Fetch both pages in parallel (0 quota consumed if page fetches fail)
   const [ourPageResult, compPageResult] = await Promise.allSettled([
     extractPage(url),
     extractPage(competitorUrl),
@@ -105,7 +92,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const ourPage = ourPageResult.value;
   const competitorPage = compPageResult.value;
 
-  // Run AI analysis on both pages sequentially to protect free-tier concurrency limits
+  // 3. Rate limiting & Quota Admission (admit and reserve 2 reasoning units for target + competitor)
+  const ip = extractClientIp(req.headers);
+  const rateCheck = await checkRateLimitAsync(ip, 2);
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: rateCheck.reason || 'Rate limit exceeded.', retryAfterMs: rateCheck.retryAfterMs },
+      { status: 429 }
+    );
+  }
+
+  // 4. Run AI analysis on both pages sequentially to protect free-tier concurrency limits
   const ourAI = await runAIAnalysis({ page: ourPage, targetTopic });
   const compAI = await runAIAnalysis({ page: competitorPage, targetTopic });
 
@@ -119,7 +116,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const sectionComparisons: CompetitorComparison['sectionComparisons'] = [];
 
   try {
-    if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+    if (process.env.GEMINI_API_KEY) {
       const allTexts = [
         targetTopic,
         ...ourPage.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 1000)),
@@ -148,8 +145,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
         // Competitor section similarities
         const compSims: number[] = [];
-        for (let j = 0; j < competitorPage.sections.length; j++) {
-          const v = vectors[compOffset + j];
+        for (let i = 0; i < competitorPage.sections.length; i++) {
+          const v = vectors[compOffset + i];
           if (v && v.length > 0) {
             const score = calibrateCosineSimilarity(cosineSimilarity(topicVec, v));
             compSims.push(score);
@@ -160,100 +157,92 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           compEmbeddingSim = Math.round(compSims.slice(0, Math.min(5, compSims.length)).reduce((a, b) => a + b, 0) / Math.min(5, compSims.length));
         }
 
-        // Cross-page section matching: for each of our top sections, find most similar competitor section
-        for (let i = 0; i < Math.min(5, ourPage.sections.length); i++) {
-          const ourVec = vectors[ourOffset + i];
-          let bestMatchId: string | null = null;
-          let bestSim = 0;
-
-          for (let j = 0; j < competitorPage.sections.length; j++) {
-            const compVec = vectors[compOffset + j];
-            if (ourVec && compVec && ourVec.length > 0 && compVec.length > 0) {
-              const sim = cosineSimilarity(ourVec, compVec);
-              if (sim > bestSim) {
-                bestSim = sim;
-                bestMatchId = competitorPage.sections[j].id;
-              }
-            }
-          }
+        // Cross-match sections
+        const minSections = Math.min(ourPage.sections.length, competitorPage.sections.length, 10);
+        for (let i = 0; i < minSections; i++) {
+          const ourSec = ourPage.sections[i];
+          const compSec = competitorPage.sections[i];
+          const ourV = vectors[ourOffset + i];
+          const compV = vectors[compOffset + i];
+          const rawSim = ourV && compV ? cosineSimilarity(ourV, compV) : 0;
+          const simScore = Math.round(calibrateCosineSimilarity(rawSim));
 
           sectionComparisons.push({
-            ourSectionId: ourPage.sections[i].id,
-            competitorSectionId: bestMatchId,
-            similarity: Math.round(bestSim * 100) / 100,
-            notes: bestSim > 0.75
-              ? 'Closely aligned subject coverage across both sites.'
-              : bestSim > 0.55
-              ? 'Partially related themes addressed from different perspectives.'
-              : 'Distinctive section with unique coverage not mirrored by competitor.',
+            ourSectionId: ourSec.id,
+            competitorSectionId: compSec.id,
+            similarity: simScore,
+            notes: `Cross-page topic alignment for ${ourSec.heading || compSec.heading || `Section ${i + 1}`}`,
           });
         }
       }
     }
   } catch (embErr) {
-    console.warn('Competitor comparison embedding failed:', embErr);
+    console.warn('Real embedding generation failed in comparison:', embErr);
     ourEmbeddingSim = null;
     compEmbeddingSim = null;
   }
 
-  // Strictly compute page scores — NEVER fabricate missing scores
-  function computeStrictPageScore(
+  // Calculate scores for both pages
+  const calculatePageScore = (
     page: typeof ourPage,
     aiOutput: typeof ourAIOutput,
-    semanticSimScore: number | null
-  ): { score: number | null; components: ScoreComponents; isComplete: boolean; missing: string[] } {
-    const headingAlignment = computeHeadingAlignmentScore(targetTopic, page.headings);
+    embeddingSim: number | null,
+    pageLabel: string
+  ): { components: ScoreComponents; score: number | null; missing: string[] } => {
     const missing: string[] = [];
 
-    const semanticStatus: ComponentStatus = semanticSimScore !== null ? 'available' : 'failed';
-    if (semanticSimScore === null) missing.push('Semantic Embeddings');
+    const headingScore = computeHeadingAlignmentScore(targetTopic, page.headings);
+    const semanticStatus: ComponentStatus = embeddingSim !== null ? 'available' : 'failed';
+    if (embeddingSim === null) {
+      missing.push(`${pageLabel}: Semantic Vector Embeddings`);
+    }
 
-    const intentStatus: ComponentStatus = aiOutput ? 'available' : 'failed';
-    const coverageStatus: ComponentStatus = aiOutput ? 'available' : 'failed';
-    const depthStatus: ComponentStatus = aiOutput ? 'available' : 'failed';
-    if (!aiOutput) missing.push('AI Intent & Depth Analysis');
-
-    let topicalCoherence: number | null = null;
+    let coherenceScore: number | null = null;
     let coherenceStatus: ComponentStatus = 'failed';
-    if (aiOutput && page.sections.length > 0) {
-      const sectionScores = aiOutput.sectionFindings.map(s => s.topicAlignmentScore);
-      topicalCoherence = computeTopicalCoherence(sectionScores);
-      coherenceStatus = 'available';
+    if (aiOutput) {
+      const sectionScores = aiOutput.sectionFindings.map(f => f.topicAlignmentScore);
+      if (sectionScores.length > 0) {
+        coherenceScore = computeTopicalCoherence(sectionScores);
+        coherenceStatus = 'available';
+      }
+    }
+
+    if (!aiOutput) {
+      missing.push(`${pageLabel}: AI Intent & Depth Analysis`);
     }
 
     const components: ScoreComponents = {
-      semanticSimilarity: semanticSimScore,
+      semanticSimilarity: embeddingSim,
       searchIntentAlignment: aiOutput ? Math.round(aiOutput.aiScoreComponents.searchIntentAlignment) : null,
       topicalCoverage: aiOutput ? Math.round(aiOutput.aiScoreComponents.topicalCoverage) : null,
-      headingStructuralAlignment: Math.round(headingAlignment),
+      headingStructuralAlignment: Math.round(headingScore),
       supportingContextDepth: aiOutput ? Math.round(aiOutput.aiScoreComponents.supportingContextDepth) : null,
-      topicalCoherence,
+      topicalCoherence: coherenceScore,
       statuses: {
         semanticSimilarity: semanticStatus,
-        searchIntentAlignment: intentStatus,
-        topicalCoverage: coverageStatus,
+        searchIntentAlignment: aiOutput ? 'available' : 'failed',
+        topicalCoverage: aiOutput ? 'available' : 'failed',
         headingStructuralAlignment: 'available',
-        supportingContextDepth: depthStatus,
+        supportingContextDepth: aiOutput ? 'available' : 'failed',
         topicalCoherence: coherenceStatus,
       },
     };
 
-    const isComplete = missing.length === 0;
-    const score = isComplete ? computeFinalScore(components) : null;
+    let score: number | null = null;
+    if (missing.length === 0) {
+      score = computeFinalScore(components);
+    }
 
-    return { score, components, isComplete, missing };
-  }
+    return { components, score, missing };
+  };
 
-  const ourResult = computeStrictPageScore(ourPage, ourAIOutput, ourEmbeddingSim);
-  const compResult = computeStrictPageScore(competitorPage, compAIOutput, compEmbeddingSim);
+  const ourResult = calculatePageScore(ourPage, ourAIOutput, ourEmbeddingSim, 'Your Page');
+  const compResult = calculatePageScore(competitorPage, compAIOutput, compEmbeddingSim, 'Competitor Page');
 
-  const missingComparisonComponents = [
-    ...ourResult.missing.map(m => `Your Page: ${m}`),
-    ...compResult.missing.map(m => `Competitor Page: ${m}`),
-  ];
-  const isPartialReport = !ourResult.isComplete || !compResult.isComplete;
+  const missingComparisonComponents = [...ourResult.missing, ...compResult.missing];
+  const isPartialReport = missingComparisonComponents.length > 0;
 
-  // Determine topic gaps and advantages using GENUINE EMBEDDING-BASED EQUIVALENCE
+  // Extract topics covered
   const ourRawConcepts = Array.from(new Set(
     (ourAIOutput?.topicCoverage || []).filter(c => c.status === 'covered' || c.status === 'partial').map(c => c.concept.trim())
   ));
@@ -261,7 +250,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     (compAIOutput?.topicCoverage || []).filter(c => c.status === 'covered' || c.status === 'partial').map(c => c.concept.trim())
   ));
 
-  // If one page lacked AI coverage concepts, infer coverage from headings
   if (compRawConcepts.length === 0 && competitorPage.headings.length > 0) {
     competitorPage.headings.slice(0, 8).forEach(h => compRawConcepts.push(h.text.trim()));
   }
@@ -269,7 +257,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     ourPage.headings.slice(0, 8).forEach(h => ourRawConcepts.push(h.text.trim()));
   }
 
-  // Generate vector embeddings for all unique detected concepts
+  // Generate vector embeddings for concepts
   const allConcepts = Array.from(new Set([...ourRawConcepts, ...compRawConcepts]));
   const conceptVectorMap = new Map<string, number[]>();
   if (allConcepts.length > 0) {
@@ -285,12 +273,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Topic Gaps: concepts competitor covers that we DO NOT cover semantically
+  // Topic Gaps & Advantages
   const topicGaps = compRawConcepts.filter(compConcept => {
     return !ourRawConcepts.some(ourConcept => areConceptsSemanticallyEquivalent(compConcept, ourConcept, conceptVectorMap));
   });
 
-  // Our Advantages: concepts we cover that competitor DOES NOT cover semantically
   const ourAdvantages = ourRawConcepts.filter(ourConcept => {
     return !compRawConcepts.some(compConcept => areConceptsSemanticallyEquivalent(ourConcept, compConcept, conceptVectorMap));
   });
@@ -341,7 +328,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     page: ourPage,
     competitorPage,
     pageSummary: ourAIOutput?.pageSummary || 'AI analysis unavailable.',
-    primaryTopic: ourAIOutput ? { ...ourAIOutput.primaryTopic, isPrimary: true } : { name: 'Unknown', centralityScore: 0, isPrimary: true, explanation: 'AI unavailable', supportingSectionIds: [], type: 'central' },
+    primaryTopic: ourAIOutput ? { ...ourAIOutput.primaryTopic, isPrimary: true } : { name: 'Unknown', centralityScore: null, isPrimary: true, explanation: 'AI unavailable', supportingSectionIds: [], type: 'central' },
     secondaryTopics: (ourAIOutput?.secondaryTopics || []).map(t => ({ ...t, isPrimary: false })),
     searchIntent: ourAIOutput?.searchIntent || null,
     overallRelevanceScore: ourResult.score,
@@ -351,17 +338,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     scoreInterpretation: ourResult.score !== null ? interpretScore(ourResult.score) : 'Partial Comparison Report',
     topicCoverage: ourAIOutput?.topicCoverage || [],
     contentGaps: ourAIOutput?.contentGaps || [],
-    sectionAnalyses: ourPage.sections.map(s => ({
-      sectionId: s.id,
-      heading: s.heading || null,
-      topicAlignmentScore: ourEmbeddingSim || 0,
-      alignmentLabel: 'moderate',
-      stronglyCoveredConcepts: [],
-      weaklyCoveredConcepts: [],
-      missingContext: null,
-      explanation: 'Evaluated in competitor comparison mode.',
-      recommendation: null,
-    })),
+    sectionAnalyses: ourPage.sections.map(s => {
+      const sim = ourEmbeddingSim;
+      let label: 'strong' | 'moderate' | 'weak' | 'off-topic' | 'unavailable' = 'unavailable';
+      if (sim !== null) {
+        if (sim >= 75) label = 'strong';
+        else if (sim >= 50) label = 'moderate';
+        else if (sim >= 25) label = 'weak';
+        else label = 'off-topic';
+      }
+      return {
+        sectionId: s.id,
+        heading: s.heading || null,
+        topicAlignmentScore: sim,
+        alignmentLabel: label,
+        stronglyCoveredConcepts: [],
+        weaklyCoveredConcepts: [],
+        missingContext: null,
+        explanation: sim !== null
+          ? `Evaluated in competitor comparison mode via semantic embeddings (${sim}/100).`
+          : 'Section analysis unavailable: semantic vectors offline.',
+        recommendation: null,
+      };
+    }),
     recommendations: (ourAIOutput?.recommendations || []).map(r => ({
       ...r,
       existingEvidence: r.existingEvidence || null,

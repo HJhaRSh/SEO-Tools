@@ -21,17 +21,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 90; // Vercel Pro allows 90s; free tier 60s
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Concurrency-safe distributed rate limiting & reasoning quota budgeting (1 reasoning unit per single-page analysis)
-  const ip = extractClientIp(req.headers);
-  const rateCheck = await checkRateLimitAsync(ip, 1);
-  if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: rateCheck.reason || 'Rate limit exceeded. Please wait before retrying.', retryAfterMs: rateCheck.retryAfterMs, reason: rateCheck.reason },
-      { status: 429 }
-    );
-  }
-
-  // Parse + validate request
+  // 1. Parse + validate request parameters first (0 quota consumed on invalid input)
   let body: unknown;
   try {
     body = await req.json();
@@ -46,7 +36,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { url, targetTopic, manualText } = parsed.data;
 
-  // Extract page content
+  // 2. Extract page content (0 quota consumed on network/extraction failure)
   let page;
   try {
     if (manualText && manualText.length > 100) {
@@ -63,9 +53,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: page.extractionNote || 'Failed to extract page content.' }, { status: 422 });
   }
 
-  // Check cache (strictly bypassed for manual text inputs to protect privacy)
+  // 3. Check cache (0 quota consumed on cache hit)
   const contentHash = hashContent(page.fullText);
-  let activeModel = 'gemini-3.5-flash';
+  let activeModel = 'gemini-3.1-flash-lite';
   try {
     activeModel = getGeminiConfig().model;
   } catch {}
@@ -85,7 +75,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Run AI analysis
+  // 4. Rate limiting & Quota Admission (only live analyses consume reasoning quota)
+  const ip = extractClientIp(req.headers);
+  const rateCheck = await checkRateLimitAsync(ip, 1);
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: rateCheck.reason || 'Rate limit exceeded. Please wait before retrying.', retryAfterMs: rateCheck.retryAfterMs, reason: rateCheck.reason },
+      { status: 429 }
+    );
+  }
+
+  // 5. Run AI analysis with bounded total time budget
   const { output: aiOutput, provider: aiProvider, error: aiError } = await runAIAnalysis({
     page,
     targetTopic: targetTopic || null,
@@ -104,9 +104,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const effectiveTopic = targetTopic || (aiOutput?.primaryTopic?.name !== 'Unknown' ? aiOutput?.primaryTopic?.name : null) || page.h1 || page.title || null;
 
   if (effectiveTopic) {
-    // Generate real vector embeddings using gemini-embedding-2 for effective topic and page sections
+    // Generate real vector embeddings using gemini-embedding-2 (GEMINI_API_KEY only)
     try {
-      if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+      if (process.env.GEMINI_API_KEY) {
         const textsToEmbed = [
           effectiveTopic,
           ...page.sections.map(s => `${s.heading || ''} ${s.content}`.slice(0, 1000)),
@@ -223,7 +223,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       isPrimary: true,
     } : {
       name: 'Unknown',
-      centralityScore: 0,
+      centralityScore: null,
       isPrimary: true,
       explanation: 'AI analysis unavailable.',
       supportingSectionIds: [],
@@ -241,19 +241,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     sectionAnalyses: page.sections.map(s => {
       const aiFinding = aiOutput?.sectionFindings.find(f => f.sectionId === s.id);
       const vecScore = sectionSimilarityMap.get(s.id);
-      const combinedScore = vecScore !== undefined && aiFinding
-        ? Math.round(vecScore * 0.6 + aiFinding.topicAlignmentScore * 0.4)
-        : (vecScore !== undefined ? vecScore : (aiFinding ? aiFinding.topicAlignmentScore : 0));
+      
+      const isUnavailable = vecScore === undefined && !aiFinding;
+      
+      let combinedScore: number | null = null;
+      let alignmentLabel: 'strong' | 'moderate' | 'weak' | 'off-topic' | 'unavailable' = 'unavailable';
+      let explanation = 'Section analysis unavailable: semantic vectors and AI evaluation could not be completed.';
 
-      let alignmentLabel: 'strong' | 'moderate' | 'weak' | 'off-topic' = 'moderate';
-      if (combinedScore >= 75) alignmentLabel = 'strong';
-      else if (combinedScore >= 50) alignmentLabel = 'moderate';
-      else if (combinedScore >= 25) alignmentLabel = 'weak';
-      else alignmentLabel = 'off-topic';
+      if (!isUnavailable) {
+        if (vecScore !== undefined && aiFinding) {
+          combinedScore = Math.round(vecScore * 0.6 + aiFinding.topicAlignmentScore * 0.4);
+        } else if (vecScore !== undefined) {
+          combinedScore = vecScore;
+        } else if (aiFinding) {
+          combinedScore = aiFinding.topicAlignmentScore;
+        }
 
-      const defaultExplanation = vecScore !== undefined
-        ? `Section evaluated via 3072-dimensional semantic embeddings (calibrated relevance: ${combinedScore}/100).`
-        : 'Section content analyzed for topical consistency and semantic focus.';
+        if (combinedScore !== null) {
+          if (combinedScore >= 75) alignmentLabel = 'strong';
+          else if (combinedScore >= 50) alignmentLabel = 'moderate';
+          else if (combinedScore >= 25) alignmentLabel = 'weak';
+          else alignmentLabel = 'off-topic';
+        }
+
+        explanation = aiFinding?.explanation || (
+          vecScore !== undefined
+            ? `Section evaluated via 3072-dimensional semantic embeddings (calibrated relevance: ${combinedScore}/100).`
+            : 'Section content analyzed for topical consistency and semantic focus.'
+        );
+      }
 
       return {
         sectionId: s.id,
@@ -263,7 +279,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         stronglyCoveredConcepts: aiFinding?.stronglyCoveredConcepts || [],
         weaklyCoveredConcepts: aiFinding?.weaklyCoveredConcepts || [],
         missingContext: aiFinding?.missingContext || null,
-        explanation: aiFinding?.explanation || defaultExplanation,
+        explanation,
         recommendation: aiFinding?.recommendation || null,
       };
     }),
