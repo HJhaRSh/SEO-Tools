@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import { USER_AGENTS } from '@/lib/seo/userAgents';
 import { RobotsTestResult } from '@/lib/seo/robotsService';
@@ -274,39 +275,231 @@ Source: ${resultData.source === 'EDITOR_ROBOTS' ? 'Live Sandbox Editor Simulatio
     document.body.removeChild(link);
   };
 
+  const aboutText = (
+    <div className="space-y-4">
+      <p>
+        A robots.txt tester is a diagnostic technical SEO tool designed to evaluate whether web crawlers—such as Googlebot, Bingbot, or custom search engine user agents—are permitted to crawl specific URLs on a website according to the rules defined in its <code className="font-mono text-xs sm:text-sm bg-slate-100 px-1.5 py-0.5 rounded text-slate-800">robots.txt</code> file. Operating strictly under the official <strong>RFC 9309 Robots Exclusion Protocol</strong> standard, this tester parses live directives, matches user-agent tokens, resolves path specificity, and attributes the exact winning rule that determines crawler access.
+      </p>
+      <p>
+        It is important to understand that a robots.txt tester evaluates <strong>crawlability permissions</strong>, not search indexation. A crawl verdict of &quot;Allowed&quot; confirms that search engine bots may download the page content; it does not guarantee that Google will index the URL. Conversely, a &quot;Disallowed&quot; verdict prevents crawlers from fetching the URL, but does not necessarily prevent the URL from appearing in search results if external backlinks point to it. To inspect actual Google indexation coverage, use our <Link href="/tools/bulk-google-index-checker" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Bulk Google Index Checker</Link>. For dedicated auditing of automated AI bots and LLM scraper access policies, refer to the <Link href="/tools/ai-bot-access-tester" className="text-[var(--im-primary-deep)] font-semibold hover:underline">AI Bot Access Tester</Link>.
+      </p>
+    </div>
+  );
+
+  const howItWorksSteps = [
+    "Enter the Website URL (origin) you want to inspect (e.g. https://example.com).",
+    "Specify the exact URL Path or query string you want to test (e.g. /products/item or /search?q=seo).",
+    "Select your target crawler from the User Agent dropdown (e.g. Googlebot, Bingbot, or custom crawler token).",
+    "Click 'Test URL Crawlability' to fetch the live robots.txt and execute the RFC 9309 directive evaluation engine.",
+    "Review the Allow or Disallow verdict, matched user-agent group, and line-by-line winning rule attribution.",
+    "Simulate rule modifications in the Live Sandbox Editor to preview fixes, or inspect sitemaps and embedded page resources."
+  ];
+
+  const extraSections = (
+    <>
+      {/* WHAT DOES OUR ROBOTS.TXT CHECKER ANALYSE? */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What Does Our Robots.txt Checker Analyse?</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Allow &amp; Disallow Directives
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Parses positive (<code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">Allow:</code>) and negative (<code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">Disallow:</code>) statements across user-agent groups. Validates empty disallows (which grant full access) and trailing-slash rules to prevent unintended crawl blocks across whole directory hierarchies.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Googlebot &amp; User-Agent Groups
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Consolidates repeated user-agent blocks and maps crawler identities correctly. According to Google documentation, Googlebot Smartphone reads rules from <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">User-agent: Googlebot</code> before falling back to wildcard <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">*</code> groups.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              RFC 9309 Specificity &amp; Ties
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Resolves rule precedence using exact octet (character) length matching. Supports standard wildcards (<code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">*</code>) and end-of-path anchors (<code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">$</code>). In the event of an equal character-length tie between Allow and Disallow, RFC 9309 mandates Allow takes precedence.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* UNDERSTANDING ROBOTS.TXT TEST RESULTS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding Robots.txt Test Results</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-4">
+          <p>
+            When you run a crawlability test, the engine returns a visual verdict accompanied by the underlying rationale:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                Allowed (Crawl Permitted)
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                The crawler is authorized to request the URL. This occurs when an explicit <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Allow:</code> rule wins, no matching disallow directive is encountered, or the server returns an HTTP 404 (Not Found) status code.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+                Disallowed (Crawl Blocked)
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                The crawler is forbidden from requesting the URL. This occurs when a winning <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Disallow:</code> pattern matches the path, or if server-side 5xx errors cause crawlers to temporarily suspend crawling on the host.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span>
+                Attributed Winning Rule
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                The breakdown pinpoints the exact line number, directive text, and matched character length in your robots.txt file that governed the decision, enabling rapid pinpoint debugging of conflicting rules.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* COMMON ROBOTS.TXT ERRORS AND CRAWLABILITY ISSUES */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Common Robots.txt Errors &amp; Crawlability Issues</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-4">
+          <p>
+            When diagnosing organic search performance issues, keep these common robots.txt pitfalls in mind:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5">
+                1. Blocking Critical CSS, JavaScript, and Image Resources
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Googlebot requires access to CSS stylesheets and JavaScript scripts to render pages like an evergreen browser. Blocking static asset directories prevents Google from computing layout, determining mobile friendliness, and extracting structured data. Use our <Link href="/tools/fetch-render" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Fetch &amp; Render</Link> tool to inspect how search engines render your pages.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5">
+                2. Accidental Site-Wide Disallow Directives
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                A single stray directive such as <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Disallow: /</code> under a generic wildcard or Googlebot user-agent group instructs search engines to abandon crawling the entire website origin, causing new URLs to be ignored and updates to stall.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5">
+                3. Expecting Robots.txt Disallow to Remove Indexed URLs
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Robots.txt blocks crawling, not indexing. If a disallowed URL has external backlinks, Google can still index the URL. Crucially, blocking a page prevents Google from discovering a <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">noindex</code> tag. To remove a page, keep it crawlable and apply a noindex directive.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5">
+                4. Invalid Sitemap Declarations
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                Sitemap lines must declare full, absolute URLs (e.g. <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Sitemap: https://example.com/sitemap.xml</code>). Relative paths are ignored by RFC 9309 compliant parsers. Use our <Link href="/tools/sitemap-generator" className="text-[var(--im-primary-deep)] font-semibold hover:underline">XML Sitemap Generator</Link> to generate and validate standards-compliant XML sitemaps.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
+  const faqItems = [
+    { 
+      question: "What is a robots.txt tester?", 
+      answer: "A robots.txt tester is a diagnostic technical SEO tool that checks whether specific search engine crawlers (such as Googlebot or Bingbot) are permitted to access and crawl a given URL path on your website according to your robots.txt file. It evaluates your directives against official standards (such as RFC 9309) to reveal whether a URL is allowed or disallowed." 
+    },
+    { 
+      question: "How do I test robots.txt rules for a specific URL?", 
+      answer: "To test a URL: enter your website origin (e.g., https://example.com) and the exact path you wish to test (e.g., /category/product or /private-folder). Next, choose your target crawler from the User Agent dropdown—such as Googlebot or Bingbot—and run the test. The tester fetches your live robots.txt file, evaluates your directives, and returns an Allow or Disallow verdict alongside the exact matching rule and line number." 
+    },
+    { 
+      question: "Does Google Search Console still have a robots.txt Tester?", 
+      answer: "Google retired its former standalone Search Console robots.txt Tester in late 2023. Search Console now provides a robots.txt report that displays fetched robots.txt files, fetch status, and processing errors. For testing whether a specific live URL is crawlable, Google offers the URL Inspection tool. Indian Marketers provides this independent robots.txt Tester to test URL paths, inspect rule precedence, and simulate edits in a sandbox editor before publishing changes." 
+    },
+    { 
+      question: "Does robots.txt Disallow prevent a page from being indexed by Google?", 
+      answer: "No. Robots.txt directives govern crawling (requesting and downloading the page), not indexing. If a disallowed URL receives external links, Google can still index the URL and display it in search results without a content snippet. To prevent indexing, a URL must be crawlable by Googlebot so it can read a 'noindex' robots meta tag or X-Robots-Tag HTTP header. Blocking a page in robots.txt prevents Google from reading a 'noindex' directive." 
+    },
+    { 
+      question: "How does rule precedence and tie-breaking work under RFC 9309?", 
+      answer: "Under RFC 9309, search engine crawlers evaluate directives by pattern specificity, defined by the number of octets (characters) in the matching rule path. The longest matching rule takes precedence regardless of whether it appears first or last in the file. When an Allow and Disallow rule match the exact same octet length, the Allow rule takes precedence over Disallow." 
+    },
+    { 
+      question: "Why does Googlebot Smartphone use the 'Googlebot' user-agent group?", 
+      answer: "According to Google's official crawler documentation, Googlebot Smartphone identifies itself as a Googlebot crawler and reads directives from the 'User-agent: Googlebot' group. It only falls back to the generic 'User-agent: *' wildcard group if no specific 'Googlebot' group exists in your robots.txt file. A separate user-agent group for Googlebot-Smartphone is generally unnecessary unless you specifically want distinct mobile crawling rules." 
+    },
+    { 
+      question: "Why should I test embedded page resources like CSS and JavaScript?", 
+      answer: "Google renders web pages using an evergreen Chromium browser engine. If your robots.txt file blocks Googlebot from crawling essential CSS stylesheets, JavaScript bundles, or images, Googlebot cannot render the page layout correctly. This can cause rendering discrepancies, negatively affect mobile-friendliness assessment, and prevent structured data and critical above-the-fold content from being indexed." 
+    },
+    { 
+      question: "What happens if a website's robots.txt returns a 404 error?", 
+      answer: "According to RFC 9309 Section 2.3.1.2, if a robots.txt file returns an HTTP 404 (Not Found) or 410 (Gone) status code, search engine crawlers interpret this as a complete absence of crawling restrictions. Crawlers assume all URLs on the host are allowed for crawling. In contrast, if the server returns a 5xx server error, crawlers treat the failure as a temporary service outage and typically postpone crawling until the file can be retrieved." 
+    }
+  ];
+
+  const relatedTools = [
+    { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Verify whether AI crawlers like GPTBot and ClaudeBot can access your site.' },
+    { name: 'XML Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Create and validate clean XML sitemaps to declare crawlable URLs.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: 'Review Google Search Console indexing status separately from crawling rules.' }
+  ];
+
   return (
     <ToolLayout
-      title="robots.txt Tester"
-      description="Inspect, test, and debug robots.txt directives in real-time according to official RFC 9309 and Googlebot standards."
+      title="Free Robots.txt Tester & Checker"
+      description="Check whether search engine crawlers can access specific URLs with Indian Marketers' free Robots.txt Tester. Test Googlebot and other user agents against Allow and Disallow rules, identify matching directives, and review potential crawling restrictions."
       category="Crawling & Access"
       breadcrumbs={[{ label: 'robots.txt Tester' }]}
       fullWidth={true}
-      aboutText="The Indian Marketers robots.txt Tester is a full-featured crawlability analyzer and directive debugging engine built strictly to the RFC 9309 specification and Google's official crawler documentation. Beyond basic syntax inspection, this tool replicates real search engine parser behaviors—including longest-octet specificity resolution, Allow vs. Disallow tie-breaking precedence, repeated User-agent group consolidation, and exact line-by-line attribution. It also features a Live Sandbox Editor for risk-free simulation, automated XML Sitemap extraction and status checking, and a deep Page Resource Crawler to identify whether critical stylesheets, scripts, or images are blocked from crawler access."
-      howItWorks={[
-        "Enter your Website Origin and the exact URL Path or query string you want to test.",
-        "Choose your target crawler from the User Agent dropdown (e.g. Googlebot, Bingbot, GPTBot, ClaudeBot, Applebot, or define a Custom crawler token).",
-        "The backend server safely resolves DNS, prevents SSRF, and fetches the live robots.txt file adhering to 500 KiB limits and HTTP status code specifications (handling 2xx, 3xx redirects, 404/410, 429 rate limits, and 5xx temporary crawl restrictions).",
-        "The RFC 9309 matching engine isolates the most specific User-agent group, calculates pattern octet lengths, and pinpoints the exact winning rule and line number.",
-        "Inspect the visual crawl verdict, edit directives in the Live Sandbox Editor to test proposed fixes in real time, check XML sitemaps, or analyze embedded page resources."
-      ]}
-      faq={[
-        { 
-          question: "What is the difference between Crawlability and Indexability?", 
-          answer: "Robots.txt exclusively controls crawling (whether a bot is permitted to request and download the page). It does NOT prevent indexing. If a blocked URL receives external backlinks, Google can still index the URL and display it in search results without content snippets. To ensure a page is omitted from indexation, the page must be crawlable and include a 'noindex' robots meta tag or X-Robots-Tag header." 
-        },
-        { 
-          question: "How does rule precedence and tie-breaking work under RFC 9309?", 
-          answer: "Directives are evaluated by pattern specificity (the number of octets in the matching rule). The longest matching rule takes precedence. When an Allow and Disallow rule match the identical path length, Allow takes precedence over Disallow." 
-        },
-        { 
-          question: "Why does Googlebot Smartphone use the 'Googlebot' user-agent group?", 
-          answer: "Google's official crawler documentation specifies that Googlebot Smartphone reads rules from the 'User-agent: Googlebot' group. It does not look for a separate smartphone token unless none is present." 
-        },
-        { 
-          question: "Why should I test embedded page resources (CSS, JS, images)?", 
-          answer: "Modern search engines render pages like a browser. If your robots.txt file blocks Googlebot from accessing essential CSS or JavaScript files, Google cannot render the layout correctly, which can severely impair mobile-friendliness assessment, rankings, and structured data detection." 
-        }
-      ]}
+      aboutTitle="What Is a Robots.txt Tester?"
+      aboutText={aboutText}
+      howItWorksTitle="How to Test Robots.txt Rules for a URL"
+      howItWorks={howItWorksSteps}
+      extraSections={extraSections}
+      faqTitle="Frequently Asked Questions"
+      faq={faqItems}
+      relatedTools={relatedTools}
     >
       <div className="space-y-8 w-full">
         

@@ -34,34 +34,68 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'robots-txt-tester': {
     slug: 'robots-txt-tester',
     name: 'robots.txt Tester',
-    metaTitle: 'robots.txt Tester & RFC 9309 Validator | Indian Marketers',
-    metaDescription: 'Test and debug robots.txt directives using RFC 9309 rules. Check URL crawlability, simulate edits in a sandbox editor, and audit blocked page resources online.',
+    metaTitle: 'Robots.txt Tester – Free Online Checker | Indian Marketers',
+    metaDescription: 'Use our free robots.txt Tester to check if Googlebot and other crawlers can access a URL. Test Allow and Disallow rules, debug directives and check crawl permissions.',
     canonical: `${TOOLS_BASE_URL}/robots-txt-tester`,
     category: 'Crawling & Access',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'robots.txt tester',
+      'robots txt tester',
+      'google robots tester',
+      'google robots txt checker',
+      'google robots txt tester',
+      'robots txt test',
+      'google robots txt test',
+      'test robots txt google',
+      'googlebot tester',
+      'test robots.txt google',
+      'robots.txt checker',
+      'robots.txt validator',
+      'check robots.txt',
+      'test robots.txt online'
+    ],
     features: [
       'RFC 9309 official robots.txt crawlability evaluation engine',
       'Longest-octet pattern specificity and Allow vs Disallow tie-breaking resolution',
+      'Live robots.txt fetching with DNS SSRF protections and HTTP status validation',
       'In-memory live sandbox editor for real-time directive simulation',
       'Automated XML sitemap extraction and HTTP accessibility validation',
-      'Embedded page resource crawler (CSS, JavaScript, and image access checks)'
+      'Embedded page resource crawler for CSS, JavaScript, and image accessibility',
+      'Multi-crawler testing for Googlebot, Bingbot, and custom user-agent tokens'
     ],
     faqs: [
       {
-        question: 'What is the difference between Crawlability and Indexability?',
-        answer: "Robots.txt exclusively controls crawling (whether a bot is permitted to request and download the page). It does NOT prevent indexing. If a blocked URL receives external backlinks, Google can still index the URL and display it in search results without content snippets. To ensure a page is omitted from indexation, the page must be crawlable and include a 'noindex' robots meta tag or X-Robots-Tag header."
+        question: 'What is a robots.txt tester?',
+        answer: 'A robots.txt tester is a diagnostic technical SEO tool that checks whether specific search engine crawlers (such as Googlebot or Bingbot) are permitted to access and crawl a given URL path on your website according to your robots.txt file. It evaluates your directives against official standards (such as RFC 9309) to reveal whether a URL is allowed or disallowed.'
+      },
+      {
+        question: 'How do I test robots.txt rules for a specific URL?',
+        answer: 'To test a URL: enter your website origin (e.g., https://example.com) and the exact path you wish to test (e.g., /category/product or /private-folder). Next, choose your target crawler from the User Agent dropdown—such as Googlebot or Bingbot—and run the test. The tester fetches your live robots.txt file, evaluates your directives, and returns an Allow or Disallow verdict alongside the exact matching rule and line number.'
+      },
+      {
+        question: 'Does Google Search Console still have a robots.txt Tester?',
+        answer: 'Google retired its former standalone Search Console robots.txt Tester in late 2023. Search Console now provides a robots.txt report that displays fetched robots.txt files, fetch status, and processing errors. For testing whether a specific live URL is crawlable, Google offers the URL Inspection tool. Indian Marketers provides this independent robots.txt Tester to test URL paths, inspect rule precedence, and simulate edits in a sandbox editor before publishing changes.'
+      },
+      {
+        question: 'Does robots.txt Disallow prevent a page from being indexed by Google?',
+        answer: "No. Robots.txt directives govern crawling (requesting and downloading the page), not indexing. If a disallowed URL receives external links, Google can still index the URL and display it in search results without a content snippet. To prevent indexing, a URL must be crawlable by Googlebot so it can read a 'noindex' robots meta tag or X-Robots-Tag HTTP header. Blocking a page in robots.txt prevents Google from reading a 'noindex' directive."
       },
       {
         question: 'How does rule precedence and tie-breaking work under RFC 9309?',
-        answer: 'Directives are evaluated by pattern specificity (the number of octets in the matching rule). The longest matching rule takes precedence. When an Allow and Disallow rule match the identical path length, Allow takes precedence over Disallow.'
+        answer: 'Under RFC 9309, search engine crawlers evaluate directives by pattern specificity, defined by the number of octets (characters) in the matching rule path. The longest matching rule takes precedence regardless of whether it appears first or last in the file. When an Allow and Disallow rule match the exact same octet length, the Allow rule takes precedence over Disallow.'
       },
       {
         question: "Why does Googlebot Smartphone use the 'Googlebot' user-agent group?",
-        answer: "Google's official crawler documentation specifies that Googlebot Smartphone reads rules from the 'User-agent: Googlebot' group. It does not look for a separate smartphone token unless none is present."
+        answer: "According to Google's official crawler documentation, Googlebot Smartphone identifies itself as a Googlebot crawler and reads directives from the 'User-agent: Googlebot' group. It only falls back to the generic 'User-agent: *' wildcard group if no specific 'Googlebot' group exists in your robots.txt file. A separate user-agent group for Googlebot-Smartphone is generally unnecessary unless you specifically want distinct mobile crawling rules."
       },
       {
-        question: 'Why should I test embedded page resources (CSS, JS, images)?',
-        answer: 'Modern search engines render pages like a browser. If your robots.txt file blocks Googlebot from accessing essential CSS or JavaScript files, Google cannot render the layout correctly, which can severely impair mobile-friendliness assessment, rankings, and structured data detection.'
+        question: 'Why should I test embedded page resources like CSS and JavaScript?',
+        answer: 'Google renders web pages using an evergreen Chromium browser engine. If your robots.txt file blocks Googlebot from crawling essential CSS stylesheets, JavaScript bundles, or images, Googlebot cannot render the page layout correctly. This can cause rendering discrepancies, negatively affect mobile-friendliness evaluation, and prevent structured data and critical above-the-fold content from being indexed.'
+      },
+      {
+        question: "What happens if a website's robots.txt returns a 404 error?",
+        answer: 'According to RFC 9309 Section 2.3.1.2, if a robots.txt file returns an HTTP 404 (Not Found) or 410 (Gone) status code, search engine crawlers interpret this as a complete absence of crawling restrictions. Crawlers assume all URLs on the host are allowed for crawling. In contrast, if the server returns a 5xx server error, crawlers treat the failure as a temporary service outage and typically postpone crawling until the file can be retrieved.'
       }
     ]
   },
