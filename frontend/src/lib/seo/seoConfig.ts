@@ -515,35 +515,55 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
 
   'schema-checker': {
     slug: 'schema-checker',
-    name: 'Schema Checker',
-    metaTitle: 'Schema Markup Checker - Bulk Schema Validator | Indian Marketers',
-    metaDescription: 'Audit structured data markup across up to 100 URLs simultaneously. Detect JSON-LD, Microdata, and RDFa schema types, verify presence, and export reports to CSV.',
+    name: 'Bulk Schema Checker',
+    metaTitle: 'Bulk Schema Checker – Free Online Tool | Indian Marketers',
+    metaDescription: 'Use our free Bulk Schema Checker to check schema markup across multiple URLs. Detect structured data and identify schema types in one place.',
     canonical: `${TOOLS_BASE_URL}/schema-checker`,
     category: 'Search Appearance',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'bulk schema checker',
+      'schema checker',
+      'schema markup checker',
+      'check schema markup',
+      'bulk schema markup checker',
+      'schema markup tester',
+      'schema markup testing tool',
+      'structured data testing tool',
+      'check structured data',
+      'JSON-LD schema checker'
+    ],
     features: [
       'Multi-format structured data detection (JSON-LD including @graph, Microdata, and RDFa)',
-      'Bulk URL audit mode checking up to 100 URLs simultaneously',
-      'Identification of specific schema types declared on each page',
-      'Detailed presence and error state reporting per URL',
-      'One-click export to comma-separated CSV spreadsheets'
+      'Bulk URL audit mode testing up to 100 URLs simultaneously with automatic deduplication',
+      'Identification and extraction of specific Schema.org entity types on each page',
+      'Transparent status indicators: Found (Yes), No Schema (No), and Unable to check',
+      'Sanitized one-click export to comma-separated CSV spreadsheets'
     ],
     faqs: [
       {
-        question: 'What schema formats does this tool detect?',
-        answer: 'It detects JSON-LD (including @graph and nested types), Microdata (itemscope/itemtype), and RDFa (typeof/vocab). The output only shows the schema type names — not the format used.'
+        question: 'What is a bulk schema checker?',
+        answer: 'A bulk schema checker is an automated SEO audit utility that tests multiple web pages simultaneously for structured data markup. Instead of manually inspecting URLs one by one in developer tools, a bulk checker extracts declared Schema.org types across dozens of pages at once, helping you verify deployment consistency and identify missing markup across your website.'
       },
       {
-        question: 'Will it detect schema added by JavaScript?',
-        answer: 'This tool checks the raw HTML response returned by the server. Schema markup injected only after JavaScript execution may not be detected. Use the Fetch & Render tool if you need to inspect the fully rendered DOM.'
+        question: 'How can I check schema markup on multiple URLs?',
+        answer: 'Paste your list of URLs—up to 100 per check—into the input field, with one URL per line. Click "Check Schema" to begin. The tool fetches each page\'s server HTML response, scans for structured data, and outputs a clean table detailing whether schema was found and which Schema.org types were detected.'
       },
       {
-        question: 'What does "Schema Found: No" mean?',
-        answer: 'It means no recognisable schema markup (JSON-LD, Microdata, or RDFa) was found in the raw HTML of that page. The page may still have schema injected via JavaScript.'
+        question: 'What types of structured data can this tool detect?',
+        answer: 'The tool detects all three major Schema.org implementations: JSON-LD (including @graph structures and Next.js script payloads), Microdata (using itemscope and itemtype attributes), and RDFa (using typeof attributes with Schema.org vocabularies). It normalizes detected entities and reports their specific Schema.org type names.'
       },
       {
-        question: 'How many URLs can I check at once?',
-        answer: 'Up to 100 unique URLs per request. Duplicate URLs are automatically removed and only checked once.'
+        question: 'Can I check JSON-LD schema markup using this tool?',
+        answer: 'Yes. JSON-LD is the format recommended by Google and the W3C. Our checker parses standard application/ld+json script tags, handles MIME variations and charset parameters, extracts entities from @graph arrays, and unpacks embedded Next.js script objects without requiring browser-heavy JavaScript execution.'
+      },
+      {
+        question: 'Why is schema markup not detected on my page?',
+        answer: 'Schema might not be detected if it is injected dynamically by client-side JavaScript after initial HTML delivery, if server firewalls block crawler requests, if the script contains invalid syntax, or if non-Schema.org vocabularies are used. If your site relies on client-side rendering, use Fetch & Render to inspect the post-execution DOM.'
+      },
+      {
+        question: 'Is a bulk schema checker different from Google\'s Rich Results Test?',
+        answer: 'Yes. This tool is a high-speed presence and format detector designed to audit up to 100 pages at once for declared Schema.org types. In contrast, Google\'s Rich Results Test evaluates whether single URLs satisfy Google\'s specific required and recommended fields for search rich snippet enhancements.'
       }
     ]
   },

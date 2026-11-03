@@ -162,41 +162,140 @@ export default function SchemaCheckerPage() {
   const urlCount = parseUrls(urlInput).valid.length;
   const isLoading = status === 'loading';
 
+  const aboutText = (
+    <div className="space-y-4">
+      <p>
+        A <strong>bulk schema checker</strong> is an automated SEO auditing tool designed to test structured data markup across multiple URLs in a single pass. Rather than inspecting source code or running developer tools page by page, this utility fetches the server-rendered HTML of up to 100 web pages simultaneously and scans for declared Schema.org vocabularies.
+      </p>
+      <p>
+        Verifying schema markup at scale helps webmasters, SEO professionals, and developers confirm that key structured data entities—such as <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">Article</code>, <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">Product</code>, <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">Organization</code>, <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">BreadcrumbList</code>, and <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">FAQPage</code>—are consistently deployed across site templates, blog archives, and product catalogues without silent omissions or accidental template regressions.
+      </p>
+    </div>
+  );
+
+  const howItWorks = [
+    'Enter one or more URLs into the textarea below, placing each complete HTTP or HTTPS address on a new line (up to 100 URLs per check).',
+    'Click "Check Schema". The tool automatically sanitizes inputs, removes URL fragments (#hash), and deduplicates identical addresses.',
+    'Our backend fetches each page\'s raw HTML with safe concurrency and inspects the markup for JSON-LD scripts, Microdata itemscopes, and RDFa attributes.',
+    'Review the generated summary table showing the check status (Yes, No, or Unable to check) and the exact Schema.org types detected on each URL.',
+    'Download your audit data with "Export CSV" to analyze findings in Google Sheets or Microsoft Excel.',
+  ];
+
+  const extraSections = (
+    <>
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What Does Our Schema Checker Detect?</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-4">
+          <p>
+            Our schema markup tester inspects raw server HTML responses for three primary structured data specifications recognized by search engines:
+          </p>
+          <ul className="list-disc pl-5 space-y-2 text-sm sm:text-base">
+            <li>
+              <strong>JSON-LD (JavaScript Object Notation for Linked Data):</strong> Parses standard <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">&lt;script type=&quot;application/ld+json&quot;&gt;</code> blocks, extracts root and <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">@graph</code> entities, and unpacks serialized Next.js script payloads.
+            </li>
+            <li>
+              <strong>Microdata:</strong> Detects top-level HTML tags containing <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">itemscope</code> and valid Schema.org <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">itemtype</code> attributes.
+            </li>
+            <li>
+              <strong>RDFa:</strong> Identifies top-level HTML elements using <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">typeof</code> attributes paired with Schema.org vocabulary mappings.
+            </li>
+          </ul>
+          <p className="text-xs sm:text-sm text-[var(--im-text-muted)] bg-[var(--im-bg-soft)] p-3 rounded-lg border border-[var(--im-border)]">
+            <em>Important scope note:</em> This tool detects declared Schema.org types and formats in static HTML. It does not evaluate Google rich-result eligibility rules or execute client-side JavaScript. To inspect schema injected after client-side JavaScript execution, use our <a href="/tools/fetch-render" className="text-[var(--im-primary-deep)] underline hover:opacity-80">Fetch &amp; Render tool</a>.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Why Check Structured Data on Your Website?</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-3">
+          <p>
+            Structured data provides explicit clues about the meaning of a page to search engine algorithms. Bulk checking provides critical practical advantages:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <div className="p-3.5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1">Verify Template Rollouts</h3>
+              <p className="text-xs text-[var(--im-text-muted)] leading-relaxed">
+                Ensure new CMS themes or e-commerce updates consistently output valid schema on all product, category, and article pages.
+              </p>
+            </div>
+            <div className="p-3.5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1">Catch Omissions Fast</h3>
+              <p className="text-xs text-[var(--im-text-muted)] leading-relaxed">
+                Spot orphan pages or sections where schema plugins failed to render or where custom scripts broke during website deployments.
+              </p>
+            </div>
+            <div className="p-3.5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1">Support Technical Audits</h3>
+              <p className="text-xs text-[var(--im-text-muted)] leading-relaxed">
+                Export clean CSV spreadsheets for clients or stakeholders during site migrations, redesigns, and technical SEO reviews.
+              </p>
+            </div>
+            <div className="p-3.5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1">Generate Missing Markup</h3>
+              <p className="text-xs text-[var(--im-text-muted)] leading-relaxed">
+                When pages lack markup, use our <a href="/tools/schema-generator" className="text-[var(--im-primary-deep)] underline hover:opacity-80">Schema Markup Generator</a> to create clean JSON-LD blocks for immediate implementation.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
+  const faq = [
+    {
+      question: 'What is a bulk schema checker?',
+      answer: 'A bulk schema checker is an automated SEO audit utility that tests multiple web pages simultaneously for structured data markup. Instead of manually inspecting URLs one by one in developer tools, a bulk checker extracts declared Schema.org types across dozens of pages at once, helping you verify deployment consistency and identify missing markup across your website.',
+    },
+    {
+      question: 'How can I check schema markup on multiple URLs?',
+      answer: 'Paste your list of URLs—up to 100 per check—into the input field, with one URL per line. Click "Check Schema" to begin. The tool fetches each page\'s server HTML response, scans for structured data, and outputs a clean table detailing whether schema was found and which Schema.org types were detected.',
+    },
+    {
+      question: 'What types of structured data can this tool detect?',
+      answer: 'The tool detects all three major Schema.org implementations: JSON-LD (including @graph structures and Next.js script payloads), Microdata (using itemscope and itemtype attributes), and RDFa (using typeof attributes with Schema.org vocabularies). It normalizes detected entities and reports their specific Schema.org type names.',
+    },
+    {
+      question: 'Can I check JSON-LD schema markup using this tool?',
+      answer: 'Yes. JSON-LD is the format recommended by Google and the W3C. Our checker parses standard application/ld+json script tags, handles MIME variations and charset parameters, extracts entities from @graph arrays, and unpacks embedded Next.js script objects without requiring browser-heavy JavaScript execution.',
+    },
+    {
+      question: 'Why is schema markup not detected on my page?',
+      answer: 'Schema might not be detected if it is injected dynamically by client-side JavaScript after initial HTML delivery, if server firewalls block crawler requests, if the script contains invalid syntax, or if non-Schema.org vocabularies are used. If your site relies on client-side rendering, use Fetch & Render to inspect the post-execution DOM.',
+    },
+    {
+      question: 'Is a bulk schema checker different from Google\'s Rich Results Test?',
+      answer: 'Yes. This tool is a high-speed presence and format detector designed to audit up to 100 pages at once for declared Schema.org types. In contrast, Google\'s Rich Results Test evaluates whether single URLs satisfy Google\'s specific required and recommended fields for search rich snippet enhancements.',
+    },
+  ];
+
   return (
     <ToolLayout
-      title="Bulk Schema Checker"
-      description="Check whether schema markup exists on one or multiple URLs and identify the schema types found on each page."
+      title="Free Bulk Schema Checker"
+      description="Check schema markup across multiple web pages with Indian Marketers' free Bulk Schema Checker. Enter your URLs to identify detected structured data and schema types in one place, making it easier to review schema implementation across your website."
       category="Search Appearance"
       breadcrumbs={[
         { label: 'Tools', href: '/tools' },
-        { label: 'Schema Checker' },
+        { label: 'Bulk Schema Checker' },
       ]}
-      aboutText="The Bulk Schema Checker fetches each URL you provide and detects structured data markup — including JSON-LD, Microdata, and RDFa. It tells you whether schema markup is present and which schema types are used. This is useful for auditing structured data coverage across a set of pages quickly."
-      howItWorks={[
-        'Enter one or more URLs in the textarea below — one URL per line.',
-        'Click "Check Schema" to begin. Up to 100 URLs can be checked at once.',
-        'The tool fetches each page\'s HTML and scans for JSON-LD <script> blocks, Microdata itemtype attributes, and RDFa typeof attributes.',
-        'Results appear in a table showing each URL, whether schema was found, and which schema types were detected.',
-        'Use "Export CSV" to download the results as a comma-separated file.',
-      ]}
-      faq={[
-        {
-          question: 'What schema formats does this tool detect?',
-          answer: 'It detects JSON-LD (including @graph and nested types), Microdata (itemscope/itemtype), and RDFa (typeof/vocab). The output only shows the schema type names — not the format used.',
-        },
-        {
-          question: 'Will it detect schema added by JavaScript?',
-          answer: 'This tool checks the raw HTML response returned by the server. Schema markup injected only after JavaScript execution may not be detected. Use the Fetch & Render tool if you need to inspect the fully rendered DOM.',
-        },
-        {
-          question: 'What does "Schema Found: No" mean?',
-          answer: 'It means no recognisable schema markup (JSON-LD, Microdata, or RDFa) was found in the raw HTML of that page. The page may still have schema injected via JavaScript.',
-        },
-        {
-          question: 'How many URLs can I check at once?',
-          answer: `Up to ${MAX_URLS} unique URLs per request. Duplicate URLs are automatically removed and only checked once.`,
-        },
-      ]}
+      aboutTitle="What Is a Bulk Schema Checker?"
+      aboutText={aboutText}
+      howItWorksTitle="How to Check Schema Markup Across Multiple URLs"
+      howItWorks={howItWorks}
+      faqTitle="Bulk Schema Checker FAQs"
+      faq={faq}
+      extraSections={extraSections}
     >
       <form onSubmit={handleCheck} className="space-y-6">
         {/* Input area */}

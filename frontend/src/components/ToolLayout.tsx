@@ -17,6 +17,10 @@ interface ToolLayoutProps {
   faq: { question: string; answer: string }[];
   fullWidth?: boolean;
   relatedTools?: { name: string; href: string; desc: string }[];
+  aboutTitle?: string;
+  howItWorksTitle?: string;
+  faqTitle?: string;
+  extraSections?: React.ReactNode;
 }
 
 const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; desc: string }[]> = {
@@ -115,6 +119,11 @@ const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; de
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how detected schema features like review stars affect search snippet appearance.' },
     { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Check whether structured data is rendered in initial HTML or injected dynamically by JavaScript.' }
   ],
+  'free bulk schema checker': [
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Create valid Schema.org JSON-LD structured data for rich snippet eligibility.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how detected schema features like review stars affect search snippet appearance.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Check whether structured data is rendered in initial HTML or injected dynamically by JavaScript.' }
+  ],
   'domain age checker': [
     { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: 'Inspect Google Search Console indexing coverage for URLs on newly registered or aged domains.' },
     { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate standard XML sitemaps to accelerate crawl discovery for fresh domain assets.' },
@@ -207,7 +216,11 @@ export default function ToolLayout({
   howItWorks,
   faq,
   fullWidth = true,
-  relatedTools: explicitRelatedTools
+  relatedTools: explicitRelatedTools,
+  aboutTitle = 'About this tool',
+  howItWorksTitle = 'How it works',
+  faqTitle = 'Frequently Asked Questions',
+  extraSections
 }: ToolLayoutProps) {
   // Determine curated related tools for this specific tool, with category fallback
   const titleKey = title.toLowerCase().trim();
@@ -274,11 +287,11 @@ export default function ToolLayout({
             <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
               <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
-            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">About this tool</h2>
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">{aboutTitle}</h2>
           </div>
-          <p className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base">
+          <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base">
             {aboutText}
-          </p>
+          </div>
         </section>
 
         <section>
@@ -286,7 +299,7 @@ export default function ToolLayout({
             <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
               <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
             </div>
-            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">How it works</h2>
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">{howItWorksTitle}</h2>
           </div>
           <ol className="relative border-l-2 border-[var(--im-border)] ml-3 sm:ml-3.5 space-y-4 sm:space-y-6">
             {howItWorks.map((step, idx) => (
@@ -300,13 +313,15 @@ export default function ToolLayout({
           </ol>
         </section>
 
+        {extraSections}
+
         {faq.length > 0 && (
           <section>
             <div className="flex items-center gap-3 mb-4 sm:mb-6">
               <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
                 <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
               </div>
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Frequently Asked Questions</h2>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">{faqTitle}</h2>
             </div>
             <div className="space-y-3 sm:space-y-4">
               {faq.map((item, idx) => (
