@@ -801,45 +801,161 @@ export default function SitemapGenerator() {
     setTimeout(() => setCopiedXml(false), 2000);
   };
 
+  const aboutText = (
+    <div className="space-y-4">
+      <p>
+        An <strong>XML sitemap generator</strong> creates a structured XML document conforming to the official sitemaps.org protocol that informs search engines like Google, Bing, and Yandex which canonical URLs are available for crawling. Sitemaps provide valuable metadata about each URL, including when the page was last modified, helping search engine bots discover new and updated content across your website.
+      </p>
+      <p>
+        Indian Marketers&apos; <strong>free sitemap generator</strong> supports three flexible generation methods to fit any technical workflow:
+      </p>
+      <ul className="list-disc pl-5 space-y-2 text-sm sm:text-base">
+        <li>
+          <strong>Live Website Crawler:</strong> Enter your domain to automatically crawl internal links up to 500 pages, resolve canonical references, and generate a downloadable crawl and exclusion audit report.
+        </li>
+        <li>
+          <strong>Spreadsheet Upload:</strong> Ingest CSV or Microsoft Excel (.xlsx) files with automated column detection for large datasets up to 100,000 URLs.
+        </li>
+        <li>
+          <strong>Manual URL Paste:</strong> Paste lists of raw URLs or use custom pipe-delimited syntax to supply line-by-line metadata overrides.
+        </li>
+      </ul>
+      <p className="text-xs sm:text-sm text-[var(--im-text-muted)] bg-[var(--im-bg-soft)] p-3 rounded-lg border border-[var(--im-border)]">
+        <em>Technical protocol note:</em> Submitting a sitemap assists search crawlers with URL discovery, but does not guarantee page indexation. Ensure your pages return HTTP 200 status codes, are crawlable in your <a href="/tools/robots-txt-tester" className="text-[var(--im-primary-deep)] underline hover:opacity-80">robots.txt file</a>, and contain valuable, indexable content.
+      </p>
+    </div>
+  );
+
+  const howItWorks = [
+    <span key="step1">
+      <strong>Choose your sitemap input method:</strong> Crawl your website directly by entering your root URL, upload a CSV or Excel (.xlsx) spreadsheet of URLs, or paste a list of URLs directly into the input area.
+    </span>,
+    <span key="step2">
+      <strong>Configure optional sitemap tags:</strong> Customize <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">&lt;lastmod&gt;</code> dates, select auto-depth or fixed <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">&lt;priority&gt;</code>, and configure <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">&lt;changefreq&gt;</code> settings according to your preference.
+    </span>,
+    <span key="step3">
+      <strong>Validate and process entries:</strong> The generator validates all URL schemes, strips hash fragments and tracking parameters, eliminates duplicate links, and checks canonical tags during live crawls.
+    </span>,
+    <span key="step4">
+      <strong>Download your sitemap.xml file:</strong> Download your valid sitemap immediately. For large datasets exceeding 50,000 URLs or 50 MB, the generator automatically splits URLs into numbered sitemaps, creates a parent sitemap index, and bundles them into a ZIP archive.
+    </span>
+  ];
+
+  const extraSections = (
+    <>
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding XML Sitemap Tags</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-4">
+          <p>
+            The standard XML sitemap protocol established by sitemaps.org supports four primary XML elements for each URL entry. Understanding how search engines treat these tags ensures you configure your sitemap effectively:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1.5">Last Modified Date (&lt;lastmod&gt;)</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                The <code className="text-xs bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-[var(--im-border)]">&lt;lastmod&gt;</code> tag communicates when a webpage was last significantly updated (in W3C Datetime format). Google Search Central confirms that Googlebot actively evaluates <code className="text-xs bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-[var(--im-border)]">&lt;lastmod&gt;</code> to schedule recrawls when the timestamp consistently matches genuine content changes.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+              <h3 className="font-semibold text-sm text-[var(--im-heading)] mb-1.5">Priority and Change Frequency</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+                The <code className="text-xs bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-[var(--im-border)]">&lt;priority&gt;</code> (0.0 to 1.0) and <code className="text-xs bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-[var(--im-border)]">&lt;changefreq&gt;</code> tags are optional sitemaps.org attributes. Google has explicitly stated that Googlebot ignores both values. However, they remain valid parts of the open protocol and may be referenced by other web crawlers or custom data pipelines.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">How to Submit Your XML Sitemap to Google</h2>
+        </div>
+        <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-3">
+          <p>
+            After downloading your generated <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">sitemap.xml</code> file, follow these steps to make your URLs accessible to Google:
+          </p>
+          <ol className="list-decimal pl-5 space-y-2 text-sm sm:text-base">
+            <li>
+              <strong>Upload to your web server:</strong> Place the XML file in your website&apos;s root public directory (e.g., <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">https://yourdomain.com/sitemap.xml</code>).
+            </li>
+            <li>
+              <strong>Declare in robots.txt:</strong> Add a sitemap reference line at the end of your robots.txt file (e.g., <code className="text-xs bg-[var(--im-bg-soft)] px-1.5 py-0.5 rounded border border-[var(--im-border)]">Sitemap: https://yourdomain.com/sitemap.xml</code>). You can verify your directives using our <a href="/tools/robots-txt-tester" className="text-[var(--im-primary-deep)] underline hover:opacity-80">robots.txt Tester</a>.
+            </li>
+            <li>
+              <strong>Submit in Google Search Console:</strong> Open Google Search Console, navigate to the <em>Sitemaps</em> report under the <em>Indexing</em> menu, paste your sitemap URL, and click <em>Submit</em>.
+            </li>
+            <li>
+              <strong>Track index coverage:</strong> Monitor submitted URLs over subsequent crawl cycles and verify live indexing status across pages with our <a href="/tools/bulk-google-index-checker" className="text-[var(--im-primary-deep)] underline hover:opacity-80">Bulk Google Index Checker</a>.
+            </li>
+          </ol>
+        </div>
+      </section>
+    </>
+  );
+
+  const faqItems = [
+    {
+      question: 'What is an XML sitemap generator?',
+      answer: "An XML sitemap generator is a tool that creates a structured XML document listing your website's canonical URLs according to sitemaps.org standards. It enables search engine crawlers like Googlebot to discover new, updated, and deep pages across your domain, ensuring your important content is crawled and indexed efficiently."
+    },
+    {
+      question: 'How do I generate an XML sitemap for free?',
+      answer: "You can create a free XML sitemap with Indian Marketers using three methods: enter your website URL to crawl internal links up to 500 pages, upload a CSV or Excel spreadsheet of URLs, or paste URLs directly. Then click 'Generate XML Sitemap' to download your sitemap.xml file with zero cost or signup required."
+    },
+    {
+      question: 'Can I create an XML sitemap from CSV or Excel spreadsheets?',
+      answer: 'Yes. Our sitemap generator natively accepts both CSV (.csv) and Microsoft Excel (.xlsx) files. The parser automatically detects your URL column whether your file contains header rows or not. You can also include custom lastmod, priority, or changefreq columns to preserve specific page-level metadata.'
+    },
+    {
+      question: 'How do I create a sitemap.xml file for Google?',
+      answer: 'To build a Google-compliant sitemap, crawl your domain or input your canonical URLs using our spreadsheet upload or manual paste options. The tool formats every URL within valid <urlset> and <loc> tags following Google Search specifications. Once generated, download the file and save it as sitemap.xml.'
+    },
+    {
+      question: 'How many URLs can an XML sitemap contain?',
+      answer: 'Under official sitemaps.org protocols, a single XML sitemap can hold up to 50,000 URLs and must not exceed 50 MB uncompressed. When your dataset exceeds 50,000 URLs, our generator automatically chunks them into multiple numbered sitemap files and generates a parent sitemap index file bundled in a downloadable ZIP archive.'
+    },
+    {
+      question: 'How do I submit an XML sitemap to Google Search Console?',
+      answer: "First, upload your generated sitemap.xml file to your website's root public directory (e.g., https://yourdomain.com/sitemap.xml). Next, open Google Search Console, navigate to 'Indexing' > 'Sitemaps', enter your sitemap URL path, and click 'Submit'. Additionally, declare the sitemap location inside your robots.txt file."
+    },
+    {
+      question: 'Does an XML sitemap guarantee Google indexing?',
+      answer: 'No. Submitting an XML sitemap accelerates crawl discovery, but does not guarantee indexation. Googlebot decides whether to index a URL based on content quality, originality, canonical signals, internal link architecture, and compliance with Google Search Essentials. Pages returning noindex directives or server errors will not be indexed.'
+    },
+    {
+      question: 'Do priority and changefreq tags affect Google rankings?',
+      answer: 'No. Official Google Search documentation confirms that Googlebot ignores <priority> and <changefreq> tags for crawling frequency and search rankings. However, they remain valid protocol attributes recognized by other crawlers. In contrast, Google does evaluate <lastmod> timestamps when they accurately reflect genuine, meaningful content updates.'
+    }
+  ];
+
+  const relatedTools = [
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Ensure your sitemap declaration and URLs are accessible to search crawlers under RFC 9309 rules.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: "Inspect Google's actual index coverage status and live metadata for URLs submitted in your sitemap." },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how Googlebot renders JavaScript content and detect blocked page resources.' }
+  ];
+
   return (
     <ToolLayout
-      title="XML Sitemap Generator"
-      description="Upload CSV or Excel to automatically generate and download standard XML sitemaps compliant with Google and sitemaps.org Protocol."
+      title="Free XML Sitemap Generator"
+      description="Create an XML sitemap for free with Indian Marketers' online Sitemap Generator. Crawl your website, upload CSV or Excel files, or paste URLs to generate and download clean sitemap.xml files."
       category="Crawling & Access"
-      breadcrumbs={[{ label: 'XML Sitemap Generator' }]}
-      aboutText="An XML sitemap communicates indexable URLs to search engines. Built in compliance with sitemaps.org Protocol, this tool accepts CSV or Excel spreadsheets, automatically validates URLs, calculates intelligent URL-depth priorities, applies change frequencies, and generates ready-to-download sitemap.xml files."
-      howItWorks={[
-        "Upload your spreadsheet (.csv or .xlsx) or paste URLs directly into the manual input box.",
-        "Configure <priority> with intelligent URL-depth auto-scaling and <changefreq> toggles.",
-        "The tool automatically detects columns, validates entries, strips duplicates, and applies your chosen logic.",
-        "Download your valid sitemap.xml immediately, with automatic splitting into index files for large datasets."
-      ]}
-      faq={[
-        {
-          question: "How does the URL-depth Priority calculation work?",
-          answer: "Our intelligent depth logic automatically assigns priorities based on search engine crawl hierarchy: 1.0 for the root homepage (/), 0.8 for primary landing sections (depth 1, e.g. /services/), 0.6 for sub-categories/articles (depth 2, e.g. /services/seo/), and 0.4 for deep or nested pages (depth 3+). You can also switch to a fixed custom priority or disable the tag completely."
-        },
-        {
-          question: "What does the Change Frequency toggle do?",
-          answer: "The <changefreq> tag provides hints to search engine crawlers regarding how frequently content updates (e.g., weekly, daily, monthly, or auto-depth). You can enable or disable this tag as needed, and individual URL values in spreadsheets or delimited text will always take precedence."
-        },
-        {
-          question: "Can I still paste URLs with custom priorities or frequencies?",
-          answer: "Yes! In manual paste mode, you can paste raw URLs or use delimiters like pipe (|), tab, or comma: e.g. 'https://example.com/promo | 0.9 | daily'. Any explicitly provided value will be preserved."
-        },
-        {
-          question: "What spreadsheet formats are supported?",
-          answer: "You can upload standard CSV (.csv) and Excel (.xlsx) files. The tool automatically detects your URL column whether your file includes headers or not."
-        },
-        {
-          question: "What happens if my file has more than 50,000 URLs?",
-          answer: "According to the official Sitemap Protocol, each sitemap can contain up to 50,000 URLs. If your file exceeds 50,000 URLs or 50MB, the generator automatically splits them into valid sitemap chunks bundled in a convenient ZIP file."
-        },
-        {
-          question: "How do I submit my generated sitemap to Google?",
-          answer: "Upload sitemap.xml to the root directory of your website and submit the full URL inside Google Search Console (Indexing > Sitemaps), or add 'Sitemap: https://yourdomain.com/sitemap.xml' to your robots.txt file."
-        }
-      ]}
+      breadcrumbs={[{ label: 'Free XML Sitemap Generator' }]}
+      aboutTitle="What Is an XML Sitemap Generator?"
+      aboutText={aboutText}
+      howItWorksTitle="How to Generate an XML Sitemap"
+      howItWorks={howItWorks}
+      extraSections={extraSections}
+      faqTitle="Frequently Asked Questions"
+      faq={faqItems}
+      relatedTools={relatedTools}
     >
       {/* TOOL MAIN CARD */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 mb-8 shadow-sm">
@@ -851,7 +967,7 @@ export default function SitemapGenerator() {
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Generate XML Sitemap</h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Upload spreadsheets or paste URLs with smart URL-depth priority and change frequency logic
+              Crawl your website, upload spreadsheets, or paste URLs to create standard XML sitemaps
             </p>
           </div>
         </div>

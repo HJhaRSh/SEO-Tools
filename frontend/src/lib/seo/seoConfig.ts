@@ -130,43 +130,64 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
 
   'sitemap-generator': {
     slug: 'sitemap-generator',
-    name: 'Sitemap Generator',
+    name: 'Free XML Sitemap Generator',
     metaTitle: 'Free XML Sitemap Generator Online | Indian Marketers',
-    metaDescription: 'Generate standard XML sitemaps from CSV, Excel, or pasted URLs. Configure auto-depth priorities, format changefreq tags, and download clean sitemap.xml files.',
+    metaDescription: "Create an XML sitemap for free with Indian Marketers' online Sitemap Generator. Crawl your website, upload CSV or Excel, or paste URLs to download sitemap.xml.",
     canonical: `${TOOLS_BASE_URL}/sitemap-generator`,
     category: 'Crawling & Access',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'xml sitemap generator',
+      'sitemap generator',
+      'free xml sitemap generator',
+      'sitemap creator online',
+      'generate xml sitemap',
+      'sitemap xml generator',
+      'website xml sitemap generator',
+      'create sitemap',
+      'google sitemap generator',
+      'xml sitemap builder'
+    ],
     features: [
+      'Live website crawler discovering and validating up to 500 internal URLs',
       'CSV and Excel (.xlsx) spreadsheet ingestion with automatic column detection',
-      'Intelligent URL-depth auto-scaling priority calculations',
-      'Support for configurable changefreq tags and custom URL parameters',
-      'Strict adherence to sitemaps.org Protocol and Google Search specifications',
-      'Automatic 50,000 URL chunking and ZIP bundling for large datasets'
+      'Manual URL paste with custom pipe-delimited priority and changefreq overrides',
+      'Intelligent URL-depth priority calculations (1.0 to 0.4) and change frequency tags',
+      'Strict compliance with sitemaps.org Protocol and Google Search specifications',
+      'Automatic 50,000 URL chunking, sitemap index generation, and ZIP packaging'
     ],
     faqs: [
       {
-        question: 'How does the URL-depth Priority calculation work?',
-        answer: 'Our intelligent depth logic automatically assigns priorities based on search engine crawl hierarchy: 1.0 for the root homepage (/), 0.8 for primary landing sections (depth 1, e.g. /services/), 0.6 for sub-categories/articles (depth 2, e.g. /services/seo/), and 0.4 for deep or nested pages (depth 3+). You can also switch to a fixed custom priority or disable the tag completely.'
+        question: 'What is an XML sitemap generator?',
+        answer: "An XML sitemap generator is a tool that creates a structured XML document listing your website's canonical URLs according to sitemaps.org standards. It enables search engine crawlers like Googlebot to discover new, updated, and deep pages across your domain, ensuring your important content is crawled and indexed efficiently."
       },
       {
-        question: 'What does the Change Frequency toggle do?',
-        answer: 'The <changefreq> tag provides hints to search engine crawlers regarding how frequently content updates (e.g., weekly, daily, monthly, or auto-depth). You can enable or disable this tag as needed, and individual URL values in spreadsheets or delimited text will always take precedence.'
+        question: 'How do I generate an XML sitemap for free?',
+        answer: "You can create a free XML sitemap with Indian Marketers using three methods: enter your website URL to crawl internal links up to 500 pages, upload a CSV or Excel spreadsheet of URLs, or paste URLs directly. Then click 'Generate XML Sitemap' to download your sitemap.xml file with zero cost or signup required."
       },
       {
-        question: 'Can I still paste URLs with custom priorities or frequencies?',
-        answer: "Yes! In manual paste mode, you can paste raw URLs or use delimiters like pipe (|), tab, or comma: e.g. 'https://example.com/promo | 0.9 | daily'. Any explicitly provided value will be preserved."
+        question: 'Can I create an XML sitemap from CSV or Excel spreadsheets?',
+        answer: 'Yes. Our sitemap generator natively accepts both CSV (.csv) and Microsoft Excel (.xlsx) files. The parser automatically detects your URL column whether your file contains header rows or not. You can also include custom lastmod, priority, or changefreq columns to preserve specific page-level metadata.'
       },
       {
-        question: 'What spreadsheet formats are supported?',
-        answer: 'You can upload standard CSV (.csv) and Excel (.xlsx) files. The tool automatically detects your URL column whether your file includes headers or not.'
+        question: 'How do I create a sitemap.xml file for Google?',
+        answer: 'To build a Google-compliant sitemap, crawl your domain or input your canonical URLs using our spreadsheet upload or manual paste options. The tool formats every URL within valid <urlset> and <loc> tags following Google Search specifications. Once generated, download the file and save it as sitemap.xml.'
       },
       {
-        question: 'What happens if my file has more than 50,000 URLs?',
-        answer: 'According to the official Sitemap Protocol, each sitemap can contain up to 50,000 URLs. If your file exceeds 50,000 URLs or 50MB, the generator automatically splits them into valid sitemap chunks bundled in a convenient ZIP file.'
+        question: 'How many URLs can an XML sitemap contain?',
+        answer: 'Under official sitemaps.org protocols, a single XML sitemap can hold up to 50,000 URLs and must not exceed 50 MB uncompressed. When your dataset exceeds 50,000 URLs, our generator automatically chunks them into multiple numbered sitemap files and generates a parent sitemap index file bundled in a downloadable ZIP archive.'
       },
       {
-        question: 'How do I submit my generated sitemap to Google?',
-        answer: "Upload sitemap.xml to the root directory of your website and submit the full URL inside Google Search Console (Indexing > Sitemaps), or add 'Sitemap: https://yourdomain.com/sitemap.xml' to your robots.txt file."
+        question: 'How do I submit an XML sitemap to Google Search Console?',
+        answer: "First, upload your generated sitemap.xml file to your website's root public directory (e.g., https://yourdomain.com/sitemap.xml). Next, open Google Search Console, navigate to 'Indexing' > 'Sitemaps', enter your sitemap URL path, and click 'Submit'. Additionally, declare the sitemap location inside your robots.txt file."
+      },
+      {
+        question: 'Does an XML sitemap guarantee Google indexing?',
+        answer: 'No. Submitting an XML sitemap accelerates crawl discovery, but does not guarantee indexation. Googlebot decides whether to index a URL based on content quality, originality, canonical signals, internal link architecture, and compliance with Google Search Essentials. Pages returning noindex directives or server errors will not be indexed.'
+      },
+      {
+        question: 'Do priority and changefreq tags affect Google rankings?',
+        answer: 'No. Official Google Search documentation confirms that Googlebot ignores <priority> and <changefreq> tags for crawling frequency and search rankings. However, they remain valid protocol attributes recognized by other crawlers. In contrast, Google does evaluate <lastmod> timestamps when they accurately reflect genuine, meaningful content updates.'
       }
     ]
   },
