@@ -607,13 +607,12 @@ export default function BulkGoogleIndexCheckerPage() {
       {actionNotice && (
         <div className="fixed bottom-6 right-6 z-50 transition-all transform ease-out duration-200">
           <div
-            className={`px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2 border ${
-              actionNotice.type === 'success'
+            className={`px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2 border ${actionNotice.type === 'success'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : actionNotice.type === 'error'
-                ? 'bg-red-50 text-red-800 border-red-300'
-                : 'bg-slate-900 text-white border-slate-700'
-            }`}
+                  ? 'bg-red-50 text-red-800 border-red-300'
+                  : 'bg-slate-900 text-white border-slate-700'
+              }`}
           >
             <span>{actionNotice.message}</span>
           </div>
@@ -984,11 +983,10 @@ export default function BulkGoogleIndexCheckerPage() {
                   key={f.id}
                   type="button"
                   onClick={() => setFilter(f.id as FilterType)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
-                    filter === f.id
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${filter === f.id
                       ? 'bg-[#47A048] text-white shadow-xs'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
+                    }`}
                 >
                   {f.label}
                 </button>
@@ -1097,17 +1095,16 @@ export default function BulkGoogleIndexCheckerPage() {
                           {/* Index Status */}
                           <td className="p-3 whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                                item.googleIndexStatus === 'indexed'
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${item.googleIndexStatus === 'indexed'
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : item.googleIndexStatus === 'not_indexed'
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                  : item.googleIndexStatus === 'canonicalized'
-                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                  : item.googleIndexStatus === 'check_failed'
-                                  ? 'bg-red-50 text-red-700 border border-red-200'
-                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
-                              }`}
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : item.googleIndexStatus === 'canonicalized'
+                                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                      : item.googleIndexStatus === 'check_failed'
+                                        ? 'bg-red-50 text-red-700 border border-red-200'
+                                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                }`}
                             >
                               {VERDICT_LABELS[item.googleIndexStatus]}
                             </span>
