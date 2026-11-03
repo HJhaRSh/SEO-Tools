@@ -13,6 +13,7 @@ import { runLiveCrawlerProbes } from './liveProbeService';
 import { detectBlockSource } from './blockSourceDetector';
 import { computeOverallStatus, generateTechnicalRecommendations } from './diagnosticsEngine';
 import { safeFetch } from '../safeFetch';
+import { discoverSitemapUrl, compareSitemapWithCollection } from './sitemapService';
 
 export interface AuditRunOptions {
   input: string;
@@ -79,7 +80,25 @@ export async function runCommonCrawlAudit(options: AuditRunOptions): Promise<Com
   // 8. Overall diagnostic status
   const overall = computeOverallStatus(monthlyRecords, robotsAudit.records, liveProbes);
 
-  // 9. Generate recommendations
+  // 9. Auto-detect sitemap & run initial coverage against latest collection
+  let sitemapCoverage = undefined;
+  try {
+    const discoveredSitemap = await discoverSitemapUrl(hostname);
+    if (discoveredSitemap && collections.length > 0) {
+      const latestCol = collections[0];
+      const capturedUrls = monthlyRecords[0]?.urls?.map(u => u.url) || [];
+      sitemapCoverage = await compareSitemapWithCollection(
+        discoveredSitemap,
+        latestCol.cdxApi,
+        latestCol.id,
+        capturedUrls
+      );
+    }
+  } catch (sitemapErr: any) {
+    console.warn('[Audit] Auto sitemap discovery failed or timed out:', sitemapErr.message);
+  }
+
+  // 10. Generate recommendations
   const recommendations = generateTechnicalRecommendations(
     monthlyRecords,
     robotsAudit.records,
@@ -111,6 +130,7 @@ export async function runCommonCrawlAudit(options: AuditRunOptions): Promise<Com
     historicalChangeObservation: robotsAudit.firstObservedChangeText,
     blockSource,
     liveProbes,
+    sitemapCoverage,
     pageHistory: pageHistoryResult,
     recommendations,
     limitations

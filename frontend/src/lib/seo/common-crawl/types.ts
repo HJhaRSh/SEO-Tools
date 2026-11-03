@@ -209,6 +209,9 @@ export interface CommonCrawlAuditReport {
   // Feature 4: Live Probe
   liveProbes: LiveProbeResult[];
 
+  // Feature 5: Auto-detected Sitemap Coverage
+  sitemapCoverage?: SitemapCoverageAnalysis;
+
   // Feature 6: Page Captures (when mode is page, or primary page of domain)
   pageHistory?: {
     checkedUrl: string;

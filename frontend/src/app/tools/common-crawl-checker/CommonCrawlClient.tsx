@@ -58,12 +58,44 @@ export default function CommonCrawlClient() {
       }
 
       setReport(data.report);
+      if (data.report.sitemapCoverage) {
+        setSitemapAnalysis(data.report.sitemapCoverage);
+        setSitemapInput(data.report.sitemapCoverage.sitemapUrl || '');
+      } else {
+        // Automatically attempt sitemap detection in background for the active audit
+        triggerAutoSitemapCheck(data.report);
+      }
       setActiveTab('overview');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
       setLoadingStage('');
+    }
+  };
+
+  const triggerAutoSitemapCheck = async (auditReport: CommonCrawlAuditReport) => {
+    setSitemapLoading(true);
+    setSitemapError(null);
+    try {
+      const res = await fetch('/api/seo/common-crawl/sitemap-coverage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostname: auditReport.hostname,
+          collectionId: auditReport.monthlyTrend[0]?.collectionId,
+          capturedUrls: auditReport.monthlyTrend[0]?.urls?.map((u: any) => u.url) || []
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.coverage) {
+        setSitemapAnalysis(data.coverage);
+        setSitemapInput(data.coverage.sitemapUrl || '');
+      }
+    } catch {
+      // Background auto-discovery will stay silent so user can manually retry
+    } finally {
+      setSitemapLoading(false);
     }
   };
 
@@ -898,7 +930,7 @@ export default function CommonCrawlClient() {
                   Verify how many of your sitemap URLs exist inside the selected Common Crawl collection.
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <div className="flex flex-col sm:flex-row gap-3 mb-4">
                   <input
                     type="text"
                     value={sitemapInput}
@@ -912,9 +944,38 @@ export default function CommonCrawlClient() {
                     disabled={sitemapLoading}
                     className="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    {sitemapLoading ? 'Comparing...' : 'Run Sitemap Comparison'}
+                    {sitemapLoading ? (
+                      <>
+                        <svg className="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span>Detecting & Comparing...</span>
+                      </>
+                    ) : (
+                      'Compare Sitemap'
+                    )}
                   </button>
                 </div>
+
+                {sitemapAnalysis && (
+                  <div className="mb-6 flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200/80 px-3.5 py-2 rounded-xl">
+                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>
+                      Detected XML Sitemap:{' '}
+                      <a
+                        href={sitemapAnalysis.sitemapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-orange-600 hover:underline font-medium"
+                      >
+                        {sitemapAnalysis.sitemapUrl}
+                      </a>
+                    </span>
+                  </div>
+                )}
 
                 {sitemapError && (
                   <div className="p-3 mb-6 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs">
@@ -995,7 +1056,17 @@ export default function CommonCrawlClient() {
                   </div>
                 ) : (
                   <div className="p-8 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
-                    Click "Run Sitemap Comparison" above to compare URLs from your sitemap against Common Crawl.
+                    {sitemapLoading ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <svg className="animate-spin w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span>Auto-detecting sitemap and calculating Common Crawl coverage...</span>
+                      </div>
+                    ) : (
+                      'Auto-detecting sitemap... If your sitemap is at a non-standard location, enter the URL above and click Compare Sitemap.'
+                    )}
                   </div>
                 )}
               </div>

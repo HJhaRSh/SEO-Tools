@@ -115,16 +115,67 @@ export async function fetchAndParseSitemap(sitemapUrl: string): Promise<string[]
 
 /**
  * Discovers sitemap URL automatically if not supplied
+ * Checks:
+ * 1. robots.txt "Sitemap: ..." directives (RFC 9309 standard)
+ * 2. High-availability sitemap discovery endpoint
+ * 3. Standard candidate paths (/sitemap.xml, /sitemap_index.xml)
  */
 export async function discoverSitemapUrl(hostname: string, userSitemapUrl?: string): Promise<string> {
   if (userSitemapUrl && userSitemapUrl.trim().length > 0) {
     return userSitemapUrl.trim();
   }
 
-  const cleanHost = hostname.toLowerCase();
+  const cleanHost = hostname.toLowerCase().replace(/^www\./, '');
+
+  // 1. Check live robots.txt for declared Sitemap directive
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const robotsRes = await fetch(`https://${cleanHost}/robots.txt`, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    clearTimeout(timeout);
+    if (robotsRes.ok) {
+      const robotsTxt = await robotsRes.text();
+      const match = robotsTxt.match(/^\s*Sitemap:\s*(https?:\/\/[^\s\r\n]+)/im);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+  } catch {
+    // Continue to next discovery method
+  }
+
+  // 2. Check HA endpoint discovery
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const haRes = await fetch(HA_SITEMAP_ENDPOINT, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: cleanHost })
+    });
+    clearTimeout(timeout);
+    if (haRes.ok) {
+      const haData = await haRes.json();
+      if (haData.ok && haData.sourceUrl) {
+        return haData.sourceUrl;
+      }
+    }
+  } catch {
+    // Continue to standard probes
+  }
+
+  // 3. Fallback candidates
   const candidates = [
+    `https://${cleanHost}/sitemap_index.xml`,
     `https://${cleanHost}/sitemap.xml`,
-    `https://${cleanHost}/sitemap_index.xml`
+    `https://www.${cleanHost}/sitemap.xml`,
+    `https://www.${cleanHost}/sitemap_index.xml`
   ];
 
   for (const candidate of candidates) {
