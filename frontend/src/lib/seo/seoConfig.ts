@@ -704,19 +704,27 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     faqs: [
       {
         question: 'What is the Indian Marketers Topic Relevance Index?',
-        answer: 'It is a transparent, reproducible 0–100 score measuring how effectively a webpage covers a given subject. It evaluates 6 distinct components: Semantic Vector Similarity (35%), Search Intent Alignment (20%), Topical Coverage (20%), Heading & Structural Alignment (10%), Supporting Context Depth (10%), and Topical Coherence (5%).'
+        answer: 'It is a transparent, auditable 0–100 score measuring how effectively a webpage covers a given subject. It evaluates 6 distinct components: Semantic Vector Similarity (35%), Search Intent Alignment (20%), Topical Coverage (20%), Heading & Structural Alignment (10%), Supporting Context Depth (10%), and Topical Coherence (5%).'
       },
       {
         question: 'How is this different from keyword density checkers?',
-        answer: 'Traditional tools merely count exact keyword matches. This analyzer uses 3072-dimensional neural embeddings and generative AI to understand meaning, synonyms, related concepts, topical breadth, and user search intent regardless of exact phrasing.'
+        answer: 'Traditional tools merely count exact keyword matches, leading to artificial keyword stuffing. This analyzer uses 3072-dimensional neural embeddings and generative AI to understand meaning, synonyms, related entities, topical breadth, and user search intent regardless of exact phrasing.'
       },
       {
-        question: 'Can I compare my webpage against a competitor?',
+        question: 'What are the usage and rate limits for this analyzer?',
+        answer: 'To ensure fast, reliable performance and fair access for all users, each IP address is allocated 5 analyses per minute and up to 50 analyses per day. Cached reports (valid for 1 hour) do not consume additional quota.'
+      },
+      {
+        question: 'Can I analyze competitors targeting the same keyword?',
         answer: 'Yes. Mode 3 provides a side-by-side comparison under identical evaluation rules, identifying content gaps (topics the competitor addresses that you miss), content advantages, and section-by-section alignment.'
       },
       {
-        question: 'How does the tool protect against prompt injection on untrusted webpages?',
-        answer: 'Extracted content is quarantined within isolated XML-like data boundaries (<untrusted_webpage_content>) and the AI model is instructed never to execute instructions found in webpage text. All cited section IDs are strictly validated server-side.'
+        question: 'Why does JavaScript-heavy content show low extraction quality?',
+        answer: 'If a webpage renders entirely on the client side via React or Vue without server-side rendering (SSR), search crawlers see a minimal HTML shell. When this occurs, our tool detects the SPA framework, flags the issue, and allows you to paste the rendered text manually or use Fetch & Render.'
+      },
+      {
+        question: 'How are the AI content recommendations generated?',
+        answer: 'Recommendations are synthesized dynamically by Gemini using your actual extracted document sections, the target topic, and identified intent gaps. Each suggestion cites concrete section IDs as evidence, provides clear SEO rationale, and advises on placement without fabricating external facts.'
       }
     ]
   },
@@ -781,6 +789,10 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
       {
         question: 'Why is XML sitemap comparison important for Common Crawl visibility?',
         answer: 'Common Crawl uses web link graphs to discover pages rather than directly ingesting sitemaps. By comparing your XML sitemap URLs against captured Common Crawl records, you can immediately identify critical orphan pages or high-priority landing pages that CCBot has failed to discover.'
+      },
+      {
+        question: 'Why does the tool show "Historical robots.txt unavailable" for certain collections?',
+        answer: 'Common Crawl only stores a historical robots.txt if its crawler fetched and archived the robots.txt file during that specific collection cycle. If a domain was not queued or the robots.txt fetch was not stored in that collection, our tool displays "Historical robots.txt unavailable" rather than guessing current rules retroactively.'
       }
     ]
   }
