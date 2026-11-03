@@ -139,6 +139,16 @@ const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; de
     { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how search crawlers render JavaScript content and compare with source HTML.' },
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview your title tags and meta descriptions in Google search results.' },
     { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: "Search Google's Knowledge Graph to identify relevant named entities for semantic SEO." }
+  ],
+  'common crawl visibility checker': [
+    { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Verify whether AI crawlers like GPTBot and ClaudeBot can access your site.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect RFC 9309 rules, specificity tie-breaking, and live robots.txt directives.' },
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate and validate XML sitemaps to maximize crawler discoverability.' }
+  ],
+  'common crawl checker': [
+    { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Verify whether AI crawlers like GPTBot and ClaudeBot can access your site.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect RFC 9309 rules, specificity tie-breaking, and live robots.txt directives.' },
+    { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate and validate XML sitemaps to maximize crawler discoverability.' }
   ]
 };
 

@@ -14,6 +14,11 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
   const pathname = usePathname();
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [filterQuery, setFilterQuery] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Lock body scroll when mobile sidebar drawer is open
   useEffect(() => {
@@ -69,7 +74,9 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
           </div>
           <div>
             <span className="font-bold text-base text-[var(--im-heading)] block tracking-tight leading-tight">All SEO Tools</span>
-            <span className="text-xs text-[var(--im-text-muted)] font-medium">{totalTools} Tools Suite</span>
+            <span suppressHydrationWarning className="text-xs text-[var(--im-text-muted)] font-medium">
+              {mounted ? `${totalTools} Tools Suite` : 'SEO Tools Suite'}
+            </span>
           </div>
         </Link>
 
@@ -106,12 +113,12 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
       </div>
 
       {/* Tools List by Category */}
-      <div className="flex-1 overflow-y-auto touch-scroll overscroll-contain p-4 pb-safe space-y-5">
+      <div className="flex-1 overflow-y-auto touch-scroll overscroll-contain p-4 pb-safe space-y-5" suppressHydrationWarning>
         {filteredCategories.map((group) => {
           const isCollapsed = Boolean(collapsedCategories[group.category]);
 
           return (
-            <div key={group.category} className="space-y-1.5">
+            <div key={group.category} className="space-y-1.5" suppressHydrationWarning>
               <button
                 onClick={() => toggleCategory(group.category)}
                 className="w-full flex items-center justify-between px-2.5 py-2 rounded-[var(--im-radius-sm)] text-[var(--im-text-muted)] hover:text-[var(--im-heading)] hover:bg-[var(--im-bg-soft)] font-semibold uppercase tracking-wider text-xs transition-colors cursor-pointer"
@@ -127,8 +134,8 @@ export default function AppSidebar({ isOpenMobile, onCloseMobile }: AppSidebarPr
                 </svg>
               </button>
 
-              {!isCollapsed && (
-                <div className="space-y-1 pl-1">
+              {!isCollapsed && mounted && (
+                <div className="space-y-1 pl-1" suppressHydrationWarning>
                   {group.tools.map((tool) => {
                     const isActive = pathname === tool.href;
 

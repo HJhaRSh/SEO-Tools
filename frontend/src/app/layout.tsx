@@ -43,6 +43,7 @@ export const viewport: Viewport = {
   themeColor: '#ffffff',
 };
 
+// Tool #19 Common Crawl Visibility Checker enabled
 export default function RootLayout({
   children,
 }: {

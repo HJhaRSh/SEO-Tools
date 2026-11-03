@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import IndianMarketersHeader from '@/components/IndianMarketersHeader';
 import IndianMarketersFooter from '@/components/IndianMarketersFooter';
@@ -9,7 +9,12 @@ import { NAVIGATION_TOOLS } from '@/lib/toolsList';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const totalTools = NAVIGATION_TOOLS.reduce((acc, cat) => acc + cat.tools.length, 0);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--im-bg)] text-[var(--im-text)]">
@@ -37,7 +42,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <svg className="w-3.5 h-3.5 text-[#4caf50]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
-          <span>All Tools ({totalTools})</span>
+          <span suppressHydrationWarning>All Tools {mounted ? `(${totalTools})` : ''}</span>
         </button>
       </div>
 
