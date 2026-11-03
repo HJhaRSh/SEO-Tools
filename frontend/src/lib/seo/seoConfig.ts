@@ -292,34 +292,62 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'mobile-friendly-test': {
     slug: 'mobile-friendly-test',
     name: 'Mobile-Friendly Test',
-    metaTitle: 'Mobile-Friendly Test Online - Usability Checker | Indian Marketers',
-    metaDescription: 'Test webpage mobile usability across devices. Audit viewport configuration, horizontal content overflow, font readability, and interactive tap target spacing.',
+    metaTitle: 'Free Mobile-Friendly Test & Website Checker | Indian Marketers',
+    metaDescription: "Run a free Mobile-Friendly Test to check your website's viewport, text readability, touch targets and layout issues. Test single or multiple URLs online.",
     canonical: `${TOOLS_BASE_URL}/mobile-friendly-test`,
     category: 'Rendering & Mobile SEO',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'mobile friendly test',
+      'mobile friendly website test',
+      'mobile friendly checker',
+      'mobile friendly website checker',
+      'free mobile friendly test',
+      'mobile friendly website check',
+      'test mobile friendly website',
+      'mobile friendly testing tool',
+      'mobile usability test',
+      'mobile responsive checker'
+    ],
     features: [
-      'Deep mobile usability testing engine inspired by TechnicalSEO and WCAG standards',
-      'Accurate viewport meta tag inspection and horizontal content overflow detection',
-      'Interactive tap target dimension and spacing evaluation (44x44 CSS px threshold)',
-      'Computed font legibility measurements across smartphone presets',
-      'Bulk URL audit mode supporting up to 50 URLs with CSV/XLSX export'
+      'Independent mobile usability testing engine evaluating responsive layouts across real smartphone viewports',
+      'Viewport meta tag verification and sub-pixel horizontal content overflow detection',
+      'Interactive tap target dimension and touch spacing analysis (44x44 CSS px threshold and 8px spacing)',
+      'Computed font legibility measurements and small text node selector identification',
+      'Bulk URL audit mode supporting up to 50 URLs per batch with CSV and formatted Excel (.xlsx) export'
     ],
     faqs: [
       {
         question: 'Did Google retire the official Mobile-Friendly Test?',
-        answer: 'Yes. Google retired the standalone Mobile-Friendly Test and API in December 2023, shifting emphasis towards Lighthouse and Core Web Vitals. This tool provides an independent, objective mobile usability evaluation engine.'
+        answer: 'Google officially retired its standalone Mobile-Friendly Test tool, testing API, and Search Console Mobile Usability report in December 2023. Search engines now evaluate page experience through Core Web Vitals and Lighthouse metrics. Indian Marketers provides this independent mobile-friendly testing tool so developers and site owners can continue auditing viewports, text sizing, tap targets, and layout responsiveness directly.'
       },
       {
         question: 'What is the difference between Mobile-Friendly Testing and Mobile-First Indexing?',
-        answer: 'Mobile-Friendly Testing evaluates how easily a human user can navigate and read a webpage on a smartphone (e.g. touch target spacing, viewport configuration, and horizontal scrolling). The Mobile-First Indexing tool compares content and SEO tag parity between desktop and mobile versions to ensure search crawlers index the correct data.'
+        answer: 'Mobile-friendly testing evaluates front-end user experience on smartphone screens, checking touch target spacing, viewport tags, font legibility, and horizontal overflow. Mobile-first indexing describes how Google crawls and indexes web content using a smartphone bot. A page can be fully crawlable under mobile-first indexing while failing usability tests if buttons are too small or content horizontally overflows.'
       },
       {
         question: "What causes 'Size Content to Viewport' failures?",
-        answer: 'Horizontal overflow occurs when elements like wide tables, rigid fixed-width containers (e.g. width: 800px), or large unconstrained images exceed the screen width, forcing smartphone users to pinch or scroll horizontally.'
+        answer: 'Horizontal layout overflow occurs when elements exceed the screen width of the selected mobile viewport. Common culprits include rigid CSS fixed widths (such as width: 800px or min-width: 600px), wide data tables without responsive wrappers, unconstrained high-resolution images, and fixed-position advertising banners. These elements force smartphone visitors to scroll sideways or zoom out.'
       },
       {
         question: 'What are the recommended tap target dimensions?',
-        answer: "Apple's Human Interface Guidelines and WCAG guidelines recommend an effective interactive tap target of at least 44x44 CSS pixels with at least 8px spacing between adjacent controls to prevent accidental touch mistakes."
+        answer: "WCAG accessibility standards and Apple's Human Interface Guidelines recommend interactive touch targets of at least 44 by 44 CSS pixels, with at least 8 pixels of spacing between adjacent clickable elements. Adequate sizing and spacing prevent frustrating mis-taps on smartphones, ensuring users can accurately select links, form fields, hamburger menus, and buttons without zooming."
+      },
+      {
+        question: 'How do I check if my website is mobile-friendly?',
+        answer: "To test your website, paste your URL into the single URL input or switch to bulk mode to evaluate up to 50 pages simultaneously. Select your target device viewport baseline, such as iPhone or Android, and click 'Run Mobile-Friendly Test'. The checker evaluates your viewport meta tag, font legibility, tap targets, and layout overflow, returning selector-level diagnostics."
+      },
+      {
+        question: 'Can I test my website on different mobile screen sizes?',
+        answer: 'Yes. Our mobile-friendly tester includes multiple device viewport presets: Standard Mobile (iPhone 14 at 390x844px), Android Standard (Pixel 7 at 412x915px), Small Mobile (iPhone SE at 375x667px), and Large Mobile / Phablet (iPhone Pro Max at 430x932px). Selecting different presets helps you identify breakpoint-specific styling bugs across popular smartphone screen dimensions.'
+      },
+      {
+        question: 'Can I check multiple website URLs at once?',
+        answer: 'Yes. The bulk mobile-friendly checker allows you to test up to 50 URLs in a single audit session. Enter one URL per line, select your device preset, and start the batch test. You can monitor live progress across chunks, inspect individual URL diagnostics, and export complete results to CSV or Excel (.xlsx) spreadsheets for reporting.'
+      },
+      {
+        question: 'Does a mobile-friendly website automatically rank higher on Google?',
+        answer: 'Mobile-friendliness is a foundational user experience signal, but it is not a direct ranking guarantee on its own. While mobile usability prevents high bounce rates and improves engagement, Google ranks pages based on hundreds of factors including content relevance, topical authority, backlinks, and Core Web Vitals. However, failing mobile usability can severely harm user conversion and organic performance.'
       }
     ]
   },
