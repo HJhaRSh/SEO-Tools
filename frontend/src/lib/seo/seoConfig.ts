@@ -719,6 +719,70 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
         answer: 'Extracted content is quarantined within isolated XML-like data boundaries (<untrusted_webpage_content>) and the AI model is instructed never to execute instructions found in webpage text. All cited section IDs are strictly validated server-side.'
       }
     ]
+  },
+
+  'common-crawl-checker': {
+    slug: 'common-crawl-checker',
+    name: 'Common Crawl Visibility Checker',
+    metaTitle: 'Common Crawl Visibility Checker - Check Webpage AI Crawl Presence | Indian Marketers',
+    metaDescription: 'Check whether your domain and webpages appear in Common Crawl archives (CCBot). Audit 12-month historical crawl captures, RFC 9309 robots.txt permissions, edge firewall blocks, and sitemap coverage.',
+    canonical: `${TOOLS_BASE_URL}/common-crawl-checker`,
+    category: 'Crawling & Access',
+    softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'common crawl checker',
+      'common crawl visibility checker',
+      'check if website is in common crawl',
+      'ccbot checker',
+      'common crawl cdx search',
+      'check ai training dataset presence',
+      'common crawl audit tool',
+      'llm training corpus checker',
+      'common crawl robots.txt test',
+      'ccbot user agent probe',
+      'common crawl sitemap coverage',
+      'ai search crawlability checker'
+    ],
+    features: [
+      'Genuine Common Crawl CDX index querying across 12 latest published crawl collections',
+      'Exact vs estimated monthly crawl capture counts and capture volume trend lines',
+      'Historical RFC 9309 robots.txt archival record retrieval and CCBot policy evaluation',
+      'Live edge crawler access probes across desktop browser, CCBot/2.0, neutral crawler, and Googlebot',
+      'Automated block source detection for Cloudflare AI Scrape Shield, Squarespace, and Dark Visitors',
+      'Auto-detected XML sitemap verification and crawl coverage percentage calculation',
+      'Deterministic diagnostic status and actionable technical recommendations',
+      'Exportable audit reports in CSV, JSON, and PDF formats'
+    ],
+    faqs: [
+      {
+        question: 'What is Common Crawl and why does it matter for SEO and AI visibility?',
+        answer: 'Common Crawl is a non-profit 501(c)(3) organization that maintains an open web repository containing petabytes of raw web page data gathered since 2008. Major AI and Large Language Model (LLM) research teams—including OpenAI, Anthropic, Google DeepMind, and Meta—have historically utilized Common Crawl datasets as a primary training corpus for foundation models. Ensuring your site appears in Common Crawl helps maintain presence in open web research datasets and AI training pools.'
+      },
+      {
+        question: 'Does appearing in Common Crawl guarantee my content is used in ChatGPT or Google AI?',
+        answer: 'No. Appearing in Common Crawl confirms that the CCBot web crawler successfully captured your server-delivered HTML into an open crawl collection. Commercial AI developers filter, clean, deduplicate, and curate crawl datasets before training. Data presence is a necessary prerequisite for inclusion in Common Crawl-derived training data, but it does not guarantee citation or usage by any specific AI model.'
+      },
+      {
+        question: 'Why does my website have captures in some months but none in others?',
+        answer: 'Common Crawl does not crawl every page on the web in every monthly run. Its crawler prioritizes queues based on external link graph algorithms (such as harmonic centrality and PageRank) and homepage depth. Sampling frequency varies based on crawl budgets, server response latency, and domain discovery graphs. A lower count in a single month does not necessarily indicate a crawler block.'
+      },
+      {
+        question: 'How does CCBot differ from Googlebot or Bingbot?',
+        answer: 'Unlike Googlebot, which runs a headless Chromium browser engine to render complex client-side JavaScript, Common Crawl (CCBot) captures raw HTTP server responses without executing heavy client-side scripts. If your website relies exclusively on client-side rendering (SPA framework) without Server-Side Rendering (SSR) or prerendering, CCBot only archives an empty HTML template shell.'
+      },
+      {
+        question: 'How do I permit or block Common Crawl in my robots.txt?',
+        answer: 'Common Crawl strictly respects the Robots Exclusion Protocol (RFC 9309). To allow Common Crawl, declare "User-agent: CCBot\\nAllow: /" in your robots.txt. To disallow Common Crawl from indexing your site, declare "User-agent: CCBot\\nDisallow: /".'
+      },
+      {
+        question: 'How does this tool detect if Cloudflare is blocking Common Crawl?',
+        answer: 'The tool performs real-time edge probes and inspects live HTTP headers alongside your robots.txt. If Cloudflare AI Scrape Shield is enabled, Cloudflare automatically injects managed bot block rules or issues 403 Forbidden / Challenge headers (cf-mitigated) specifically against CCBot and other AI crawlers.'
+      },
+      {
+        question: 'Why is XML sitemap comparison important for Common Crawl visibility?',
+        answer: 'Common Crawl uses web link graphs to discover pages rather than directly ingesting sitemaps. By comparing your XML sitemap URLs against captured Common Crawl records, you can immediately identify critical orphan pages or high-priority landing pages that CCBot has failed to discover.'
+      }
+    ]
   }
 };
 
