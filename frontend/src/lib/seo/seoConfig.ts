@@ -987,25 +987,33 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
 
   'common-crawl-checker': {
     slug: 'common-crawl-checker',
-    name: 'Common Crawl Visibility Checker',
-    metaTitle: 'Common Crawl Visibility Checker - Check Webpage AI Crawl Presence | Indian Marketers',
-    metaDescription: 'Check whether your domain and webpages appear in Common Crawl archives (CCBot). Audit 12-month historical crawl captures, RFC 9309 robots.txt permissions, edge firewall blocks, and sitemap coverage.',
+    name: 'Common Crawl Checker',
+    metaTitle: 'Common Crawl Checker – Free Visibility Tool | Indian Marketers',
+    metaDescription: 'Check if your website appears in Common Crawl. Explore historical captures, CCBot access, robots.txt restrictions and sitemap coverage with our free checker.',
     canonical: `${TOOLS_BASE_URL}/common-crawl-checker`,
     category: 'Crawling & Access',
     softwareCategory: 'DeveloperApplication',
     keywords: [
       'common crawl checker',
       'common crawl visibility checker',
+      'common crawl index checker',
+      'common crawl website checker',
+      'common crawl url checker',
+      'check common crawl',
+      'common crawl archive checker',
+      'common crawl history checker',
+      'common crawl crawler checker',
+      'common crawl search tool',
+      'common crawl lookup',
       'check if website is in common crawl',
-      'ccbot checker',
-      'common crawl cdx search',
-      'check ai training dataset presence',
-      'common crawl audit tool',
-      'llm training corpus checker',
-      'common crawl robots.txt test',
-      'ccbot user agent probe',
+      'check common crawl history',
+      'common crawl website coverage',
       'common crawl sitemap coverage',
-      'ai search crawlability checker'
+      'ccbot checker',
+      'ccbot robots.txt checker',
+      'ai crawl visibility checker',
+      'common crawl capture history',
+      'common crawl archive search'
     ],
     features: [
       'Genuine Common Crawl CDX index querying across 12 latest published crawl collections',
@@ -1019,36 +1027,44 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     ],
     faqs: [
       {
-        question: 'What is Common Crawl and why does it matter for SEO and AI visibility?',
-        answer: 'Common Crawl is a non-profit 501(c)(3) organization that maintains an open web repository containing petabytes of raw web page data gathered since 2008. Major AI and Large Language Model (LLM) research teams—including OpenAI, Anthropic, Google DeepMind, and Meta—have historically utilized Common Crawl datasets as a primary training corpus for foundation models. Ensuring your site appears in Common Crawl helps maintain presence in open web research datasets and AI training pools.'
+        question: 'What is a Common Crawl checker?',
+        answer: 'A Common Crawl checker is a technical SEO and archive lookup tool that queries official Common Crawl CDX APIs to verify whether a domain or individual URL has been captured and stored in Common Crawl datasets. It reveals historical capture timestamps, crawl frequency trends, CCBot robots.txt permissions, and crawl coverage comparisons against XML sitemaps.'
       },
       {
-        question: 'Does appearing in Common Crawl guarantee my content is used in ChatGPT or Google AI?',
-        answer: 'No. Appearing in Common Crawl confirms that the CCBot web crawler successfully captured your server-delivered HTML into an open crawl collection. Commercial AI developers filter, clean, deduplicate, and curate crawl datasets before training. Data presence is a necessary prerequisite for inclusion in Common Crawl-derived training data, but it does not guarantee citation or usage by any specific AI model.'
+        question: 'How do I check if my website or URL is in Common Crawl?',
+        answer: 'To check your website: enter your root domain or exact webpage URL into the input field, select your desired crawl scope (Root + www, All Subdomains, or Exact Host), choose how many past monthly crawl collections to inspect (3 to 12 months), and click "Audit Archive". The tool queries official CDX indexes and displays matching records, capture counts, and historical trend lines.'
       },
       {
-        question: 'Why does my website have captures in some months but none in others?',
-        answer: 'Common Crawl does not crawl every page on the web in every monthly run. Its crawler prioritizes queues based on external link graph algorithms (such as harmonic centrality and PageRank) and homepage depth. Sampling frequency varies based on crawl budgets, server response latency, and domain discovery graphs. A lower count in a single month does not necessarily indicate a crawler block.'
+        question: 'Is Common Crawl index presence the same as Google Search indexing?',
+        answer: 'No. Common Crawl and Google Search are entirely separate crawling and indexing entities. Common Crawl (CCBot) archives raw web pages into an open research repository, whereas Googlebot crawls the web to rank content in Google Search. A URL present in Common Crawl is not necessarily indexed by Google, and a URL missing from Common Crawl can still be fully indexed and ranking on Google.'
       },
       {
-        question: 'How does CCBot differ from Googlebot or Bingbot?',
-        answer: 'Unlike Googlebot, which runs a headless Chromium browser engine to render complex client-side JavaScript, Common Crawl (CCBot) captures raw HTTP server responses without executing heavy client-side scripts. If your website relies exclusively on client-side rendering (SPA framework) without Server-Side Rendering (SSR) or prerendering, CCBot only archives an empty HTML template shell.'
+        question: 'How do I find when Common Crawl last captured my website?',
+        answer: 'When you run an audit with our checker, the tool organizes captures across published monthly crawl collections (such as CC-MAIN-2024-51). The most recent monthly collection containing matching records indicates the latest capture period, and the capture table displays the exact ISO timestamp of each archived snapshot.'
       },
       {
-        question: 'How do I permit or block Common Crawl in my robots.txt?',
-        answer: 'Common Crawl strictly respects the Robots Exclusion Protocol (RFC 9309). To allow Common Crawl, declare "User-agent: CCBot\\nAllow: /" in your robots.txt. To disallow Common Crawl from indexing your site, declare "User-agent: CCBot\\nDisallow: /".'
+        question: 'Why is my website missing from Common Crawl archives?',
+        answer: 'Common Crawl does not crawl the entire web in every monthly run. Crawl queues are prioritised using link graph metrics (such as PageRank and harmonic centrality) and depth limits. A website may be absent due to low external backlink volume, robots.txt disallow rules against CCBot, edge firewall or CDN blocks (such as Cloudflare AI Scrape Shield), slow server response times, or simply not being sampled in the searched collections.'
       },
       {
-        question: 'How does this tool detect if Cloudflare is blocking Common Crawl?',
-        answer: 'The tool performs real-time edge probes and inspects live HTTP headers alongside your robots.txt. If Cloudflare AI Scrape Shield is enabled, Cloudflare automatically injects managed bot block rules or issues 403 Forbidden / Challenge headers (cf-mitigated) specifically against CCBot and other AI crawlers.'
+        question: 'Does appearing in Common Crawl mean my website is used in ChatGPT or Google AI?',
+        answer: 'Appearing in Common Crawl confirms that CCBot successfully archived your server-delivered HTML into an open crawl collection. While foundational AI datasets (such as C4, RefinedWeb, and FineWeb) are derived from Common Crawl, AI labs apply extensive deduplication, quality filtering, safety screening, and editorial curation. Archive presence is a prerequisite for inclusion in Common Crawl-derived corpora, but does not guarantee citation, memory, or usage by ChatGPT, Claude, or Gemini.'
       },
       {
-        question: 'Why is XML sitemap comparison important for Common Crawl visibility?',
-        answer: 'Common Crawl uses web link graphs to discover pages rather than directly ingesting sitemaps. By comparing your XML sitemap URLs against captured Common Crawl records, you can immediately identify critical orphan pages or high-priority landing pages that CCBot has failed to discover.'
+        question: 'Why are some Common Crawl capture counts estimated rather than exact?',
+        answer: 'Common Crawl CDX APIs provide exact capture counts for smaller and medium query matches. For high-volume domains or broad wildcard queries with tens of thousands of records, the index server returns paginated block estimates to maintain query performance within rate limits. Our checker explicitly labels counts as exact or estimated to ensure transparency.'
       },
       {
-        question: 'Why does the tool show "Historical robots.txt unavailable" for certain collections?',
-        answer: 'Common Crawl only stores a historical robots.txt if its crawler fetched and archived the robots.txt file during that specific collection cycle. If a domain was not queued or the robots.txt fetch was not stored in that collection, our tool displays "Historical robots.txt unavailable" rather than guessing current rules retroactively.'
+        question: 'How does CCBot crawl JavaScript single-page applications (SPAs)?',
+        answer: 'Unlike Googlebot, which runs an evergreen headless Chromium browser to execute client-side JavaScript, CCBot fetches and archives raw HTTP server responses without executing heavy scripts. If your website relies exclusively on client-side rendering without Server-Side Rendering (SSR) or prerendering, CCBot only archives an empty HTML template container (#root or #app).'
+      },
+      {
+        question: 'How do I check whether CCBot is blocked by robots.txt or edge firewalls?',
+        answer: 'To check crawler permissions: inspect your robots.txt file for "User-agent: CCBot" directives under RFC 9309 standards. Our checker evaluates both historical archived robots.txt snapshots and performs live simulated crawler probes across CCBot, desktop browser, and Googlebot user-agents to detect HTTP 403 Forbidden responses, WAF challenges, and Cloudflare AI Scrape Shield blocks.'
+      },
+      {
+        question: 'Can I compare XML sitemap URLs against Common Crawl archive records?',
+        answer: 'Yes. Our tool allows you to input your XML sitemap URL alongside your domain audit. It extracts all sitemap URLs and compares them directly against archived Common Crawl captures in the selected collections, calculating a sitemap coverage percentage and highlighting specific URLs that have never been captured.'
       }
     ]
   }

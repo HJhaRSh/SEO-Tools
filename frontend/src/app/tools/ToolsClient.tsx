@@ -17,7 +17,7 @@ const TOOLS_DATA = [
       { name: 'XML Sitemap Generator', description: 'Create and download XML sitemaps by crawling websites, uploading CSV or Excel files, or pasting URLs.', href: '/tools/sitemap-generator' },
       { name: 'Domain Age Checker', description: 'Check domain registration age, creation date, expiry details, and more for single or multiple domains.', href: '/tools/domain-age-checker' },
       { name: 'Bulk Google Index Checker', description: "Check Google's indexing status for multiple URLs with Search Console and view live meta titles and descriptions.", href: '/tools/bulk-google-index-checker' },
-      { name: 'Common Crawl Visibility Checker', description: 'Check whether your webpages appear in Common Crawl, review historical captures, detect crawler restrictions and identify archive coverage gaps.', href: '/tools/common-crawl-checker' }
+      { name: 'Common Crawl Checker', description: 'Check whether your website appears in Common Crawl, review historical captures, inspect CCBot access and compare sitemap coverage.', href: '/tools/common-crawl-checker' }
     ]
   },
   {
