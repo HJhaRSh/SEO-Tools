@@ -785,30 +785,50 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'serp-simulator': {
     slug: 'serp-simulator',
     name: 'SERP Simulator',
-    metaTitle: 'Google SERP Simulator - Meta Snippet Preview | Indian Marketers',
-    metaDescription: 'Preview title tags and meta descriptions in Google search results. Check pixel widths, prevent snippet truncation, and simulate desktop and mobile displays.',
+    metaTitle: 'Free Google SERP Simulator & Preview Tool | Indian Marketers',
+    metaDescription: 'Preview Google search results with our free SERP Simulator. Test page titles, meta descriptions, pixel width and desktop or mobile snippets before publishing.',
     canonical: `${TOOLS_BASE_URL}/serp-simulator`,
     category: 'Search Appearance',
     softwareCategory: 'DeveloperApplication',
     features: [
-      'Pixel-accurate title container measurement (~600px desktop threshold)',
+      'Visual title container pixel measurement with desktop ~600px reference threshold',
       'Word-boundary truncation simulation for desktop and mobile search snippets',
-      'Keyword bolding preview based on user search queries',
-      'Rich snippet enhancements (publication date stamps and star rating display)',
+      'Search query keyword bolding simulation matching Google search result styling',
+      'Illustrative rich snippet preview for publication dates and star rating schema',
       'Live URL metadata extraction proxy to import existing title and description tags'
     ],
     faqs: [
       {
         question: 'Why does pixel width matter more than character count?',
-        answer: "Google calculates title cutoffs using a container width (typically ~600px on desktop), not a fixed 60-character count. Because proportional fonts have varying character widths (for instance, 'W' is much wider than 'i'), a 55-character title with wide letters can be truncated while a 65-character title with narrow letters fits cleanly."
+        answer: "Google calculates title cutoffs using available container pixel width (typically ~600px on desktop) rather than a rigid character count. Because proportional typography assigns varying widths to each character (for example, uppercase 'W' requires significantly more pixels than lowercase 'i'), a 55-character title with wide characters can truncate while a 65-character title composed of narrow characters fits cleanly."
       },
       {
         question: 'Does this guarantee how Google will display my snippet?',
-        answer: 'No. This tool is a visual simulator. Google frequently rewrites titles or dynamically selects alternate text from the page content based on the user\'s specific query.'
+        answer: "No. This tool is a visual preview simulator. Google's systems dynamically determine how search snippets and title links appear for every unique search query. Google frequently generates custom snippets from on-page body text or rewrites titles to better match search intent."
       },
       {
-        question: 'Can I fetch any live URL?',
-        answer: 'Yes, publicly accessible HTML pages can be fetched via our secure proxy. Note that pages requiring JavaScript execution or sites that block crawlers might not return server-rendered meta tags.'
+        question: 'Can I fetch the title and description from a live URL?',
+        answer: 'Yes. Entering a publicly accessible HTTP/HTTPS URL and clicking \'Fetch\' extracts its server-rendered HTML title and meta description through our secure proxy. Note that pages relying purely on client-side JavaScript to inject metadata may not return tags unless prerendered.'
+      },
+      {
+        question: 'What is a Google SERP Simulator?',
+        answer: 'A Google SERP Simulator is a specialized technical SEO tool that simulates how a webpage\'s title tag, URL breadcrumb, and meta description may look in Google\'s search engine results pages. It helps digital marketers and content creators identify potential truncation, evaluate keyword prominence, and compare desktop versus mobile presentations prior to publishing.'
+      },
+      {
+        question: 'What is the recommended title tag length for Google?',
+        answer: 'While Google does not specify an official character limit, keeping desktop title tags between 50 to 60 characters (approximately 500 to 600 pixels) ensures the majority of the title remains visible before truncation. On mobile, Google allocates slightly more vertical space, often accommodating up to 70 characters across two lines.'
+      },
+      {
+        question: 'How long should a meta description be?',
+        answer: 'Google generally displays approximately 155 to 160 characters (up to ~960 pixels across two lines) on desktop, and around 110 to 120 characters on mobile before clipping. Writing concise, descriptive summaries between 140 and 155 characters provides enough context without risking mid-sentence truncation.'
+      },
+      {
+        question: 'Can Google rewrite my title tag or meta description in search results?',
+        answer: 'Yes. According to Google Search Central documentation, Google may generate alternate title links when the HTML title tag is overly short, repetitive, keyword-stuffed, or does not accurately reflect the query. Similarly, Google generates snippets directly from relevant webpage copy in over 60% of search queries if it believes on-page text better answers the user\'s search.'
+      },
+      {
+        question: 'What is the difference between desktop and mobile SERP previews?',
+        answer: 'Desktop Google search results present titles on a single line within an approximate 600px container and meta descriptions clamped to two lines (~960px). Mobile results use a narrower 380px device viewport but allow titles to wrap across two lines and meta descriptions to extend to three lines, altering how titles and descriptions fit.'
       }
     ]
   },

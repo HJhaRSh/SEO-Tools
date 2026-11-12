@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useId, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import {
   SerpDevice,
@@ -251,31 +252,179 @@ export default function SerpSimulator() {
 
   return (
     <ToolLayout
-      title="SERP Simulator"
-      description="Preview your title tag, meta description, and URL in Google search results with pixel-accurate truncation."
+      title="Free Google SERP Simulator & Snippet Preview"
+      description="Use Indian Marketers' free Google SERP Simulator to preview how your page title, URL and meta description may appear in Google Search. Compare desktop and mobile snippets, review estimated pixel-width truncation and test keyword highlighting before publishing."
       category="Search Appearance"
       breadcrumbs={[{ label: 'SERP Simulator' }]}
-      aboutText="The Search Engine Results Page (SERP) is your primary storefront in search engine results. Google restricts snippet elements based on container pixel widths rather than simple character counts. This Google SERP Simulator measures actual text pixel rendering, simulates Google's word-boundary truncation, supports desktop and mobile viewports, query term highlighting, date stamps, and rich review stars."
+      aboutTitle="What Is a Google SERP Simulator?"
+      aboutText={
+        <div className="space-y-4">
+          <p>
+            A <strong>Google SERP Simulator</strong> is a technical search engine optimization tool that simulates how your webpage&apos;s title tag, URL structure, and meta description may appear as an organic search result snippet on Google. By rendering titles and descriptions against Google&apos;s desktop (~600px) and mobile (~380px) display containers, it helps SEOs, webmasters, and content writers spot truncation issues, test keyword visibility, and evaluate search presentation before publishing.
+          </p>
+          <p>
+            Rather than relying solely on arbitrary character counts, this simulator calculates proportional pixel widths using standard search typography (Arial and Roboto). It provides an estimated preview of word-boundary truncation, query term bolding, date stamps, and rich snippet review stars to help you craft compelling, readable snippets that maximize organic search visibility.
+          </p>
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-1.5">
+            <strong className="text-slate-800 dark:text-slate-200 block font-semibold">Important Search Appearance Notice:</strong>
+            <p>
+              This tool is a visual preview simulator and editorial guide. It does not measure live Google rankings, forecast impressions, or guarantee how Google will format your snippet. Google&apos;s algorithms dynamically assemble title links and search snippets for each individual search query using page headings, body content, and structured data.
+            </p>
+          </div>
+        </div>
+      }
+      howItWorksTitle="How to Preview Your Google Search Snippet"
       howItWorks={[
-        "Type or paste your target webpage URL (or click 'Fetch' to extract existing metadata automatically).",
-        "Enter your page Title tag and Meta Description to observe real-time pixel meter feedback.",
-        "Optionally enter a Search Query to test keyword bolding in search snippets.",
-        "Toggle between Desktop and Mobile views to test viewport truncation differences.",
-        "Simulate rich snippets with publication dates and review star ratings."
+        "Enter or paste your target webpage URL (or click 'Fetch' to retrieve existing title and meta description tags from publicly accessible HTML).",
+        "Type or refine your Page Title — monitor the live pixel-width gauge (~600px desktop reference) and character counter to prevent title truncation.",
+        "Craft your Meta Description — track the line-capacity indicator (~2 lines on desktop, ~3 lines on mobile) to ensure critical messaging remains visible.",
+        "Add a target Search Query to test keyword bolding and evaluate how query terms stand out in your snippet.",
+        "Toggle between Desktop (600px) and Mobile (380px) viewports to inspect responsive search layout differences.",
+        "Optionally simulate Rich Snippet enhancements, including publication dates and review star ratings (Product/Review Schema).",
+        "Review the resulting simulated SERP card in real time, adjust copy for maximum clarity, and copy your finalized tags to your CMS."
       ]}
+      extraSections={
+        <div className="space-y-8 pt-4 border-t border-[var(--im-border)]">
+          {/* WHAT CAN YOU CHECK SECTION */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                What Can You Check With Our SERP Preview Tool?
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="p-4 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)] space-y-2">
+                <h3 className="font-bold text-[var(--im-heading)] text-base">
+                  Title Tag &amp; Pixel Width
+                </h3>
+                <p className="text-[var(--im-text)] leading-relaxed">
+                  Google allocates approximately 600 pixels of horizontal container width for desktop title links. Because letters in proportional fonts vary in width (an uppercase &quot;W&quot; is roughly three times wider than &quot;i&quot;), character counts alone are unreliable. Our tool measures exact rendered pixel widths so you can see when a title will be truncated with an ellipsis.
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)] space-y-2">
+                <h3 className="font-bold text-[var(--im-heading)] text-base">
+                  Meta Description Preview
+                </h3>
+                <p className="text-[var(--im-text)] leading-relaxed">
+                  Desktop snippets typically display up to two lines of description text (~960px or ~155–160 characters), whereas mobile snippets can span up to three lines (~200 characters). The simulator tests line-wrapping using natural word boundaries so you can place primary value propositions before potential truncation points.
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)] space-y-2">
+                <h3 className="font-bold text-[var(--im-heading)] text-base">
+                  Desktop &amp; Mobile SERP Appearance
+                </h3>
+                <p className="text-[var(--im-text)] leading-relaxed">
+                  Mobile devices use a compact 380px layout with larger tap targets, stacked favicons, and site-name indicators above the title link. Switching viewports allows you to evaluate title line wrapping, brand visibility, and snippet readability across different screen sizes.
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)] space-y-2">
+                <h3 className="font-bold text-[var(--im-heading)] text-base">
+                  Keyword Highlighting &amp; Rich-Snippet Simulation
+                </h3>
+                <p className="text-[var(--im-text)] leading-relaxed">
+                  When searchers query Google, matching terms are often bolded in titles and snippets to indicate relevance. Simulate keyword bolding by entering a test query, and preview optional rich-snippet features like publication dates and review stars. To implement eligible markup, use our <Link href="/tools/schema-generator" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Schema Markup Generator</Link> and verify it with the <Link href="/tools/schema-checker" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Schema Checker</Link>.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* UNDERSTANDING TRUNCATION */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                Understanding SERP Title and Description Truncation
+              </h2>
+            </div>
+            <div className="text-[var(--im-text)] text-sm sm:text-base leading-relaxed space-y-3">
+              <p>
+                Truncation occurs when page title tags or meta descriptions exceed the allocated visual dimensions of Google&apos;s search result cards. On desktop browsers, Google typically caps title links at approximately 600 pixels. Titles extending beyond this cutoff are shortened with an ellipsis (&hellip;) to prevent layout breaking.
+              </p>
+              <p>
+                To minimize undesirable truncation, front-load your primary keyword and unique value proposition within the first 50–55 characters. Keep secondary modifiers and brand names (<code className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono">| Brand Name</code>) towards the end so that core topical relevance is never obscured if clipping occurs.
+              </p>
+            </div>
+          </section>
+
+          {/* WHY GOOGLE MAY DISPLAY A DIFFERENT TITLE OR DESCRIPTION */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                Why Google May Display a Different Title or Description
+              </h2>
+            </div>
+            <div className="text-[var(--im-text)] text-sm sm:text-base leading-relaxed space-y-3">
+              <p>
+                Even when your title and description fit within pixel limits, Google does not always display them verbatim. According to Google&apos;s official search appearance documentation, Google uses automated algorithms to generate title links and snippets that best reflect user search intent:
+              </p>
+              <ul className="list-disc pl-6 space-y-2 text-sm">
+                <li>
+                  <strong>Title Rewrites:</strong> If an HTML <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono">&lt;title&gt;</code> tag is deemed overly generic, outdated, stuffed with keywords, or boilerplate, Google may construct an alternate title link using your main <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono">&lt;h1&gt;</code> heading, prominent on-page text, or anchor text from incoming links.
+                </li>
+                <li>
+                  <strong>Dynamic Snippet Extraction:</strong> Google frequently creates snippet descriptions directly from page content when on-page text answers the searcher&apos;s specific query better than the static meta description.
+                </li>
+                <li>
+                  <strong>JavaScript Rendering Differences:</strong> If metadata is injected dynamically via client-side JavaScript, crawlers inspecting raw HTML may see fallback tags. Use our <Link href="/tools/fetch-render" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Fetch &amp; Render Tool</Link> to inspect server vs. rendered DOM metadata. For geo-specific results, audit search appearance with our <Link href="/tools/local-search" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Local Search Tool</Link>.
+                </li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      }
       faq={[
         {
           question: "Why does pixel width matter more than character count?",
-          answer: "Google calculates title cutoffs using a container width (typically ~600px on desktop), not a fixed 60-character count. Because proportional fonts have varying character widths (for instance, 'W' is much wider than 'i'), a 55-character title with wide letters can be truncated while a 65-character title with narrow letters fits cleanly."
+          answer: "Google calculates title cutoffs using available container pixel width (typically ~600px on desktop) rather than a rigid character count. Because proportional typography assigns varying widths to each character (for example, uppercase 'W' requires significantly more pixels than lowercase 'i'), a 55-character title with wide characters can truncate while a 65-character title composed of narrow characters fits cleanly."
         },
         {
           question: "Does this guarantee how Google will display my snippet?",
-          answer: "No. This tool is a visual simulator. Google frequently rewrites titles or dynamically selects alternate text from the page content based on the user's specific query."
+          answer: "No. This tool is a visual preview simulator. Google's systems dynamically determine how search snippets and title links appear for every unique search query. Google frequently generates custom snippets from on-page body text or rewrites titles to better match search intent."
         },
         {
-          question: "Can I fetch any live URL?",
-          answer: "Yes, publicly accessible HTML pages can be fetched via our secure proxy. Note that pages requiring JavaScript execution or sites that block crawlers might not return server-rendered meta tags."
+          question: "Can I fetch the title and description from a live URL?",
+          answer: "Yes. Entering a publicly accessible HTTP/HTTPS URL and clicking 'Fetch' extracts its server-rendered HTML title and meta description through our secure proxy. Note that pages relying purely on client-side JavaScript to inject metadata may not return tags unless prerendered."
+        },
+        {
+          question: "What is a Google SERP Simulator?",
+          answer: "A Google SERP Simulator is a specialized technical SEO tool that simulates how a webpage's title tag, URL breadcrumb, and meta description may look in Google's search engine results pages. It helps digital marketers and content creators identify potential truncation, evaluate keyword prominence, and compare desktop versus mobile presentations prior to publishing."
+        },
+        {
+          question: "What is the recommended title tag length for Google?",
+          answer: "While Google does not specify an official character limit, keeping desktop title tags between 50 to 60 characters (approximately 500 to 600 pixels) ensures the majority of the title remains visible before truncation. On mobile, Google allocates slightly more vertical space, often accommodating up to 70 characters across two lines."
+        },
+        {
+          question: "How long should a meta description be?",
+          answer: "Google generally displays approximately 155 to 160 characters (up to ~960 pixels across two lines) on desktop, and around 110 to 120 characters on mobile before clipping. Writing concise, descriptive summaries between 140 and 155 characters provides enough context without risking mid-sentence truncation."
+        },
+        {
+          question: "Can Google rewrite my title tag or meta description in search results?",
+          answer: "Yes. According to Google Search Central documentation, Google may generate alternate title links when the HTML title tag is overly short, repetitive, keyword-stuffed, or does not accurately reflect the query. Similarly, Google generates snippets directly from relevant webpage copy in over 60% of search queries if it believes on-page text better answers the user's search."
+        },
+        {
+          question: "What is the difference between desktop and mobile SERP previews?",
+          answer: "Desktop Google search results present titles on a single line within an approximate 600px container and meta descriptions clamped to two lines (~960px). Mobile results use a narrower 380px device viewport but allow titles to wrap across two lines and meta descriptions to extend to three lines, altering how titles and descriptions fit."
         }
+      ]}
+      relatedTools={[
+        { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Detect structured data types on your page that unlock rich snippets in Google search results.' },
+        { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Create valid JSON-LD schema markup to earn star ratings, FAQs, and event enhancements.' },
+        { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Compare initial server HTML against the fully executed client-side JavaScript DOM.' },
+        { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Simulate geo-targeted Google search and Maps results across specific cities.' }
       ]}
     >
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
