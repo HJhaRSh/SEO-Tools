@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 
 interface UserAgentOption {
@@ -234,33 +235,296 @@ export default function FetchRenderPage() {
     }
   };
 
+  const faqItems = [
+    {
+      question: 'What is a Fetch & Render tool?',
+      answer: 'A Fetch & Render tool is a technical SEO utility that retrieves a webpage via HTTP (the initial server response) and subsequently executes its JavaScript in a headless Chromium browser environment. By comparing the raw server HTML against the fully rendered DOM, SEO professionals can detect whether search crawlers encounter content delays, missing links, modified metadata, or execution errors.'
+    },
+    {
+      question: 'How do I test JavaScript rendering for SEO?',
+      answer: 'To test JavaScript rendering, enter your target webpage URL into the tool, select a crawler user-agent such as Googlebot Smartphone or Google Chrome Desktop, and run the test. Inspect the side-by-side SEO Signal Comparison table to identify discrepancies in titles, canonical tags, meta robots, internal links, and body word count, and check the Resources tab for uncaught JavaScript exceptions or blocked assets.'
+    },
+    {
+      question: 'What is the difference between original HTML and rendered HTML?',
+      answer: 'Original HTML is the raw source markup returned directly by your web server before any scripts run. Rendered HTML represents the Document Object Model (DOM) after the browser has executed client-side JavaScript, resolved API fetches, and mutated elements. Single Page Applications (SPAs) built with React, Vue, or Angular often have sparse original HTML shells with substantial content existing only in the rendered DOM.'
+    },
+    {
+      question: 'Can Googlebot render JavaScript content?',
+      answer: 'Yes. Googlebot uses an evergreen Chromium-based Web Rendering Service (WRS) to execute JavaScript and index dynamically rendered content. However, rendering operates in a secondary processing stage that may occur hours or days after initial crawling depending on rendering queue capacity and site resources. If scripts fail or are blocked, Googlebot may only index the initial server HTML.'
+    },
+    {
+      question: 'Why is important content missing from the initial HTML?',
+      answer: 'Client-side rendered applications serve a minimal HTML shell (such as an empty div container) and use JavaScript bundles to fetch data and render UI elements in the user browser. If server-side rendering (SSR), static site generation (SSG), or pre-rendering is not implemented, search engine crawlers that do not execute JavaScript immediately will fail to see the core page content during the initial crawl phase.'
+    },
+    {
+      question: 'Can JavaScript change canonical tags or meta robots directives?',
+      answer: 'While client-side scripts can dynamically insert or modify canonical links and meta robots tags in the DOM, search engines advise caution. If your initial server HTML contains a noindex directive, Googlebot may never queue the page for JavaScript rendering, meaning client-side script removals of noindex will be missed. It is best practice to serve authoritative canonical and robots directives in the initial server response.'
+    },
+    {
+      question: 'How do blocked JavaScript and CSS files affect SEO?',
+      answer: 'When robots.txt disallows crawler access to essential JavaScript or CSS files, headless Chromium cannot download or run the scripts required to construct your layout and content. This can cause search crawlers to perceive the page as incomplete, broken, or not mobile-friendly, leading to indexing failures and ranking declines.'
+    },
+    {
+      question: 'What is the difference between Fetch & Render and the Pre-rendering Tester?',
+      answer: 'Fetch & Render executes client-side JavaScript inside a headless Chromium browser to compare raw HTML against the rendered DOM, capture visual screenshots, and record JavaScript console exceptions. The Pre-rendering Tester dispatches concurrent HTTP requests across multiple user agents to verify whether your web server or CDN pre-rendering middleware (such as Prerender.io) delivers differing static HTML payloads before browser execution.'
+    }
+  ];
+
+  const relatedTools = [
+    {
+      name: 'Pre-rendering Tester',
+      href: '/tools/prerendering-tester',
+      desc: 'Compare raw server HTML across multiple bot user agents to detect pre-rendering middleware and dynamic rendering differences.'
+    },
+    {
+      name: 'Mobile-First Index Tool',
+      href: '/tools/mobile-first-index',
+      desc: 'Audit content and SEO signal parity between desktop and mobile versions of your pages to protect organic rankings.'
+    },
+    {
+      name: 'Mobile-Friendly Test',
+      href: '/tools/mobile-friendly-test',
+      desc: 'Evaluate mobile layout responsiveness, viewport configuration, and touch-target usability across handheld devices.'
+    },
+    {
+      name: 'robots.txt Tester',
+      href: '/tools/robots-txt-tester',
+      desc: 'Test crawler access rules and verify that critical JavaScript, CSS, and media assets are not blocked from search engine bots.'
+    },
+    {
+      name: 'AI Bot Access Tester',
+      href: '/tools/ai-bot-access-tester',
+      desc: 'Check crawler access permissions and robots.txt directives for AI search and training bots like GPTBot, ClaudeBot, and Perplexity.'
+    }
+  ];
+
+  const extraSections = (
+    <>
+      {/* WHAT DOES OUR FETCH & RENDER TOOL ANALYSE? */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What Does Our Fetch &amp; Render Tool Analyse?</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                Original HTML vs Rendered HTML
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Compares the raw server-delivered HTML byte payload directly against the post-execution DOM generated by headless Chromium. Identifies text, headings, and internal links that only materialize after client-side scripts run.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                SEO Metadata &amp; Canonical Tags
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Extracts and audits essential SEO tags across both states: page title, meta description, canonical link, meta robots directives, word count, and extracted links. Flags values marked as added, modified, or missing.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                JavaScript Errors &amp; Blocked Assets
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Captures uncaught browser console errors, syntax exceptions, and failed subresource requests. Simulates robots.txt rule enforcement to highlight scripts and stylesheets disallowed for your chosen user-agent.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                Rendered Page Screenshots
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Generates a visual viewport snapshot rendered by Chromium at simulated desktop or mobile dimensions. Helps detect collapsed containers, layout shifts, or hidden elements resulting from script failures.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* UNDERSTANDING GOOGLEBOT RENDERING */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding Googlebot Rendering Architecture</h2>
+        </div>
+        <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-5 sm:p-8 space-y-4 text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+          <p>
+            Google Search processes web content through a multi-stage indexing pipeline: <strong>Crawling</strong>, <strong>Rendering</strong>, and <strong>Indexing</strong>. When Googlebot encounters an HTML page, it immediately parses the server-delivered response. If the page contains JavaScript dependencies, the URL is placed into a rendering queue managed by Google&apos;s Chromium-based Web Rendering Service (WRS).
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-4">
+            <div className="p-4 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Stage 1: Crawl</div>
+              <p className="text-xs text-[var(--im-text)]">
+                Googlebot fetches the initial HTML markup, response headers, and status code. Server-rendered content is queued for indexing immediately.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Stage 2: Render Queue</div>
+              <p className="text-xs text-[var(--im-text)]">
+                JavaScript execution is deferred until rendering computing resources become available. This queue can introduce delays ranging from seconds to multiple days.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Stage 3: Index Rendered DOM</div>
+              <p className="text-xs text-[var(--im-text)]">
+                Chromium executes JavaScript, builds the final DOM, resolves dynamically injected links, and merges rendered signals into the search index.
+              </p>
+            </div>
+          </div>
+          <p>
+            <strong>Simulation vs. Verified Googlebot:</strong> It is crucial to understand that while this tool executes JavaScript in a modern Chromium browser matching Googlebot&apos;s rendering engine, it operates as an independent simulation. Genuine Googlebot requests originate from verified Google IP addresses with reverse-DNS resolution (such as <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">*.googlebot.com</code> or <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">*.1e100.net</code>). Google also applies strict render timeouts, resource caching policies, and bot-mitigation bypasses. For definitive verification of Google&apos;s indexed DOM, always cross-reference with Google Search Console URL Inspection.
+          </p>
+        </div>
+      </section>
+
+      {/* COMMON JAVASCRIPT SEO RENDERING ISSUES */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Common JavaScript SEO Rendering Pitfalls</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              The Initial Server noindex Directive Trap
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              If your backend sends <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">&lt;meta name=&quot;robots&quot; content=&quot;noindex&quot;&gt;</code> in the initial server HTML with the expectation that client-side JavaScript will remove it, Googlebot may drop the page immediately and skip the rendering queue entirely. Always ensure production HTML reflects the desired indexing state before client scripts execute.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              Blocked Subresources in robots.txt
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Disallowing crawler access to CSS, JavaScript bundles, or API endpoints in <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">robots.txt</code> prevents the Chromium engine from loading necessary scripts and layout styles. Use our <Link href="/tools/robots-txt-tester" className="font-bold underline text-[var(--im-secondary)] hover:opacity-80">Robots.txt Tester</Link> to verify that crawlers can freely access your rendering assets.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              Client-Side Internal Links Lacking href Attributes
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Search engine crawlers require standard HTML anchor tags with resolvable destinations (<code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">&lt;a href=&quot;/path&quot;&gt;</code>). Buttons, span elements with JavaScript <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">onClick</code> event listeners, or hash-based routing cannot be reliably traversed by search crawlers, resulting in undiscovered pages.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              Uncaught Script Exceptions Halting Hydration
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              A single uncaught JavaScript runtime error (such as referencing an undefined API property or browser API not supported in headless environments) can abort execution completely. When script execution fails, the browser displays a blank white screen or incomplete DOM, which search engines index as thin or empty content.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* PRACTICAL USE CASES & RELATED WORKFLOWS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Practical Technical SEO Diagnostic Workflows</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">Auditing Single Page Apps</h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Verify whether critical headings, body paragraphs, and structured metadata in React, Vue, Angular, or Next.js applications exist in the initial HTML or depend exclusively on client-side rendering.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">Pre-rendering Verification</h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              If your site utilizes dynamic rendering or pre-rendering middleware (such as Prerender.io), pair this test with our <Link href="/tools/prerendering-tester" className="font-bold underline text-[var(--im-secondary)] hover:opacity-80">Pre-rendering Tester</Link> to inspect server payloads across multiple bot identities.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">Mobile Parity Auditing</h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Switch between Google Chrome Desktop and Googlebot Smartphone profiles, or run our dedicated <Link href="/tools/mobile-first-index" className="font-bold underline text-[var(--im-secondary)] hover:opacity-80">Mobile-First Index Tool</Link> to confirm desktop and mobile content parity.
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
   return (
     <ToolLayout
-      title="Fetch & Render"
-      description="Inspect how your webpage is fetched by search engine crawlers, execute JavaScript in headless Chromium, and compare initial HTML against the rendered DOM."
+      title="Free Fetch & Render Tool for JavaScript SEO"
+      description="Use Indian Marketers' free Fetch & Render tool to check how webpages load and render in a crawler-style browser environment. Compare original HTML with JavaScript-rendered content, inspect SEO metadata, identify loading errors and review page screenshots."
       category="Rendering & Mobile SEO"
       breadcrumbs={[{ label: 'Fetch & Render' }]}
-      aboutText="Search engine crawlers like Googlebot don't just consume the static HTML returned by your web server; they execute modern JavaScript in a Chromium-based rendering environment. This tool simulates crawler-style fetching and rendering, extracting critical SEO signals to help you uncover JavaScript-dependent content, metadata modifications, blocked subresources, and canonical discrepancies."
+      aboutTitle="What Is a Fetch & Render Tool?"
+      aboutText={
+        <div className="space-y-4">
+          <p>
+            A <strong>Fetch &amp; Render tool</strong> retrieves a webpage&apos;s initial HTTP response and executes its client-side JavaScript inside an isolated headless Chromium browser. This dual-phase audit simulates how modern search engine crawlers encounter dynamic web applications, uncovering content, navigational links, or metadata that only appear after client-side script execution.
+          </p>
+          <p>
+            While modern search crawlers like Googlebot render JavaScript using Chromium-based rendering services, client-side rendering often introduces indexing delays, rendering budget limits, and dependency failures. This tool provides instant diagnostic visibility into the differences between your server-delivered markup and the post-execution DOM, helping technical SEOs pinpoint rendering bottlenecks before they impact organic search rankings.
+          </p>
+          <div className="p-3.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/70 text-xs text-slate-600 dark:text-slate-300">
+            <strong>Diagnostic simulation notice:</strong> This tool executes JavaScript in a standard Chromium instance with simulated user-agent headers and viewport dimensions. It operates as an independent technical diagnostic simulation rather than an official Googlebot inspection. To inspect Google&apos;s internal indexed rendering, consult Google Search Console&apos;s URL Inspection tool.
+          </div>
+        </div>
+      }
+      howItWorksTitle="How to Test Website Rendering"
       howItWorks={[
-        "Enter any absolute webpage URL and choose your target crawler or browser user-agent.",
-        "The server performs an initial secure HTTP fetch to capture the original server HTML and headers.",
-        "In Fetch & Render mode, an isolated Chromium browser context renders JavaScript, captures a real screenshot, and logs console errors.",
-        "The tool parses both DOM states, detects SEO signal discrepancies (Title, Canonical, Meta Robots, Links, Word count), and flags blocked subresources."
+        "Enter any fully qualified HTTP or HTTPS webpage URL into the input field.",
+        "Select your desired user-agent simulation profile, such as Googlebot Smartphone, Google Chrome Desktop, or Bingbot.",
+        "Choose between 'Fetch & Render' for complete Chromium JavaScript execution or 'Fetch Only' for raw server-delivered HTML inspection.",
+        "Configure optional advanced settings, including the 'Respect robots.txt' directive filter, post-load execution wait time (up to 5 seconds), and screenshot capture.",
+        "Click 'Fetch & Render Webpage' to execute the dual-phase crawler simulation in an isolated sandbox environment.",
+        "Compare original server-delivered HTML against the rendered DOM in the side-by-side 'SEO Signals' and 'Overview' diagnostic panels.",
+        "Inspect visual viewport screenshots, uncaught browser console exceptions, and blocked CSS or JavaScript subresources.",
+        "Download diagnostic artifacts, including the full JSON audit payload, SEO discrepancy CSV table, and full-resolution screenshot PNG."
       ]}
-      faq={[
-        {
-          question: "Is this simulation identical to real Googlebot rendering?",
-          answer: "No. This tool simulates Googlebot's user-agent string and viewport dimensions in a modern Chromium browser. However, genuine Googlebot crawls from Google's verified IP addresses and reverse-DNS infrastructure (1e100.net), and Google's rendering service may batch or cache resources differently."
-        },
-        {
-          question: "Why does my page have missing content in the Original HTML?",
-          answer: "Client-side rendered frameworks (such as React, Vue, or Angular Single Page Apps) only return a minimal HTML shell from the server. The actual content is injected asynchronously by JavaScript in the browser."
-        },
-        {
-          question: "How does the 'Respect robots.txt' setting work?",
-          answer: "When enabled, the tool checks whether the target URL and any subresources (scripts, stylesheets) are permitted under robots.txt rules for the chosen user-agent. If a resource is disallowed, Chromium aborts the network request and reports it in the blocked resources table."
-        }
-      ]}
+      extraSections={extraSections}
+      faqTitle="Frequently Asked Questions"
+      faq={faqItems}
+      relatedTools={relatedTools}
     >
       {/* MAIN INPUT CARD */}
       <div className="card mb-8">
