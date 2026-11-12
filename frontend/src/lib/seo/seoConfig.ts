@@ -171,16 +171,43 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'htaccess-tester': {
     slug: 'htaccess-tester',
     name: '.htaccess Tester',
-    metaTitle: 'Apache .htaccess Tester & Rewrite Debugger | Indian Marketers',
-    metaDescription: 'Test Apache .htaccess rewrite rules and 301 redirects before deploying. Simulate URL rewrites, conditions, and HTTP status codes in a safe sandbox environment.',
+    metaTitle: '.htaccess Tester – Free Rewrite Rule Checker | Indian Marketers',
+    metaDescription: 'Test .htaccess rewrite and redirect rules online for free. Simulate Apache RewriteRule, RewriteCond and 301 redirects with debugging before deployment.',
     canonical: `${TOOLS_BASE_URL}/htaccess-tester`,
     category: 'Crawling & Access',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'htaccess tester',
+      '.htaccess tester',
+      'htaccess rewrite tester',
+      'apache rewrite rule tester',
+      'htaccess rewrite rule tester',
+      'htaccess redirect checker',
+      'htaccess redirect tester',
+      'test htaccess rules',
+      'htaccess checker',
+      'htaccess validator',
+      'apache htaccess tester',
+      'online htaccess tester',
+      'free htaccess tester',
+      'mod_rewrite tester',
+      'apache rewrite tester',
+      'htaccess rule checker',
+      'htaccess 301 redirect test',
+      'test htaccess redirect',
+      'rewrite rule tester',
+      'htaccess syntax checker',
+      'htaccess rewrite checker'
+    ],
     features: [
       'Apache mod_rewrite and mod_alias execution simulation',
-      'Line-by-line debug trace showing matched conditions and rewrite flags',
-      'Pre-configured SEO templates for HTTPS redirects, www canonicalization, and clean URLs',
-      'Customizable server variables (HTTPS, HTTP_HOST, User-Agent)',
+      'Simulation of RewriteRule, RewriteCond, RewriteBase, Redirect, and RedirectMatch directives',
+      'Line-by-line debug trace displaying matched conditions, regex capture groups, and rewrite flags',
+      'Testing for HTTP 301 permanent and 302 temporary redirect status codes',
+      'Pre-configured SEO templates for HTTP to HTTPS, www canonicalization, trailing slash, and clean URLs',
+      'Customizable server variables including HTTPS, HTTP_HOST, User-Agent, Referer, and directory context',
+      'Detection of infinite redirect loops and conflicting rule precedence',
+      'Diagnostic result export in CSV and JSON formats',
       '100% safe client-server sandbox environment without modifying production files'
     ],
     faqs: [
@@ -195,6 +222,42 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
       {
         question: 'Is this an actual live HTTP redirect?',
         answer: 'No. This tool provides simulated redirect and rewrite outcomes based on Apache configuration rules. To test live HTTP redirects from an existing server, use our HTTP Status / AI Bot Access tools.'
+      },
+      {
+        question: 'What is a .htaccess tester?',
+        answer: 'A .htaccess tester is a diagnostic technical SEO and web development tool that simulates how Apache HTTP Server parses and executes per-directory rewrite and redirect directives on a specific URL. It allows webmasters to verify URL transformations, capture group substitutions, and HTTP status codes before committing changes to production.'
+      },
+      {
+        question: 'How do I test .htaccess rewrite rules online?',
+        answer: 'Enter your test URL, paste your .htaccess configuration (or select one of the pre-configured SEO templates), optionally adjust advanced server variables such as HTTPS or HTTP_HOST, and click "Test Rules". The tester outputs the final simulated URL, transformation type (external redirect vs internal rewrite), HTTP status code, and a line-by-line debug trace.'
+      },
+      {
+        question: 'Can I test 301 redirects before making them live?',
+        answer: 'Yes. The tool simulates external 301 (Moved Permanently) and 302 (Found) redirects triggered by mod_rewrite rules with the [R=301] flag or mod_alias directives like Redirect and RedirectMatch. You can verify both the final destination URL and the exact status code returned.'
+      },
+      {
+        question: 'What is the difference between RewriteRule and Redirect directives?',
+        answer: "Redirect and RedirectMatch belong to Apache's mod_alias module and handle straightforward path-based or regex URL redirections, always issuing an external HTTP status code. RewriteRule belongs to mod_rewrite and supports advanced regular expressions, conditional matching via RewriteCond, query string manipulation, and internal silent URL rewriting without changing the browser address bar."
+      },
+      {
+        question: 'Can I test RewriteCond server variable conditions?',
+        answer: 'Yes. The simulator evaluates RewriteCond directives against Apache server variables including %{HTTPS}, %{HTTP_HOST}, %{REQUEST_URI}, %{QUERY_STRING}, %{HTTP_USER_AGENT}, and %{HTTP_REFERER}. You can customize these variables in the Advanced Server Variables panel to test device-specific or protocol-specific rules.'
+      },
+      {
+        question: 'How do I identify redirect loops in .htaccess?',
+        answer: 'Redirect loops occur when a target URL repeatedly matches a rewrite rule that redirects back to itself or another rule in an endless loop. The tool tracks execution iterations and flags potential recursion or circular redirect chains in the debug trace, helping you insert appropriate exit conditions before deploying to production.'
+      },
+      {
+        question: 'Why might a rule work in the tester but fail on a live Apache server?',
+        answer: 'Simulations evaluate rule logic under standard Apache configurations. On a live server, a rule might fail if mod_rewrite is disabled, if AllowOverride FileInfo is set to None (causing Apache to ignore .htaccess directives), if conflicting server-level VirtualHost rules override it, or if file-system permission checks (like -f or -d) behave differently on disk.'
+      },
+      {
+        question: 'Can I use this tool to check .htaccess syntax?',
+        answer: 'The tester validates syntax for supported mod_rewrite and mod_alias directives (including RewriteRule, RewriteCond, RewriteBase, Redirect, and RedirectMatch) and reports unrecognized or invalid directives in the line-by-line debug log. It is not an exhaustive validator for every Apache core or third-party module directive.'
+      },
+      {
+        question: 'Does the tool support 302 temporary redirects?',
+        answer: 'Yes. When using [R=302] or the default [R] flag in RewriteRule, or using "Redirect 302" in mod_alias, the simulator correctly reports the transformation as an external 302 temporary redirect.'
       }
     ]
   },
