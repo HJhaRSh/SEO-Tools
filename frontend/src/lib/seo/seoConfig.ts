@@ -103,30 +103,67 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'ai-bot-access-tester': {
     slug: 'ai-bot-access-tester',
     name: 'AI Bot Access Tester',
-    metaTitle: 'AI Bot Access Checker - Test AI Crawlers | Indian Marketers',
-    metaDescription: 'Check if AI crawlers like GPTBot, ClaudeBot, and Perplexity can access your site. Test robots.txt rules, HTTP status codes, and WAF shields across bulk URLs.',
+    metaTitle: 'AI Bot Access Tester & Crawler Checker | Indian Marketers',
+    metaDescription: "Test AI crawler access with Indian Marketers' free AI Bot Access Tester. Check robots.txt permissions, HTTP responses and bot blocking for GPTBot, ClaudeBot and more.",
     canonical: `${TOOLS_BASE_URL}/ai-bot-access-tester`,
     category: 'Crawling & Access',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'ai bot access tester',
+      'ai crawler checker',
+      'ai bot checker',
+      'ai crawler access checker',
+      'ai bot robots.txt checker',
+      'gptbot checker',
+      'chatgpt crawler checker',
+      'claude bot checker',
+      'perplexity bot checker',
+      'ai crawler tester',
+      'check ai bot access'
+    ],
     features: [
-      'Multi-layer crawler access diagnostic (robots.txt, HTTP response, WAF shield)',
-      'Support for 17 AI crawler identities (GPTBot, ClaudeBot, PerplexityBot, Applebot, Meta, etc.)',
-      'Bulk URL audit up to 100 pages per scan',
-      'Detection of Cloudflare Turnstile, CAPTCHA challenges, and 403 Forbidden blockers',
-      'Downloadable CSV access audit reports'
+      'Multi-layer crawler access diagnostic (RFC 9309 robots.txt, simulated HTTP response, and WAF shield analysis)',
+      'Support for 35 AI bot entries: 32 active HTTP crawler identities and 3 robots.txt policy tokens (including GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Applebot, and Google-Extended)',
+      'Bulk URL audit up to 100 pages per scan with origin-level robots.txt caching',
+      'Detection of Cloudflare Turnstile, CAPTCHA challenges, and 403 Forbidden bot blockers',
+      'Downloadable CSV access audit reports and comparison matrix'
     ],
     faqs: [
       {
-        question: 'What is the difference between robots.txt access and HTTP access?',
-        answer: 'Robots.txt represents policy permission: it tells well-behaved crawlers whether they are allowed to request a URL. HTTP access tests actual server response: even if robots.txt allows a bot, a web server firewall (WAF), Cloudflare, or CDN rule might block the bot user-agent with HTTP 403 or a CAPTCHA challenge.'
+        question: 'What is an AI Bot Access Tester?',
+        answer: 'An AI Bot Access Tester is a technical SEO diagnostic tool that checks whether artificial intelligence web crawlers, AI search indexers, and user-directed AI fetchers can access and crawl specific URLs on your website. It evaluates crawler policy under RFC 9309 robots.txt rules, tests simulated HTTP response codes, and detects CDN or Web Application Firewall (WAF) bot challenges.'
       },
       {
-        question: 'What are policy-only tokens like Google-Extended and Applebot-Extended?',
-        answer: 'Google-Extended and Applebot-Extended are control tokens recognized exclusively in robots.txt to opt out of generative AI model training. They do not send standalone HTTP requests from separate crawler identities. For these tokens, HTTP testing is reported as Not Applicable.'
+        question: 'How do I check if GPTBot can crawl my website?',
+        answer: 'To check if GPTBot can crawl your website, enter your URL into the tester and select OpenAI GPTBot. The tool fetches your live robots.txt file to determine if your User-agent: GPTBot or wildcard (*) directives return an Allowed or Disallowed status under RFC 9309, then verifies whether your web server responds with HTTP 200 OK or blocks the request.'
       },
       {
-        question: "Does an 'Allowed' result guarantee my site appears in ChatGPT or Claude answers?",
-        answer: "No. Permitting crawler access allows AI companies to download and index your page, but search citations and model training inclusions depend on the provider's proprietary ranking, freshness algorithms, and licensing policies."
+        question: 'How can I check whether ChatGPT search crawlers are allowed?',
+        answer: 'To check whether ChatGPT search can access your pages, select OAI-SearchBot in the tester. OpenAI uses OAI-SearchBot specifically to index content and display web citations in ChatGPT search results. You can inspect whether your robots.txt allows OAI-SearchBot and confirm that your server does not return 403 Forbidden or WAF challenge pages.'
+      },
+      {
+        question: 'What is the difference between GPTBot and OAI-SearchBot?',
+        answer: 'GPTBot is OpenAI’s automated crawler used to collect content for training foundational AI models. OAI-SearchBot is a separate crawler dedicated to discovering, indexing, and citing web pages directly within ChatGPT search. Disallowing GPTBot does not automatically block your site from appearing in ChatGPT search results, and allowing OAI-SearchBot does not grant model-training rights.'
+      },
+      {
+        question: 'Can robots.txt block AI crawlers?',
+        answer: 'Yes, compliant AI crawlers from reputable providers (including OpenAI, Anthropic, Google, Perplexity, and Apple) follow RFC 9309 robots.txt specifications. Adding a Disallow directive under the specific crawler user-agent group instructs the bot not to crawl those URLs. However, robots.txt is a cooperative policy standard, not a server-level firewall.'
+      },
+      {
+        question: 'Why does an AI bot show as allowed in robots.txt but blocked by HTTP?',
+        answer: 'Robots.txt represents crawler policy, not network access. If robots.txt allows an AI bot, the crawler is permitted to request the URL. However, your web hosting, CDN security rules, or Web Application Firewall (WAF)—such as Cloudflare Bot Management or AWS WAF—may block automated requests with HTTP 403 Forbidden or serve interactive CAPTCHA/Turnstile verification challenges.'
+      },
+      {
+        question: 'What is the difference between Google-Extended and Googlebot?',
+        answer: 'Googlebot is Google’s primary search crawler responsible for indexing pages for Google Search. Google-Extended is a robots.txt policy token (not a standalone HTTP crawler) used exclusively to opt out of Google’s generative AI model training (such as Gemini and Vertex AI) without impacting your site’s visibility in regular Google Search results.'
+      },
+      {
+        question: 'Does allowing AI crawlers improve AI search visibility?',
+        answer: 'Permitting crawler access is a prerequisite for discovery, but it does not guarantee inclusion or ranking in AI search answers or LLM summaries. AI search engines like ChatGPT Search and Perplexity evaluate content relevance, authoritative source signals, factual accuracy, and technical page quality to determine which sources to cite in response to user queries.'
+      },
+      {
+        question: 'Can I test multiple website URLs at once?',
+        answer: 'Yes. The AI Bot Access Tester supports bulk testing for up to 100 URLs per scan across single or multiple website origins. The tool groups requests by origin to cache robots.txt lookups efficiently, evaluates RFC 9309 matching rules with line numbers, and displays the results in an interactive comparison matrix with one-click CSV export.'
       }
     ]
   },

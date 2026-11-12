@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import { AI_BOT_REGISTRY, AiBotDefinition } from '@/lib/seo/aiBotRegistry';
 import { AiBotAccessBatchResponse, SingleUrlBotResult } from '@/lib/seo/aiBotTesterService';
@@ -204,35 +205,278 @@ export default function AiBotAccessTester() {
     document.body.removeChild(link);
   };
 
+  const aboutText = (
+    <div className="space-y-4">
+      <p>
+        An <strong>AI Bot Access Tester</strong> (also known as an <em>AI crawler checker</em> or <em>AI bot checker</em>) is a specialized technical SEO diagnostic tool that verifies whether artificial intelligence web crawlers, AI search indexers, and user-directed AI retrieval agents can successfully access your web pages. As search expands into Answer Engine Optimisation (AEO) and Generative Engine Optimisation (GEO), understanding how AI bots encounter your website is essential for managing content discovery, model training inclusion, and AI search visibility.
+      </p>
+      <p>
+        Crucially, robots.txt directives represent <strong>crawler policy</strong> under RFC 9309 standards—they communicate whether well-behaved crawlers are permitted or forbidden to access specific URL paths. However, robots.txt is not a physical network firewall. Even when a URL is explicitly marked as allowed in robots.txt, automated crawler requests can still be blocked at the network level by web server permissions, CDN security rules, or Web Application Firewalls (WAFs).
+      </p>
+      <p>
+        The Indian Marketers AI Bot Access Tester resolves this gap by providing an end-to-end <strong>three-layer diagnostic stack</strong>: it evaluates RFC 9309 robots.txt permissions, simulates HTTP crawler requests with documented user-agent headers, and detects bot-blocking security challenges. You can test up to 100 bulk URLs against <strong>35 selectable AI bot entries</strong>, distinguishing 32 active HTTP crawler identities from 3 robots.txt policy tokens (such as Google-Extended and Applebot-Extended). For inspecting traditional search engine crawling rules, explore our <Link href="/tools/robots-txt-tester" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Robots.txt Tester</Link>.
+      </p>
+    </div>
+  );
+
+  const howItWorksSteps = [
+    "Enter up to 100 URLs (one per line) across one or multiple website origins.",
+    "Select AI crawlers to test: choose individual bots, filter by search query, use quick-select shortcuts for 'Training Bots' or 'AI Search', or test all 35 supported bots.",
+    "Click 'Check AI Bot Access' to dispatch server-side diagnostic tests with origin-cached robots.txt lookups and controlled network concurrency.",
+    "Inspect Layer 1 robots.txt directives to verify whether bots are Allowed or Disallowed under RFC 9309 specificity rules.",
+    "Review Layer 2 HTTP status codes (200 OK, 301/302 redirects, or 403 Forbidden) and Layer 3 WAF challenge detections (Cloudflare Turnstile, CAPTCHAs, or CDN bot blocks).",
+    "Inspect results in the multi-bot comparison matrix, click any table cell for exact matching rule lines and HTTP headers, or export your audit as a CSV report."
+  ];
+
+  const extraSections = (
+    <>
+      {/* WHAT DOES OUR AI CRAWLER CHECKER TEST? */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What Does Our AI Crawler Checker Test?</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Layer 1 — Robots.txt Permissions
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Evaluates crawler directives against your live <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">robots.txt</code> under RFC 9309 rules. Matches crawler-specific user-agent tokens (e.g. <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">GPTBot</code>, <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">ClaudeBot</code>) and applies wildcard specificity tie-breaking to report the exact matching Allow or Disallow line.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Layer 2 — Simulated HTTP Access
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Sends simulated HTTP requests with the crawler&apos;s documented user-agent string to inspect server response codes (<code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">200 OK</code>, <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">301/302 Redirect</code>, or <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">403 Forbidden</code>). Note that simulated requests evaluate server behavior but do not claim the verified IP reputation of official crawler networks.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Layer 3 — WAF &amp; Challenge Detection
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Analyses HTML bodies and HTTP headers to detect perimeter bot protections, including Cloudflare Turnstile, interstitial security challenges, AWS WAF blockers, and CAPTCHA screens. This identifies when automated access is blocked by security infrastructure despite being permitted in robots.txt.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* UNDERSTANDING DIFFERENT AI CRAWLERS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding Different AI Crawlers</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              OpenAI: GPTBot vs. OAI-SearchBot vs. ChatGPT-User
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              OpenAI operates distinct crawler identities with different purposes: <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">GPTBot</code> crawls content used to train foundation models; <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">OAI-SearchBot</code> indexes content specifically for ChatGPT search discovery and web citations; and <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">ChatGPT-User</code> executes real-time user-initiated browsing requests. <strong>Disallowing GPTBot does not block your site from ChatGPT search</strong>, and allowing OAI-SearchBot does not guarantee search citations.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Anthropic: ClaudeBot &amp; Perplexity: PerplexityBot
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Anthropic uses <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">ClaudeBot</code> to train models and index web content, alongside <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Claude-SearchBot</code> for search features and <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Claude-User</code> for user-directed actions. Similarly, Perplexity relies on <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">PerplexityBot</code> for search indexing and answers, while <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Perplexity-User</code> handles interactive user queries.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Robots.txt Policy-Only Tokens (Google-Extended)
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Tokens such as <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Google-Extended</code>, <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Applebot-Extended</code>, and <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Webzio-Extended</code> are <strong>robots.txt policy controls</strong>, not standalone HTTP crawlers. Google-Extended lets publishers opt out of Gemini and Vertex AI training data uses without affecting visibility in regular Google Search. Because these tokens do not make independent network requests, our tool reports HTTP testing for them as Not Applicable.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+              Open Training Sets &amp; General AI Agents
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Open foundation models frequently source data from large web archives like <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">CCBot</code> (Common Crawl) and specialized crawlers like <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Bytespider</code> (ByteDance), <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Diffbot</code>, and <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">cohere-ai</code>. Granular user-agent testing allows you to permit AI search indexers while restricting bulk model-training extraction.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* UNDERSTANDING TEST RESULTS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding AI Bot Access Test Results</h2>
+        </div>
+        <div className="space-y-3">
+          <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1">
+              Robots.txt Allowed vs. Disallowed
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+              An <strong>Allowed</strong> status indicates that no matching Disallow rule applies to the tested URL path under RFC 9309 rules. A <strong>Blocked (Disallowed)</strong> status confirms that your robots.txt explicitly prohibits the selected bot from crawling the URL, displaying the exact directive and line number.
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1">
+              HTTP 200 OK vs. HTTP 403 Forbidden
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+              <strong>HTTP 200 OK</strong> indicates that the web server served page content normally to the simulated bot user-agent. <strong>HTTP 403 Forbidden</strong> indicates that the web server or hosting platform actively rejected the request based on security rules, IP reputation, or user-agent filtering.
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1">
+              Possible WAF Challenge Detected
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+              A <strong>Possible Challenge</strong> verdict means the server returned an interstitial verification screen (such as Cloudflare Turnstile, Managed Challenge, or CAPTCHA). Automated crawlers cannot complete interactive browser challenges, meaning their access is effectively obstructed even if robots.txt allows the path.
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1">
+              Policy-Only Token (Not Applicable for HTTP)
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+              For robots.txt policy tokens (such as Google-Extended and Applebot-Extended), HTTP testing is reported as <strong>Not Applicable</strong>. These tokens govern AI data usage policies without sending distinct crawler requests across the web.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* WHY AI CRAWLERS MAY BE BLOCKED */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Why AI Crawlers May Be Blocked &amp; How to Fix It</h2>
+        </div>
+        <div className="space-y-3">
+          <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5">
+              1. Blanket Disallow Rules in Robots.txt
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+              A general <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Disallow: /</code> directive under a wildcard group (<code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">User-agent: *</code>) instructs all AI bots to avoid your site unless overridden by explicit bot-specific Allow directives. If you wish to allow AI search indexers while blocking training bots, add explicit groups such as <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">User-agent: OAI-SearchBot</code> with <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">Allow: /</code>.
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5">
+              2. CDN Bot Management &amp; WAF Security Rules
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+              Platforms like Cloudflare, Cloudfront, and Fastly offer automated &quot;AI Scraper and Crawler&quot; blocking toggles. While designed to protect server bandwidth, these rules can inadvertently block AI search crawlers (like OAI-SearchBot and PerplexityBot), preventing your site from being cited in AI search results. Configure granular WAF exceptions for verified search crawlers while keeping training bots restricted.
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] rounded-xl border border-[var(--im-border)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--im-heading)] mb-1.5">
+              3. Rate Limiting and Subresource Rendering Restrictions
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text-muted)] leading-relaxed">
+              Aggressive server rate limiting can trigger HTTP 429 or 503 errors during bulk crawls. Additionally, if your robots.txt or firewall blocks access to critical JavaScript and CSS files, crawlers may fail to render the DOM accurately. Use our <Link href="/tools/fetch-render" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Fetch &amp; Render</Link> tool to inspect how search engines render client-side code, and monitor your index status with the <Link href="/tools/bulk-google-index-checker" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Bulk Google Index Checker</Link>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
+  const faqItems = [
+    {
+      question: "What is an AI Bot Access Tester?",
+      answer: "An AI Bot Access Tester is a technical SEO diagnostic tool that checks whether artificial intelligence web crawlers, AI search indexers, and user-directed AI fetchers can access and crawl specific URLs on your website. It evaluates crawler policy under RFC 9309 robots.txt rules, tests simulated HTTP response codes, and detects CDN or Web Application Firewall (WAF) bot challenges."
+    },
+    {
+      question: "How do I check if GPTBot can crawl my website?",
+      answer: "To check if GPTBot can crawl your website, enter your URL into the tester and select OpenAI GPTBot. The tool fetches your live robots.txt file to determine if your User-agent: GPTBot or wildcard (*) directives return an Allowed or Disallowed status under RFC 9309, then verifies whether your web server responds with HTTP 200 OK or blocks the request."
+    },
+    {
+      question: "How can I check whether ChatGPT search crawlers are allowed?",
+      answer: "To check whether ChatGPT search can access your pages, select OAI-SearchBot in the tester. OpenAI uses OAI-SearchBot specifically to index content and display web citations in ChatGPT search results. You can inspect whether your robots.txt allows OAI-SearchBot and confirm that your server does not return 403 Forbidden or WAF challenge pages."
+    },
+    {
+      question: "What is the difference between GPTBot and OAI-SearchBot?",
+      answer: "GPTBot is OpenAI’s automated crawler used to collect content for training foundational AI models. OAI-SearchBot is a separate crawler dedicated to discovering, indexing, and citing web pages directly within ChatGPT search. Disallowing GPTBot does not automatically block your site from appearing in ChatGPT search results, and allowing OAI-SearchBot does not grant model-training rights."
+    },
+    {
+      question: "Can robots.txt block AI crawlers?",
+      answer: "Yes, compliant AI crawlers from reputable providers (including OpenAI, Anthropic, Google, Perplexity, and Apple) follow RFC 9309 robots.txt specifications. Adding a Disallow directive under the specific crawler user-agent group instructs the bot not to crawl those URLs. However, robots.txt is a cooperative policy standard, not a server-level firewall."
+    },
+    {
+      question: "Why does an AI bot show as allowed in robots.txt but blocked by HTTP?",
+      answer: "Robots.txt represents crawler policy, not network access. If robots.txt allows an AI bot, the crawler is permitted to request the URL. However, your web hosting, CDN security rules, or Web Application Firewall (WAF)—such as Cloudflare Bot Management or AWS WAF—may block automated requests with HTTP 403 Forbidden or serve interactive CAPTCHA/Turnstile verification challenges."
+    },
+    {
+      question: "What is the difference between Google-Extended and Googlebot?",
+      answer: "Googlebot is Google’s primary search crawler responsible for indexing pages for Google Search. Google-Extended is a robots.txt policy token (not a standalone HTTP crawler) used exclusively to opt out of Google’s generative AI model training (such as Gemini and Vertex AI) without impacting your site’s visibility in regular Google Search results."
+    },
+    {
+      question: "Does allowing AI crawlers improve AI search visibility?",
+      answer: "Permitting crawler access is a prerequisite for discovery, but it does not guarantee inclusion or ranking in AI search answers or LLM summaries. AI search engines like ChatGPT Search and Perplexity evaluate content relevance, authoritative source signals, factual accuracy, and technical page quality to determine which sources to cite in response to user queries."
+    },
+    {
+      question: "Can I test multiple website URLs at once?",
+      answer: "Yes. The AI Bot Access Tester supports bulk testing for up to 100 URLs per scan across single or multiple website origins. The tool groups requests by origin to cache robots.txt lookups efficiently, evaluates RFC 9309 matching rules with line numbers, and displays the results in an interactive comparison matrix with one-click CSV export."
+    }
+  ];
+
+  const relatedTools = [
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect RFC 9309 rules, specificity tie-breaking, and live robots.txt directives.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Simulate bot rendering and inspect HTTP response headers across user agents.' },
+    { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: 'Review Google Search Console index status for URLs permitted or blocked for crawlers.' }
+  ];
+
   return (
     <ToolLayout
-      title="AI Bot Access Tester"
-      description="Evaluate whether AI crawlers (GPTBot, ClaudeBot, Perplexity, Meta, Apple) can crawl your URLs, test simulated HTTP responses, and detect content challenges."
+      title="Free AI Bot Access Tester & Crawler Checker"
+      description="Check whether AI crawlers can access your website with Indian Marketers' free AI Bot Access Tester. Analyse robots.txt permissions, HTTP responses and potential bot-blocking challenges for GPTBot, ClaudeBot, PerplexityBot and other supported AI crawlers."
       category="Crawling & Access"
       breadcrumbs={[{ label: 'AI Bot Access Tester' }]}
       fullWidth={true}
-      aboutText="The AI Bot Access Tester provides a comprehensive three-layer diagnostic to determine whether artificial intelligence crawlers can discover and extract your web content. By evaluating RFC 9309 robots.txt permissions, simulating HTTP requests with verified bot user-agent identities, and analyzing HTML responses for WAF bot shields (Cloudflare Turnstile, CAPTCHAs, or 403 Forbidden pages), this tool separates policy disallows from server-level blocks. It supports testing up to 100 bulk URLs against 17 major AI crawler identities with matrix comparisons and exportable reports."
-      howItWorks={[
-        "Enter up to 100 URLs (one per line) across one or multiple website origins.",
-        "Select which AI crawlers to test (e.g. OpenAI GPTBot, Anthropic ClaudeBot, PerplexityBot, Meta, or Google-Extended).",
-        "Click 'Check AI Bot Access' to dispatch server-side tests with controlled concurrency and origin-cached robots.txt.",
-        "Inspect the 3-Layer Access results: Layer 1 (Robots.txt Rule), Layer 2 (HTTP Status Code), Layer 3 (Content & WAF Challenge Detection).",
-        "Click on any cell in the comparison matrix for exact rule line numbers and download your complete report in CSV format."
-      ]}
-      faq={[
-        {
-          question: "What is the difference between robots.txt access and HTTP access?",
-          answer: "Robots.txt represents policy permission: it tells well-behaved crawlers whether they are allowed to request a URL. HTTP access tests actual server response: even if robots.txt allows a bot, a web server firewall (WAF), Cloudflare, or CDN rule might block the bot's user-agent with HTTP 403 or a CAPTCHA challenge."
-        },
-        {
-          question: "What are policy-only tokens like Google-Extended and Applebot-Extended?",
-          answer: "Google-Extended and Applebot-Extended are control tokens recognized exclusively in robots.txt to opt out of generative AI model training. They do not send standalone HTTP requests from separate crawler identities. For these tokens, HTTP testing is reported as Not Applicable."
-        },
-        {
-          question: "Does an 'Allowed' result guarantee my site appears in ChatGPT or Claude answers?",
-          answer: "No. Permitting crawler access allows AI companies to download and index your page, but search citations and model training inclusions depend on the provider's proprietary ranking, freshness algorithms, and licensing policies."
-        }
-      ]}
+      aboutTitle="What Is an AI Bot Access Tester?"
+      aboutText={aboutText}
+      howItWorksTitle="How to Check AI Crawler Access"
+      howItWorks={howItWorksSteps}
+      extraSections={extraSections}
+      faqTitle="Frequently Asked Questions"
+      faq={faqItems}
+      relatedTools={relatedTools}
     >
       <div className="space-y-8 w-full">
 
