@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import type { PageFocusReport, SectionAnalysis } from '@/lib/seo/page-focus/types';
 import { generatePageFocusPdf } from '@/components/page-focus/pdfExporter';
@@ -151,48 +152,312 @@ export default function PageFocusAnalyzerPage() {
 
   return (
     <ToolLayout
-      title="AI Page Focus & Semantic Relevance Analyzer"
-      description="Analyse webpage topics, measure semantic relevance, compare competitors and discover AI-powered content improvements."
+      title="Free AI Page Focus & Semantic SEO Analyzer"
+      description="Use Indian Marketers' free AI Page Focus Analyzer to evaluate how closely your webpage aligns with its target topic. Analyse semantic relevance, search intent, topical coverage and content gaps, then review AI-powered recommendations to improve content clarity and completeness."
       category="Content & Semantic SEO"
       breadcrumbs={[{ label: 'Page Focus Analyzer' }]}
-      aboutText="Search engines have evolved beyond naive keyword density. Modern algorithms evaluate topical authority, semantic depth, contextual entity relevance, and search intent satisfaction across entire documents. The AI Page Focus & Semantic Relevance Analyzer extracts visible webpage content, segments it into natural passage hierarchies, computes true 3072-dimensional vector embeddings, and leverages advanced generative AI to determine what your page actually communicates, how strongly it answers a target query, and exactly what content improvements will make it more complete and authoritative."
+      aboutTitle="What Is a Page Focus Analyzer?"
+      aboutText={
+        <div className="space-y-3">
+          <p>
+            A <strong>page focus analyzer</strong> is a diagnostic technical and semantic SEO tool that evaluates how well a webpage covers a given subject. Rather than simply calculating keyword frequencies, a semantic analyzer assesses how closely your page content aligns with user search intent, identifies key sub-topics and related entities, measures topical depth, and uncovers coverage gaps across your content structure.
+          </p>
+          <p>
+            Modern search engines evaluate documents using sophisticated natural language understanding to assess topical authority and helpfulness. The AI Page Focus Analyzer extracts visible editorial copy, eliminates non-content boilerplate (such as site navigation and advertisements), segments passages into semantic hierarchies, and evaluates relevance against a target topic. This analysis provides actionable diagnostic insights to support writers and editors in crafting comprehensive, people-first content without guessing.
+          </p>
+          <p className="text-xs text-[var(--im-text-muted)] italic">
+            Note: This tool is an independent editorial diagnostic benchmark engineered by Indian Marketers. It does not determine Google&apos;s internal ranking algorithms, predict rankings, or serve as an official Google quality score.
+          </p>
+        </div>
+      }
+      howItWorksTitle="How to Analyse Webpage Topical Relevance"
       howItWorks={[
-        'Enter any webpage URL (or paste content directly) along with your target search topic or keyword.',
-        'The extraction engine fetches the page securely with SSRF protection and strips boilerplate headers, navigation, ads, and footers.',
-        'The page is split into semantic passages, and real high-dimensional vector embeddings are computed via gemini-embedding-2 to measure semantic proximity.',
-        'Our AI reasoning engine (Gemini 3 Flash) evaluates search intent alignment, entity coverage, unanswered user needs, and content gaps.',
-        'An auditable 6-component Indian Marketers Topic Relevance Index (0–100) is generated alongside actionable, evidence-backed content recommendations.',
+        'Enter any live webpage URL (or paste content directly using the manual text option) and optionally enter your target topic or keyword.',
+        'The secure extraction engine fetches page content with SSRF protection, removes boilerplate headers, footers, and ads, and organizes the text into natural semantic sections.',
+        'High-dimensional vector embeddings are generated using gemini-embedding-2 to measure mathematical cosine proximity between your text passages and the target subject.',
+        'Our generative AI reasoning engine assesses search intent satisfaction (informational, commercial, transactional, or navigational), entity coverage, and topical completeness.',
+        'Review the transparent 0–100 Topic Relevance Index, inspect the passage focus heatmap, and apply prioritized AI recommendations to address editorial gaps.',
       ]}
+      extraSections={
+        <>
+          {/* SECTION: WHAT DOES OUR SEMANTIC SEO ANALYZER EVALUATE? */}
+          <section>
+            <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What Does Our Semantic SEO Analyzer Evaluate?</h2>
+            </div>
+            <p className="text-sm sm:text-base text-[var(--im-text)] leading-relaxed mb-4">
+              Evaluating content relevance requires looking beyond individual keywords to assess how thoroughly and coherently a page answers user queries. Our analyzer audits four key dimensions of content quality:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl p-4 sm:p-5">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                  <span className="text-[var(--im-primary-deep)]">🎯</span> Search Intent Alignment
+                </h3>
+                <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                  Search intent reflects what the user actually wants to accomplish: learning a concept (informational), researching options (commercial), completing a purchase (transactional), or locating a specific resource (navigational). The analyzer evaluates whether your page matches the primary search intent or diverges into mismatched formats.
+                </p>
+              </div>
+
+              <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl p-4 sm:p-5">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                  <span className="text-[var(--im-primary-deep)]">🧠</span> Semantic Relevance
+                </h3>
+                <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                  Semantic relevance considers the conceptual relationships between terms, context, and entities across the entire document. Rather than requiring repetitive keyword mentions, semantic analysis evaluates whether your vocabulary naturally reflects the topic&apos;s conceptual neighborhood.
+                </p>
+              </div>
+
+              <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl p-4 sm:p-5">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                  <span className="text-[var(--im-primary-deep)]">📚</span> Topical Coverage and Related Entities
+                </h3>
+                <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                  A comprehensive guide addresses essential sub-concepts, background explanations, and relevant named entities that round out the subject. The analyzer identifies covered, briefly mentioned, and missing concepts to help you fill substantive content gaps.
+                </p>
+              </div>
+
+              <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl p-4 sm:p-5">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                  <span className="text-[var(--im-primary-deep)]">🏗️</span> Heading Structure and Content Coherence
+                </h3>
+                <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                  Headings (H1 through H6) establish the logical hierarchy of your content for both readers and crawlers. The analyzer reviews whether your headings accurately represent the core topic and assesses section-by-section focus to prevent off-topic drift.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION: UNDERSTANDING THE TOPIC RELEVANCE INDEX */}
+          <section>
+            <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding the Topic Relevance Index</h2>
+            </div>
+            <p className="text-sm sm:text-base text-[var(--im-text)] leading-relaxed mb-4">
+              The <strong>Topic Relevance Index</strong> is an auditable 0–100 score engineered by Indian Marketers to summarize overall content alignment. It is calculated from six transparent components:
+            </p>
+            <div className="space-y-3">
+              <div className="p-4 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl flex items-start gap-3">
+                <span className="px-2.5 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-md shrink-0">35%</span>
+                <div>
+                  <h4 className="text-sm font-bold text-[var(--im-heading)]">Semantic Vector Similarity</h4>
+                  <p className="text-xs text-[var(--im-text)] mt-0.5 leading-relaxed">
+                    Evaluates mathematical cosine similarity between 3072-dimensional vector embeddings of your document sections and the target topic, measuring true semantic proximity.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl flex items-start gap-3">
+                <span className="px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-md shrink-0">20%</span>
+                <div>
+                  <h4 className="text-sm font-bold text-[var(--im-heading)]">Search Intent Alignment</h4>
+                  <p className="text-xs text-[var(--im-text)] mt-0.5 leading-relaxed">
+                    Measures how effectively the webpage format and messaging fulfill the searcher&apos;s underlying intent (informational, commercial, transactional, or navigational).
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl flex items-start gap-3">
+                <span className="px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-md shrink-0">20%</span>
+                <div>
+                  <h4 className="text-sm font-bold text-[var(--im-heading)]">Topical Coverage</h4>
+                  <p className="text-xs text-[var(--im-text)] mt-0.5 leading-relaxed">
+                    Audits the presence and depth of expected core concepts, supporting entities, and critical sub-topics necessary for thorough subject coverage.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl flex items-start gap-3">
+                <span className="px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-md shrink-0">10%</span>
+                <div>
+                  <h4 className="text-sm font-bold text-[var(--im-heading)]">Heading &amp; Structural Alignment</h4>
+                  <p className="text-xs text-[var(--im-text)] mt-0.5 leading-relaxed">
+                    Evaluates how clearly H1, H2, and H3 headings outline the topic hierarchy and guide search engines and readers through the article.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl flex items-start gap-3">
+                <span className="px-2.5 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-md shrink-0">10%</span>
+                <div>
+                  <h4 className="text-sm font-bold text-[var(--im-heading)]">Supporting Context Depth</h4>
+                  <p className="text-xs text-[var(--im-text)] mt-0.5 leading-relaxed">
+                    Assesses whether statements are reinforced with definitions, explanations, examples, and relevant contextual detail.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl flex items-start gap-3">
+                <span className="px-2.5 py-1 bg-rose-100 text-rose-800 text-xs font-bold rounded-md shrink-0">5%</span>
+                <div>
+                  <h4 className="text-sm font-bold text-[var(--im-heading)]">Topical Coherence</h4>
+                  <p className="text-xs text-[var(--im-text)] mt-0.5 leading-relaxed">
+                    Measures thematic consistency across consecutive sections, ensuring the article remains focused without wandering into unrelated subjects.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-[var(--im-text-muted)] mt-3 leading-relaxed">
+              <strong>Editorial Notice:</strong> The Topic Relevance Index is proprietary to Indian Marketers. It is not an official Google Search ranking factor, Search Console metric, or a guarantee of rankings or AI Overviews citations.
+            </p>
+          </section>
+
+          {/* SECTION: HOW TO IDENTIFY CONTENT GAPS AGAINST COMPETITORS */}
+          <section>
+            <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">How to Identify Content Gaps Against Competitors</h2>
+            </div>
+            <p className="text-sm sm:text-base text-[var(--im-text)] leading-relaxed mb-3">
+              Competitive content analysis helps you discover what related sub-topics top-ranking pages address that your content may have overlooked. When you provide a competitor URL alongside your target topic, the tool runs a symmetrical comparison:
+            </p>
+            <ul className="space-y-2 text-xs sm:text-sm text-[var(--im-text)] mb-4 list-disc pl-5 leading-relaxed">
+              <li><strong>Content Gaps:</strong> Highlights sub-topics explained on the competing page that your content omits, uncovering valuable expansion opportunities.</li>
+              <li><strong>Content Advantages:</strong> Identifies unique angles and sections where your page provides superior depth or original value compared to the competitor.</li>
+              <li><strong>Section-by-Section Matchup:</strong> Maps individual passages across both pages to evaluate direct overlap and topical differentiation.</li>
+            </ul>
+            <p className="text-xs text-[var(--im-text-muted)] bg-[var(--im-bg-soft)] border border-[var(--im-border)] p-3.5 rounded-xl leading-relaxed">
+              <strong>Best Practice:</strong> Competitor coverage does not automatically mean every page must include identical sub-topics. Add content only when it directly serves your audience and aligns with user search intent. Never copy competitor copy.
+            </p>
+          </section>
+
+          {/* SECTION: USING AI RECOMMENDATIONS TO IMPROVE CONTENT */}
+          <section>
+            <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Using AI Recommendations to Improve Content</h2>
+            </div>
+            <p className="text-sm sm:text-base text-[var(--im-text)] leading-relaxed mb-3">
+              Each analysis generates prioritized, actionable recommendations citing specific extracted document sections. Suggestions identify weak supporting explanations, missing questions, and opportunities to strengthen user satisfaction.
+            </p>
+            <p className="text-sm sm:text-base text-[var(--im-text)] leading-relaxed mb-4">
+              To maximize the impact of your optimizations, combine this analyzer with other technical SEO tools in our suite:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Link
+                href="/tools/fetch-render"
+                className="p-3.5 rounded-xl border border-[var(--im-border)] bg-[var(--im-bg-soft)] hover:border-[var(--im-primary-deep)] hover:bg-white transition-all group block"
+              >
+                <h4 className="text-xs font-bold text-[var(--im-heading)] group-hover:text-[var(--im-primary-deep)] transition-colors mb-1">
+                  Fetch &amp; Render &rarr;
+                </h4>
+                <p className="text-[11px] text-[var(--im-text-muted)] leading-relaxed">
+                  Verify whether search engine bots can render your client-side JavaScript content before analyzing topical focus.
+                </p>
+              </Link>
+
+              <Link
+                href="/tools/knowledge-graph-search"
+                className="p-3.5 rounded-xl border border-[var(--im-border)] bg-[var(--im-bg-soft)] hover:border-[var(--im-primary-deep)] hover:bg-white transition-all group block"
+              >
+                <h4 className="text-xs font-bold text-[var(--im-heading)] group-hover:text-[var(--im-primary-deep)] transition-colors mb-1">
+                  Knowledge Graph Search &rarr;
+                </h4>
+                <p className="text-[11px] text-[var(--im-text-muted)] leading-relaxed">
+                  Search Google Knowledge Graph entities and machine IDs (MIDs) to enrich entity coverage and structured data.
+                </p>
+              </Link>
+
+              <Link
+                href="/tools/serp-simulator"
+                className="p-3.5 rounded-xl border border-[var(--im-border)] bg-[var(--im-bg-soft)] hover:border-[var(--im-primary-deep)] hover:bg-white transition-all group block"
+              >
+                <h4 className="text-xs font-bold text-[var(--im-heading)] group-hover:text-[var(--im-primary-deep)] transition-colors mb-1">
+                  SERP Simulator &rarr;
+                </h4>
+                <p className="text-[11px] text-[var(--im-text-muted)] leading-relaxed">
+                  Preview how your updated title tag, meta description, and rich snippet enhancements display in desktop and mobile SERPs.
+                </p>
+              </Link>
+            </div>
+          </section>
+        </>
+      }
+      faqTitle="Frequently Asked Questions"
       faq={[
         {
-          question: 'What is the Indian Marketers Topic Relevance Index?',
+          question: 'What is a Page Focus Analyzer?',
           answer:
-            'It is a transparent, auditable 0–100 score measuring how effectively a webpage covers a given subject. It combines 6 weighted components: Semantic Vector Similarity (35%), Search Intent Alignment (20%), Topical Coverage (20%), Heading & Structural Alignment (10%), Supporting Context Depth (10%), and Topical Coherence (5%). It is an analytical quality metric, not a Google ranking guarantee.',
+            'A Page Focus Analyzer is a diagnostic semantic SEO tool that evaluates how thoroughly and accurately a webpage covers its subject. It analyzes the main topic, contextual entities, structural hierarchy, and search intent satisfaction across the document to determine whether the content thoroughly answers the topic without extraneous topical drift.',
         },
         {
-          question: 'How is this different from keyword density checkers?',
+          question: "How can I check my webpage's topical relevance?",
           answer:
-            'Keyword density only counts exact word matches, which leads to artificial keyword stuffing. Our tool uses 3072-dimensional neural embeddings and generative AI to understand meaning, synonyms, related entities, topical breadth, and user search intent regardless of exact phrasing.',
+            "To check topical relevance, enter your live webpage URL (or paste content into the manual text editor), optionally specify your target topic or keyword, and run 'Analyze Webpage Focus'. The tool extracts the main text, computes 3072-dimensional vector embeddings, evaluates search intent alignment, and produces an auditable Topic Relevance Index report.",
         },
         {
-          question: 'What are the usage and rate limits for this analyzer?',
+          question: 'What is semantic SEO analysis?',
           answer:
-            'To ensure fast, reliable performance and fair access for all users, each IP address is allocated 5 analyses per minute and up to 50 analyses per day. Cached reports (valid for 1 hour) do not consume additional quota.',
+            'Semantic SEO analysis evaluates the meaning, contextual relationships, and topical breadth of content rather than merely counting keyword occurrences. It examines whether a page addresses the core concept along with related entities, sub-topics, synonyms, and supporting context that search engines and human readers expect from a comprehensive resource.',
         },
         {
-          question: 'Can I analyze competitors targeting the same keyword?',
+          question: 'How is a semantic SEO analyzer different from a keyword-density checker?',
           answer:
-            'Yes. By providing a competitor URL in Competitor mode, both pages are analyzed symmetrically under identical scoring parameters. The system highlights topics the competitor covers that you miss (content gaps), areas you cover better (advantages), and section-by-section semantic alignment.',
+            'Keyword-density checkers merely count exact word repetitions, which frequently leads to unnatural keyword stuffing. In contrast, a semantic SEO analyzer uses high-dimensional vector embeddings and natural language reasoning to evaluate conceptual depth, thematic relevance, and user intent fulfillment regardless of exact phrasing.',
         },
         {
-          question: 'Why does JavaScript-heavy content show low extraction quality?',
+          question: 'What does the Topic Relevance Index mean?',
           answer:
-            'If a webpage renders entirely on the client side via React or Vue without server-side rendering (SSR), search crawlers see a minimal HTML shell. When this occurs, our tool detects the SPA framework, flags the issue, and allows you to paste the rendered text manually or use Fetch & Render.',
+            'The Topic Relevance Index is a proprietary 0–100 quality benchmark engineered by Indian Marketers. It combines six auditable components: Semantic Vector Similarity (35%), Search Intent Alignment (20%), Topical Coverage (20%), Heading & Structural Alignment (10%), Supporting Context Depth (10%), and Topical Coherence (5%). It serves as an analytical editorial guide rather than an official Google ranking score.',
         },
         {
-          question: 'How are the AI content recommendations generated?',
+          question: 'Can I analyse competitor content gaps?',
           answer:
-            'Recommendations are synthesized dynamically by Gemini using your actual extracted document sections, the target topic, and identified intent gaps. Each suggestion cites concrete section IDs as evidence, provides clear SEO rationale, and advises on placement without fabricating external facts.',
+            'Yes. By providing a competitor webpage URL alongside your own URL and a target topic, the analyzer runs a symmetrical side-by-side comparison. It identifies content gaps (sub-topics the competitor covers that your page omits), content advantages (topics you cover better), and section-by-section topical alignment.',
+        },
+        {
+          question: 'Does a high relevance score guarantee top Google rankings?',
+          answer:
+            "No. Google's ranking algorithms evaluate hundreds of signals, including domain trust, backlink quality, crawlability, core web vitals, and overall user helpfulness. While high topical relevance and search intent fulfillment are critical for content quality, no third-party diagnostic tool can guarantee Google rankings or indexing.",
+        },
+        {
+          question: 'Can I analyse content without providing a live URL?',
+          answer:
+            'Yes. You can switch to manual text input mode and paste article drafts, paragraphs, or staged copy directly into the analyzer. This allows content creators and SEO editors to audit topical coverage, semantic depth, and heading structure before publishing.',
+        },
+        {
+          question: 'How does the tool generate AI content recommendations?',
+          answer:
+            'Recommendations are synthesized dynamically by analyzing the extracted document sections against identified intent gaps and missing topical concepts. Each suggestion cites concrete section IDs as evidence, provides clear SEO rationale, suggests optimal content placement, and explains the expected reader benefit without fabricating facts.',
+        },
+        {
+          question: 'What are the current usage limits and quotas for this tool?',
+          answer:
+            'To ensure fast, reliable performance and fair access for all users, each IP address is allocated 5 analyses per minute and up to 15 analyses per day. A shared daily AI reasoning budget of 20 analyses per day applies across the free tier. Cached reports (valid for 1 hour) do not consume additional daily quota.',
+        },
+      ]}
+      relatedTools={[
+        {
+          name: 'Fetch & Render',
+          href: '/tools/fetch-render',
+          desc: 'Inspect how search crawlers render JavaScript content and compare with source HTML.',
+        },
+        {
+          name: 'SERP Simulator',
+          href: '/tools/serp-simulator',
+          desc: 'Preview your title tags and meta descriptions in Google search results.',
+        },
+        {
+          name: 'Knowledge Graph Search',
+          href: '/tools/knowledge-graph-search',
+          desc: "Search Google's Knowledge Graph to identify relevant named entities for semantic SEO.",
         },
       ]}
     >

@@ -149,6 +149,16 @@ const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; de
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview your title tags and meta descriptions in Google search results.' },
     { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: "Search Google's Knowledge Graph to identify relevant named entities for semantic SEO." }
   ],
+  'ai page focus analyzer': [
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how search crawlers render JavaScript content and compare with source HTML.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview your title tags and meta descriptions in Google search results.' },
+    { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: "Search Google's Knowledge Graph to identify relevant named entities for semantic SEO." }
+  ],
+  'free ai page focus & semantic seo analyzer': [
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how search crawlers render JavaScript content and compare with source HTML.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview your title tags and meta descriptions in Google search results.' },
+    { name: 'Knowledge Graph Search', href: '/tools/knowledge-graph-search', desc: "Search Google's Knowledge Graph to identify relevant named entities for semantic SEO." }
+  ],
   'page focus analyzer': [
     { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'Inspect how search crawlers render JavaScript content and compare with source HTML.' },
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview your title tags and meta descriptions in Google search results.' },
@@ -349,7 +359,7 @@ export default function ToolLayout({
               <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-0.5">Explore complementary technical SEO utilities and workflows.</p>
             </div>
             <Link href="/tools" className="text-xs sm:text-sm font-bold text-[var(--im-primary-deep)] hover:underline hidden sm:inline-block">
-              View all 17 tools &rarr;
+              View all 19 tools &rarr;
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

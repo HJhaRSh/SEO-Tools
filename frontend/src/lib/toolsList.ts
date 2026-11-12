@@ -65,7 +65,7 @@ export const NAVIGATION_TOOLS: ToolCategory[] = [
     description: 'AI-powered tools to analyse webpage focus, measure semantic relevance, and discover content opportunities.',
     tools: [
       {
-        name: 'AI Page Focus Analyzer',
+        name: 'AI Page Focus & Semantic Relevance Analyzer',
         description: 'Analyse webpage topics, semantic relevance, search intent and content gaps with AI-powered recommendations.',
         href: '/tools/page-focus-analyzer',
         isNew: true

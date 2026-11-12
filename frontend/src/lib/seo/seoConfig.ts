@@ -1149,29 +1149,40 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'page-focus-analyzer': {
     slug: 'page-focus-analyzer',
     name: 'AI Page Focus & Semantic Relevance Analyzer',
-    metaTitle: 'AI Page Focus & Semantic Relevance Analyzer | Indian Marketers',
-    metaDescription: 'Analyze webpage topics, measure semantic relevance, evaluate search intent, and benchmark competitor content using 3072-dimensional vector embeddings and AI recommendations.',
+    metaTitle: 'Page Focus Analyzer – AI Semantic SEO Tool | Indian Marketers',
+    metaDescription: 'Analyse webpage topic relevance with our free AI Page Focus Analyzer. Check semantic SEO, search intent, topical coverage and competitor content gaps.',
     canonical: `${TOOLS_BASE_URL}/page-focus-analyzer`,
     category: 'Content & Semantic SEO',
     softwareCategory: 'DeveloperApplication',
     keywords: [
       'page focus analyzer',
-      'semantic seo tool',
-      'topic relevance checker',
-      'search intent analysis',
-      'competitor content comparison',
-      'gemini embedding seo',
+      'semantic seo analyzer',
+      'topical relevance checker',
+      'seo content analyzer',
+      'content relevance checker',
+      'topical coverage checker',
+      'semantic content analyzer',
+      'ai seo content analyzer',
+      'page topic analyzer',
       'content gap analyzer',
-      'topical depth analysis',
-      'passage ranking analyzer',
-      'on page semantic seo',
-      'ai content audit tool'
+      'keyword relevance checker',
+      'search intent analyzer',
+      'semantic relevance checker',
+      'topical authority checker',
+      'webpage topic analyzer',
+      'content optimization analyzer',
+      'ai content analysis tool',
+      'page relevance checker',
+      'competitor content gap analysis',
+      'topical seo analysis',
+      'seo semantic analysis',
+      'content topic coverage checker'
     ],
     features: [
       'Automatic organic primary and secondary topic detection with centrality scoring',
       'Auditable 6-component Indian Marketers Topic Relevance Index (0–100)',
       '3072-dimensional semantic vector embedding analysis via gemini-embedding-2',
-      'Contextual search intent evaluation (informational, commercial, transactional, local)',
+      'Contextual search intent evaluation (informational, commercial, transactional, navigational)',
       'Passage-level semantic alignment heatmap with section-by-section scoring',
       'Symmetrical competitor comparison with topic gap and advantage analysis',
       'Dynamic generative AI content improvement engine citing verified document evidence',
@@ -1179,28 +1190,44 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     ],
     faqs: [
       {
-        question: 'What is the Indian Marketers Topic Relevance Index?',
-        answer: 'It is a transparent, auditable 0–100 score measuring how effectively a webpage covers a given subject. It evaluates 6 distinct components: Semantic Vector Similarity (35%), Search Intent Alignment (20%), Topical Coverage (20%), Heading & Structural Alignment (10%), Supporting Context Depth (10%), and Topical Coherence (5%).'
+        question: 'What is a Page Focus Analyzer?',
+        answer: 'A Page Focus Analyzer is a diagnostic semantic SEO tool that evaluates how thoroughly and accurately a webpage covers its subject. It analyzes the main topic, contextual entities, structural hierarchy, and search intent satisfaction across the document to determine whether the content thoroughly answers the topic without extraneous topical drift.'
       },
       {
-        question: 'How is this different from keyword density checkers?',
-        answer: 'Traditional tools merely count exact keyword matches, leading to artificial keyword stuffing. This analyzer uses 3072-dimensional neural embeddings and generative AI to understand meaning, synonyms, related entities, topical breadth, and user search intent regardless of exact phrasing.'
+        question: "How can I check my webpage's topical relevance?",
+        answer: "To check topical relevance, enter your live webpage URL (or paste content into the manual text editor), optionally specify your target topic or keyword, and run 'Analyze Webpage Focus'. The tool extracts the main text, computes 3072-dimensional vector embeddings, evaluates search intent alignment, and produces an auditable Topic Relevance Index report."
       },
       {
-        question: 'What are the usage and rate limits for this analyzer?',
-        answer: 'To ensure fast, reliable performance and fair access for all users, each IP address is allocated 5 analyses per minute and up to 50 analyses per day. Cached reports (valid for 1 hour) do not consume additional quota.'
+        question: 'What is semantic SEO analysis?',
+        answer: 'Semantic SEO analysis evaluates the meaning, contextual relationships, and topical breadth of content rather than merely counting keyword occurrences. It examines whether a page addresses the core concept along with related entities, sub-topics, synonyms, and supporting context that search engines and human readers expect from a comprehensive resource.'
       },
       {
-        question: 'Can I analyze competitors targeting the same keyword?',
-        answer: 'Yes. Mode 3 provides a side-by-side comparison under identical evaluation rules, identifying content gaps (topics the competitor addresses that you miss), content advantages, and section-by-section alignment.'
+        question: 'How is a semantic SEO analyzer different from a keyword-density checker?',
+        answer: 'Keyword-density checkers merely count exact word repetitions, which frequently leads to unnatural keyword stuffing. In contrast, a semantic SEO analyzer uses high-dimensional vector embeddings and natural language reasoning to evaluate conceptual depth, thematic relevance, and user intent fulfillment regardless of exact phrasing.'
       },
       {
-        question: 'Why does JavaScript-heavy content show low extraction quality?',
-        answer: 'If a webpage renders entirely on the client side via React or Vue without server-side rendering (SSR), search crawlers see a minimal HTML shell. When this occurs, our tool detects the SPA framework, flags the issue, and allows you to paste the rendered text manually or use Fetch & Render.'
+        question: 'What does the Topic Relevance Index mean?',
+        answer: 'The Topic Relevance Index is a proprietary 0–100 quality benchmark engineered by Indian Marketers. It combines six auditable components: Semantic Vector Similarity (35%), Search Intent Alignment (20%), Topical Coverage (20%), Heading & Structural Alignment (10%), Supporting Context Depth (10%), and Topical Coherence (5%). It serves as an analytical editorial guide rather than an official Google ranking score.'
       },
       {
-        question: 'How are the AI content recommendations generated?',
-        answer: 'Recommendations are synthesized dynamically by Gemini using your actual extracted document sections, the target topic, and identified intent gaps. Each suggestion cites concrete section IDs as evidence, provides clear SEO rationale, and advises on placement without fabricating external facts.'
+        question: 'Can I analyse competitor content gaps?',
+        answer: 'Yes. By providing a competitor webpage URL alongside your own URL and a target topic, the analyzer runs a symmetrical side-by-side comparison. It identifies content gaps (sub-topics the competitor covers that your page omits), content advantages (topics you cover better), and section-by-section topical alignment.'
+      },
+      {
+        question: 'Does a high relevance score guarantee top Google rankings?',
+        answer: "No. Google's ranking algorithms evaluate hundreds of signals, including domain trust, backlink quality, crawlability, core web vitals, and overall user helpfulness. While high topical relevance and search intent fulfillment are critical for content quality, no third-party diagnostic tool can guarantee Google rankings or indexing."
+      },
+      {
+        question: 'Can I analyse content without providing a live URL?',
+        answer: 'Yes. You can switch to manual text input mode and paste article drafts, paragraphs, or staged copy directly into the analyzer. This allows content creators and SEO editors to audit topical coverage, semantic depth, and heading structure before publishing.'
+      },
+      {
+        question: 'How does the tool generate AI content recommendations?',
+        answer: 'Recommendations are synthesized dynamically by analyzing the extracted document sections against identified intent gaps and missing topical concepts. Each suggestion cites concrete section IDs as evidence, provides clear SEO rationale, suggests optimal content placement, and explains the expected reader benefit without fabricating facts.'
+      },
+      {
+        question: 'What are the current usage limits and quotas for this tool?',
+        answer: 'To ensure fast, reliable performance and fair access for all users, each IP address is allocated 5 analyses per minute and up to 15 analyses per day. A shared daily AI reasoning budget of 20 analyses per day applies across the free tier. Cached reports (valid for 1 hour) do not consume additional daily quota.'
       }
     ]
   },

@@ -77,7 +77,7 @@ const TOOLS_DATA = [
     ),
     tools: [
       {
-        name: 'AI Page Focus Analyzer',
+        name: 'AI Page Focus & Semantic Relevance Analyzer',
         description: 'Analyse webpage topics, measure semantic relevance with 3072-dimensional embeddings, compare competitors, and discover AI-powered content improvements.',
         href: '/tools/page-focus-analyzer'
       }
@@ -116,7 +116,7 @@ export default function ToolsClient() {
           Free Technical <span className="text-[var(--im-primary)]">SEO Tools</span> Directory
         </h1>
         <p className="text-xs sm:text-sm md:text-base text-[var(--im-text-muted)] max-w-2xl mx-auto mb-4 sm:mb-5 leading-relaxed font-normal">
-          A comprehensive suite of 18 free technical SEO tools engineered for marketers, agencies, and developers. Audit crawl directives, inspect JavaScript rendering, validate Schema.org structured data, and verify Google indexing without subscriptions.
+          A comprehensive suite of 19 free technical SEO tools engineered for marketers, agencies, and developers. Audit crawl directives, inspect JavaScript rendering, validate Schema.org structured data, and verify Google indexing without subscriptions.
         </p>
 
         {/* Search Bar */}
