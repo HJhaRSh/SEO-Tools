@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import {
   USER_AGENTS,
@@ -203,36 +204,285 @@ export default function PrerenderingTester() {
     return acc;
   }, {} as Record<string, UserAgentDefinition[]>);
 
+  const faqItems = [
+    {
+      question: 'What is a pre-rendering tester?',
+      answer:
+        'A pre-rendering tester is a diagnostic technical SEO tool that sends simulated HTTP requests across different user agents—including desktop browsers, Googlebot, Bingbot, and AI crawlers—to compare server responses, status codes, response headers, raw HTML markup, and critical SEO tags side-by-side.',
+    },
+    {
+      question: 'What is the difference between pre-rendering and dynamic rendering?',
+      answer:
+        'Pre-rendering generates static HTML on the server before client-side scripts run. Dynamic rendering is a specific implementation where the web server or CDN intercepts incoming requests and returns pre-rendered static HTML to search engine bots, while serving standard client-rendered JavaScript to human browsers.',
+    },
+    {
+      question: 'How can I check if my website uses dynamic rendering?',
+      answer:
+        'Enter your page URL in this tool and test Googlebot alongside a standard browser like Google Chrome Desktop. If Googlebot receives full HTML markup and word counts while Chrome receives a minimal JavaScript app shell, or if the Vary: User-Agent header is returned, your website likely employs dynamic rendering middleware.',
+    },
+    {
+      question: 'Why does Googlebot receive different HTML from a browser?',
+      answer:
+        'Differences occur when websites use dynamic rendering middleware (such as Prerender.io), server-side rendering for bots, device-specific responsive themes, CDN caching rules, or bot-protection firewalls that deliver challenge screens or simplified payloads to automated clients.',
+    },
+    {
+      question: 'Does different HTML automatically mean cloaking or SEO manipulation?',
+      answer:
+        'No. Serving pre-rendered HTML to search crawlers is not deceptive cloaking if the core content, headings, and canonical signals remain substantially equivalent to what human visitors see. Google evaluates whether differences are intended to manipulate rankings or serve legitimate architectural needs.',
+    },
+    {
+      question: 'Does selecting Googlebot guarantee real Googlebot IP verification?',
+      answer:
+        'No. This tool sends requests with official Googlebot User-Agent strings, but requests originate from server infrastructure rather than verified Googlebot IP addresses (1e100.net). Systems enforcing reverse-DNS IP verification may treat these simulated requests differently.',
+    },
+    {
+      question: 'What is the difference between Pre-rendering Tester and Fetch & Render?',
+      answer:
+        'Pre-rendering Tester inspects multi-user-agent HTTP server responses without executing client-side scripts to verify server-delivered markup. Fetch & Render launches an isolated Chromium browser instance to execute JavaScript, capture rendered DOM snapshots, and log console runtime errors.',
+    },
+  ];
+
+  const relatedTools = [
+    {
+      name: 'Fetch & Render',
+      href: '/tools/fetch-render',
+      desc: 'Execute client-side JavaScript in headless Chromium to compare initial HTML with rendered DOM and inspect screenshots.',
+    },
+    {
+      name: 'Mobile-First Index Tool',
+      href: '/tools/mobile-first-index',
+      desc: 'Audit technical SEO parity between desktop and mobile versions of your page for Googlebot indexing.',
+    },
+    {
+      name: 'Robots.txt Tester',
+      href: '/tools/robots-txt-tester',
+      desc: 'Verify whether Googlebot, Bingbot, and AI crawlers are permitted to access your URLs under RFC 9309 rules.',
+    },
+  ];
+
+  const extraSections = (
+    <>
+      {/* WHAT DOES OUR PRE-RENDERING CHECKER ANALYSE? */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What Does Our Pre-rendering Checker Analyse?</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                HTTP Responses Across User Agents
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Sends concurrent HTTP requests using up to 10 user-agent headers—including desktop browsers, Googlebot Smartphone, Googlebot Desktop, Bingbot, Applebot, and AI search crawlers. Evaluates whether each client receives an identical HTTP 200 OK or divergent status codes.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                SEO Metadata and HTML Content Differences
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Extracts and benchmarks essential on-page SEO signals across all tested agents: page title, meta description, H1-H6 headings, canonical URL tags, meta robots directives, visible word counts, links, and image references to highlight content variations.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                Redirects and Response Headers
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Inspects HTTP redirect hops, destination locations, and response headers—including the <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">Vary: User-Agent</code> header. Detects whether search crawlers are routed through distinct redirect chains compared to human visitors.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                HTML Fingerprints and Discrepancies
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Calculates cryptographic MD5 and SHA-256 byte-level hashes of the returned HTML bodies. Differentiates between identical HTML responses, harmless markup variations (such as session nonces or timestamps), and substantive SEO signal discrepancies.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* UNDERSTANDING PRE-RENDERING TEST RESULTS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding Pre-rendering Test Results</h2>
+        </div>
+        <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-5 sm:p-8 space-y-4 text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+          <p>
+            Interpreting multi-user-agent test findings requires distinguishing between standard architectural variations and genuine technical SEO discrepancies:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-3">
+            <div className="p-4 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Status Code Mismatches</div>
+              <p className="text-xs text-[var(--im-text)]">
+                If desktop browsers receive HTTP 200 while Googlebot receives HTTP 403 or 503, an origin firewall or bot mitigation rule may be blocking search crawlers. Conversely, if bots encounter unexpected 301/302 redirects not seen by browsers, crawl efficiency may be compromised.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Canonical Tag & Robots Directives</div>
+              <p className="text-xs text-[var(--im-text)]">
+                A discrepancy where Googlebot receives a <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">noindex</code> directive or differing canonical URL compared to human browsers can cause de-indexing or consolidation errors in Google Search Console.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Content & Heading Variations</div>
+              <p className="text-xs text-[var(--im-text)]">
+                If Googlebot receives comprehensive article text and headings while browsers receive an empty <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">&lt;div id=&quot;root&quot;&gt;&lt;/div&gt;</code> container, your site is using pre-rendering or dynamic rendering. Ensure the pre-rendered text accurately reflects the client-rendered user experience.
+              </p>
+            </div>
+            <div className="p-4 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">MD5 / SHA-256 Byte Hashes</div>
+              <p className="text-xs text-[var(--im-text)]">
+                A byte hash mismatch proves that the raw server response buffers differed by at least one byte. This frequently happens due to dynamic CSRF tokens, caching headers, or whitespace formatting, and does not automatically signal cloaking or ranking manipulation.
+              </p>
+            </div>
+          </div>
+          <p className="text-xs opacity-90">
+            <strong>Diagnostic scope:</strong> Findings reflect simulated HTTP requests dispatched from our testing servers. For definitive confirmation of Google&apos;s indexed content and render pipeline, verify your URLs with Google Search Console&apos;s URL Inspection tool.
+          </p>
+        </div>
+      </section>
+
+      {/* PRE-RENDERING VS DYNAMIC RENDERING VS SERVER-SIDE RENDERING */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Pre-rendering vs Dynamic Rendering vs Server-Side Rendering</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Static Pre-rendering (SSG)</div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">Build-Time Generation</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                HTML pages are generated ahead of time during the application build phase. Both search crawlers and human visitors receive identical, static HTML files that hydrate client-side scripts seamlessly without bot detection middleware.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Dynamic Rendering</div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">User-Agent Interception</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                A web server or CDN proxy inspects incoming user agents. When a search bot (like Googlebot) is detected, the server executes headless rendering or returns cached static HTML, while serving client-side JavaScript to human users. Google documents dynamic rendering as a temporary workaround rather than a long-term architecture.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="text-xs font-bold text-[var(--im-secondary)] uppercase tracking-wider mb-1">Server-Side Rendering (SSR)</div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">On-Demand Server Execution</h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                The server renders HTML for every incoming request regardless of whether the requester is a human or a crawler. Google officially recommends server-side rendering, static rendering, or hydration architectures over bot-specific dynamic rendering.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* COMPLEMENTARY RENDERING & CRAWLING WORKFLOWS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Complementary Technical SEO Diagnostic Workflows</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">JavaScript DOM Rendering</h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed mb-3">
+              Use <Link href="/tools/fetch-render" className="font-bold underline text-[var(--im-secondary)] hover:opacity-80">Fetch &amp; Render</Link> to compare initial HTML with JavaScript-rendered content and investigate rendering-related SEO issues in an isolated Chromium browser.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">Mobile-First Parity Check</h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed mb-3">
+              Audit desktop versus mobile Googlebot parity with our dedicated <Link href="/tools/mobile-first-index" className="font-bold underline text-[var(--im-secondary)] hover:opacity-80">Mobile-First Index Tool</Link> to prevent ranking drops caused by missing mobile content.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2">Robots Directives &amp; Access</h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed mb-3">
+              Verify whether search bots and AI crawlers can crawl your rendering middleware or static files with our RFC 9309-compliant <Link href="/tools/robots-txt-tester" className="font-bold underline text-[var(--im-secondary)] hover:opacity-80">Robots.txt Tester</Link>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
   return (
     <ToolLayout
-      title="Pre-rendering Tester"
-      description="Test HTTP responses and compare SEO signals across multiple user agents to detect pre-rendering, dynamic rendering, and bot-specific HTML variations."
+      title="Free Pre-rendering Tester"
+      description="Use Indian Marketers' free Pre-rendering Tester to compare the HTML and SEO content delivered to browsers, Googlebot and other crawlers. Check HTTP responses, redirects, canonical tags, headings and content differences to investigate possible dynamic rendering or bot-specific HTML delivery."
       category="Rendering & Mobile SEO"
       breadcrumbs={[{ label: 'Pre-rendering Tester' }]}
-      aboutText="Search engine crawlers and social media bots may receive different HTML payloads than standard web browsers due to pre-rendering middleware (such as Prerender.io or Rendertron), dynamic rendering, or bot mitigation. This tool performs genuine HTTP requests using distinct User-Agent headers, extracts critical SEO signals (Title, Meta Description, Headings, Word count, Canonical, Robots, and MD5 fingerprints), and highlights observable discrepancies."
+      aboutTitle="What Is a Pre-rendering Tester?"
+      aboutText={
+        <div className="space-y-4">
+          <p>
+            A <strong>pre-rendering tester</strong> is a technical SEO diagnostic tool designed to verify whether web servers, content delivery networks (CDNs), or edge proxies return differing HTTP responses and HTML markup to distinct web crawlers and client browsers. By dispatching concurrent requests with custom user-agent headers, this tool enables SEOs and developers to inspect bot-specific HTML delivery without needing specialized command-line tools.
+          </p>
+          <p>
+            Websites built with JavaScript frameworks (such as React, Vue, or Angular) often rely on pre-rendering middleware (like Prerender.io or Rendertron) or dynamic rendering architectures to deliver pre-compiled static markup to search crawlers while serving standard Single Page Applications (SPAs) to human visitors. This tester compares HTTP status codes, redirect chains, Vary headers, cryptographic MD5/SHA-256 byte fingerprints, and essential SEO tags side-by-side to highlight observable discrepancies.
+          </p>
+          <div className="p-3.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/70 text-xs text-slate-600 dark:text-slate-300">
+            <strong>Diagnostic simulation notice:</strong> This tool sends requests containing standard crawler User-Agent header strings. It does not originate from verified search engine IP addresses (such as Google’s <code className="font-mono text-xs bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded">*.googlebot.com</code>). Websites enforcing strict reverse-DNS verification or Cloudflare Bot Management may handle these diagnostic probes differently from authentic search crawlers.
+          </div>
+        </div>
+      }
+      howItWorksTitle="How to Test Pre-rendering and Dynamic Rendering"
       howItWorks={[
-        'Enter any webpage URL and choose multiple user agents (Browsers, Search Crawlers, AI Bots, Social Crawlers).',
-        'The server dispatches separate, genuine HTTP requests for each selected user agent with SSRF protection and connection-level security.',
-        'It captures HTTP status, redirect chains, Vary headers, and computes cryptographic MD5 and SHA-256 byte fingerprints.',
-        'Extracted SEO elements (Title, Headings, Canonicals, Robots directives, Word count, Links, Images) are benchmarked side-by-side with discrepancy detection and CSV/XLSX export.',
+        'Enter any fully qualified HTTP or HTTPS webpage URL into the website input field.',
+        'Select up to 10 user agents across Desktop Browsers, Mobile Browsers, Search Engine Crawlers (Googlebot Smartphone, Googlebot Desktop, Bingbot, Applebot), AI Crawlers (GPTBot, ClaudeBot, PerplexityBot), and Social Bots.',
+        'Click "Test Pre-rendering" to dispatch isolated, concurrent HTTP requests with built-in SSRF protection.',
+        'Review the Audit Verdict banner to see automated classification: Same HTML Response, Different Raw HTML / Same SEO Signals, or Possible Pre-rendering.',
+        'Inspect the User-Agent Response Comparison Table to check HTTP status codes, redirect destinations, Vary: User-Agent headers, and MD5 byte hashes.',
+        'Examine the Discrepancy Detection matrix to benchmark Page Titles, Meta Descriptions, H1-H6 Headings, Word Counts, Image counts, Canonical Links, and Robots directives.',
+        'Click "View HTML" for any user agent to inspect raw response markup, copy HTML to clipboard, or download full source files.',
+        'Download complete audit findings in structured CSV or Excel (.xlsx) formats for team reporting and documentation.',
       ]}
-      faq={[
-        {
-          question: 'What is Pre-rendering and Dynamic Rendering?',
-          answer:
-            'Pre-rendering intercepts incoming crawler requests (like Googlebot or Bingbot) and returns pre-rendered static HTML, while serving a standard JavaScript Single Page App (SPA) to human browsers. This ensures search engines discover content without relying on delayed client-side script execution.',
-        },
-        {
-          question: 'Does this tool prove dynamic cloaking or SEO manipulation?',
-          answer:
-            'No. Differences in raw HTML or fingerprints alone do not indicate malicious cloaking. Serving pre-rendered HTML to crawlers is an established architectural pattern when the underlying content and signals remain substantially equivalent to what human users experience.',
-        },
-        {
-          question: 'Does selecting Googlebot guarantee real Googlebot IP verification?',
-          answer:
-            'No. This tool sends requests with Googlebot user-agent strings, but does not originate from Google’s verified 1e100.net IP ranges. Websites employing reverse-DNS IP verification or Cloudflare Bot Management may treat these requests differently from genuine search engine crawlers.',
-        },
-      ]}
+      extraSections={extraSections}
+      faqTitle="Frequently Asked Questions"
+      faq={faqItems}
+      relatedTools={relatedTools}
     >
       <div className="card mb-8">
         <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>

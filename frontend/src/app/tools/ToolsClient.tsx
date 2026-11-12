@@ -28,7 +28,7 @@ const TOOLS_DATA = [
     ),
     tools: [
       { name: 'Fetch & Render', description: 'See your webpage exactly how Google and other search engine bots render JavaScript content.', href: '/tools/fetch-render' },
-      { name: 'Pre-rendering Tester', description: 'Compare raw server-side source HTML with the fully rendered JavaScript DOM.', href: '/tools/prerendering-tester' },
+      { name: 'Pre-rendering Tester', description: 'Compare HTTP responses and SEO signals across Googlebot, browsers, and AI crawlers to detect pre-rendering.', href: '/tools/prerendering-tester' },
       { name: 'Mobile-First Index Tool', description: 'Compare desktop and mobile content parity to prevent ranking drops.', href: '/tools/mobile-first-index' },
       { name: 'Mobile-Friendly Test', description: 'Test if a page viewport, touch elements, and text sizes are optimized for smartphones.', href: '/tools/mobile-friendly-test' }
     ]
