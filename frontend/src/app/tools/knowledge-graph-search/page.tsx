@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import {
   KnowledgeGraphEntity,
@@ -204,38 +205,201 @@ export default function KnowledgeGraphSearch() {
 
   return (
     <ToolLayout
-      title="Knowledge Graph Search"
-      description="Search and inspect Google Knowledge Graph entities, schema types, MIDs, and API relevance scores."
+      title="Free Google Knowledge Graph Search & Checker"
+      description="Use Indian Marketers' free Google Knowledge Graph Search tool to find entities such as businesses, people and places. Search by name or entity ID, explore available Schema.org types, view Google Knowledge Graph identifiers and inspect API relevance scores."
       category="Search Appearance"
       breadcrumbs={[{ label: 'Knowledge Graph Search' }]}
-      aboutText="Google's Knowledge Graph organizes information about real-world entities (people, places, organizations, things). This tool connects directly to Google's official Knowledge Graph Search API, allowing SEOs and content strategists to inspect recognized entities, verify Freebase/Wikidata Machine Identifiers (MIDs), inspect Schema.org entity categories, and evaluate API match scores."
+      aboutTitle="What Is Google Knowledge Graph Search?"
+      aboutText={
+        <div className="space-y-4">
+          <p>
+            <strong>Google Knowledge Graph Search</strong> allows SEO professionals, marketers, and researchers to query Google&apos;s entity database directly. Google&apos;s Knowledge Graph understands real-world entities—including companies, people, places, creative works, and organizations—as interconnected concepts rather than isolated strings of text.
+          </p>
+          <p>
+            Our free <strong>Knowledge Graph Checker</strong> connects directly to Google&apos;s official Knowledge Graph Search API. It enables you to search by entity name or exact Machine Identifier (MID), inspect recognized Schema.org entity categories, examine entity descriptions, and evaluate API match relevance scores without writing custom API scripts.
+          </p>
+          <div className="p-3.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/70 text-xs text-slate-600 dark:text-slate-300">
+            <strong>Entity SEO note:</strong> This tool retrieves matching entity records returned by Google&apos;s public API. An API entity match confirms record presence but is distinct from a Google Knowledge Panel, which is an algorithmic search feature generated on organic search results pages.
+          </div>
+        </div>
+      }
+      howItWorksTitle="How to Search Google Knowledge Graph Entities"
       howItWorks={[
-        "Choose 'Search by Name' to find an entity by its name, or 'Search by Entity ID' if you already have an ID.",
-        "How to get an Entity ID: Just use the 'Search by Name' tab above! Type your brand or name, and if Google recognizes it, you'll see the Entity ID in the results.",
-        "You can also find an Entity ID on Wikidata.org by searching your brand and looking for 'Google Knowledge Graph ID'.",
-        "Optional: Filter results by category (Organization, Person, Place, etc.) and language.",
-        "Click 'Search' to view entity details, official IDs, descriptions, and download results as CSV."
+        "Choose your search mode: select 'Search by Name' to look up entities by brand or keyword, or 'Search by Entity ID' if you have a Machine ID (/m/ or /g/).",
+        "Enter your entity query or ID: input the natural language name (e.g. 'Sundar Pichai', 'Apple') or a formatted MID (e.g. '/m/045c7b').",
+        "Refine search parameters: optionally restrict by Schema.org entity type (Organization, Person, Place, LocalBusiness, etc.), language code, and result limit.",
+        "Enable prefix matching if needed: check 'Prefix match query' to find matching entities that begin with your entered keyword characters.",
+        "Click 'Search Knowledge Graph': inspect returned entity records, copy verified entity IDs, review API relevance scores, or click 'Export CSV' for offline analysis."
       ]}
+      relatedTools={[
+        { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate Organization or Person JSON-LD markup referencing your official Google Entity MID.' },
+        { name: 'Schema Checker', href: '/tools/schema-checker', desc: 'Audit your live pages to confirm that entity structured data is detected in source HTML.' },
+        { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how brand entity titles and descriptions appear in desktop and mobile Google search.' }
+      ]}
+      extraSections={
+        <div className="space-y-8">
+          {/* Section: What Information Does Our Knowledge Graph Checker Display? */}
+          <section>
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                What Information Does Our Knowledge Graph Checker Display?
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2">
+                  Entity Identifiers &amp; Machine IDs (/m/ and /g/)
+                </h3>
+                <p className="text-sm text-[var(--im-text)] leading-relaxed">
+                  Every entity in Google&apos;s Knowledge Graph is indexed with an alphanumeric Machine Identifier (MID). Legacy entities originating from Freebase feature <code>/m/</code> prefixes, whereas newer entries assigned natively within Google use <code>/g/</code>. These identifiers uniquely reconcile entities across languages and disambiguate identically named organizations, people, or products.
+                </p>
+              </div>
+
+              <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2">
+                  Schema.org Entity Types
+                </h3>
+                <p className="text-sm text-[var(--im-text)] leading-relaxed">
+                  Google classifies Knowledge Graph entities into standardized Schema.org categories, such as <code>Organization</code>, <code>Person</code>, <code>Place</code>, or <code>LocalBusiness</code>. Note that these categories reflect Google&apos;s entity classification rather than validating whether the entity&apos;s website currently contains structured data markup.
+                </p>
+              </div>
+
+              <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2">
+                  Entity Descriptions &amp; Source URLs
+                </h3>
+                <p className="text-sm text-[var(--im-text)] leading-relaxed">
+                  Returned entity cards display short descriptive summaries, detailed descriptions, official websites, and authoritative reference links (such as Wikipedia or Wikidata). When available, high-resolution thumbnail images indexed by Google are rendered with safe fallback handling.
+                </p>
+              </div>
+
+              <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2">
+                  Google API Relevance Scores (resultScore)
+                </h3>
+                <p className="text-sm text-[var(--im-text)] leading-relaxed">
+                  The API <code>resultScore</code> represents how closely the returned record matches your specific search parameters within Google&apos;s query processing algorithm. It is strictly an API retrieval relevance metric—it is not an organic search ranking factor, Domain Authority score, or Knowledge Panel guarantee.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Section: Google Knowledge Graph vs Google Knowledge Panels */}
+          <section className="p-5 sm:p-6 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-2xl sm:rounded-3xl">
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)] mb-3">
+              Google Knowledge Graph vs Google Knowledge Panels
+            </h2>
+            <p className="text-sm sm:text-base text-[var(--im-text)] leading-relaxed mb-4">
+              Understanding the difference between the <strong>Google Knowledge Graph</strong> and a <strong>Google Knowledge Panel</strong> is vital for entity SEO strategy:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-[var(--im-text)]">
+              <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-[var(--im-border)]">
+                <h4 className="font-bold text-[var(--im-heading)] mb-1.5">Google Knowledge Graph (Underlying Database)</h4>
+                <p className="leading-relaxed text-xs sm:text-sm">
+                  The Knowledge Graph is Google&apos;s foundational semantic database containing billions of facts, attributes, and relationships. Entities can exist in the Knowledge Graph and be accessible via the API without ever appearing in a dedicated visual panel on search results pages.
+                </p>
+              </div>
+              <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-[var(--im-border)]">
+                <h4 className="font-bold text-[var(--im-heading)] mb-1.5">Google Knowledge Panel (SERP Feature)</h4>
+                <p className="leading-relaxed text-xs sm:text-sm">
+                  A Knowledge Panel is a visual information card displayed on the right-hand side (desktop) or top (mobile) of organic search results. Google algorithmically decides whether to show a Knowledge Panel based on query intent, brand prominence, and user location.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Section: Practical Use Cases */}
+          <section>
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                Practical Use Cases for Entity SEO and Research
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2">
+                  1. Entity Reconciliation &amp; Disambiguation
+                </h3>
+                <p className="text-sm text-[var(--im-text)] leading-relaxed">
+                  Confirm how Google categorizes your brand name against similarly named companies worldwide, and retrieve the exact Machine ID for precise entity disambiguation.
+                </p>
+              </div>
+
+              <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2">
+                  2. SameAs Schema Building
+                </h3>
+                <p className="text-sm text-[var(--im-text)] leading-relaxed">
+                  Use discovered entity IDs to link your website&apos;s JSON-LD markup to Google&apos;s entity node using our{' '}
+                  <Link href="/tools/schema-generator" className="text-[var(--im-primary-deep)] font-semibold hover:underline">
+                    Schema Markup Generator
+                  </Link>
+                  . Validate your on-page markup with our{' '}
+                  <Link href="/tools/schema-checker" className="text-[var(--im-primary-deep)] font-semibold hover:underline">
+                    Bulk Schema Checker
+                  </Link>
+                  .
+                </p>
+              </div>
+
+              <div className="p-4 sm:p-5 bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl">
+                <h3 className="text-base font-bold text-[var(--im-heading)] mb-2">
+                  3. SERP &amp; Identity Monitoring
+                </h3>
+                <p className="text-sm text-[var(--im-text)] leading-relaxed">
+                  Monitor entity match scores across target languages and evaluate how brand descriptions align with your organic search listings using our{' '}
+                  <Link href="/tools/serp-simulator" className="text-[var(--im-primary-deep)] font-semibold hover:underline">
+                    SERP Simulator
+                  </Link>
+                  .
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      }
       faq={[
         {
           question: "How do I find an entity's Google Knowledge Graph ID (MID)?",
-          answer: "The easiest way is to use the 'Search by Name' tab right here in this tool! Just type in your brand, company, or person name. If Google has recognized your entity, this tool will find and show your official Entity ID (like /m/045c7b or /g/11b6tq5_3y). You can also search your brand on Wikidata.org and look for the 'Google Knowledge Graph ID' field."
+          answer: "To find an entity's Knowledge Graph identifier using this tool, select the 'Search by Name' tab, enter the brand, company, or individual name, and click 'Search Knowledge Graph'. If a matching entity record is returned by Google's API, its Machine Identifier (such as /m/045c7b or /g/11b6tq5_3y) is displayed alongside its name, types, and description. You can also cross-reference entity IDs on Wikidata by checking the 'Google Knowledge Graph ID' statement on a corresponding item."
         },
         {
-          question: "What is an Entity ID (MID)?",
-          answer: "An Entity ID (also called a Machine ID or MID) is a unique permanent ID that Google assigns to a real-world person, company, place, or brand. It usually starts with /m/ or /g/."
+          question: "What is an Entity ID (MID) and what do /m/ and /g/ mean?",
+          answer: "An Entity ID (or Machine Identifier / MID) is a unique alphanumeric identifier Google uses to reference specific entities in its Knowledge Graph database. Identifiers starting with '/m/' originated in the legacy Freebase database, while identifiers starting with '/g/' are newer records created directly within Google's Knowledge Graph. They distinguish entities with identical or similar names, such as distinguishing Apple the corporation from apple the fruit."
         },
         {
-          question: "What does the API Relevance Score mean?",
-          answer: "The resultScore is a number from Google indicating how closely an entity matched what you searched for. It is an internal match score, not an SEO ranking or domain authority score."
+          question: "What is the difference between Google Knowledge Graph and a Knowledge Panel?",
+          answer: "Google's Knowledge Graph is an underlying database containing billions of facts about real-world entities and their relationships. A Google Knowledge Panel is a visual search result box that may appear on Google Search engine results pages (SERPs) when users search for a well-recognized entity. Having an entity record in the Knowledge Graph does not guarantee that Google will display a public Knowledge Panel for any particular query."
         },
         {
-          question: "What if my entity doesn't show up in search?",
-          answer: "If Google doesn't return an Entity ID for your brand, that means Google hasn't officially recognized it as an entity yet. You can help Google recognize your brand by adding Schema markup (Organization or Person) to your website, creating a Wikidata page, and getting consistent mentions on trusted websites."
+          question: "Does finding an Entity ID guarantee a Google Knowledge Panel?",
+          answer: "No. Finding a matching entity record and ID in Google's Knowledge Graph Search API confirms that Google has a record of the entity in its database, but it does not guarantee that a Knowledge Panel will be shown in search results. Knowledge Panel generation depends on search query intent, user location, algorithmic confidence, and search relevance."
         },
         {
-          question: "Why does the tool show 'Google Knowledge Graph API credentials are not configured'?",
-          answer: "The tool makes genuine server-side calls to Google's Knowledge Graph Search API. To enable live lookups, set the GOOGLE_KG_API_KEY environment variable in your Vercel project settings or .env.local."
+          question: "What does Google's API Relevance Score (resultScore) mean?",
+          answer: "The resultScore is a numerical value returned by Google's Knowledge Graph Search API indicating how closely an entity record matched the query parameters under the API's scoring criteria. It is purely an API query-match score—not a Google Search ranking factor, Domain Authority metric, Knowledge Panel eligibility threshold, or overall measure of brand reputation."
+        },
+        {
+          question: "Why might a brand or business be missing from Knowledge Graph search results?",
+          answer: "If a query returns no matching entity records, Google's public API may not have a record matching the exact term, selected type filter, or language. An absent API result does not conclusively prove that Google has no understanding of the entity. You can test alternate brand names, broader entity categories, or check related authoritative registries like Wikidata."
+        },
+        {
+          question: "Can Schema.org structured data help Google recognize my entity?",
+          answer: "Yes. Adding valid Schema.org structured data (such as Organization, LocalBusiness, or Person) to your website helps search engine crawlers understand your brand's official name, website, social profiles, and core identity. While schema markup provides clear machine-readable context, it does not guarantee Knowledge Graph inclusion, an immediate Entity ID, or higher organic rankings."
+        },
+        {
+          question: "Is Indian Marketers' Google Knowledge Graph Search tool free to use?",
+          answer: "Yes. The Google Knowledge Graph Search & Checker on Indian Marketers is completely free to use with no account creation or subscription required. You can search by entity name, look up specific MIDs, inspect Schema.org types, filter by language, and export entity results to CSV."
         }
       ]}
     >
@@ -385,7 +549,7 @@ export default function KnowledgeGraphSearch() {
                     <strong>2. From Wikidata:</strong> Go to <span className="font-semibold text-slate-800 dark:text-slate-200">Wikidata.org</span>, search for your company or person, and look for the item called <strong>&quot;Google Knowledge Graph ID&quot;</strong>.
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/40">
-                    💡 <em>Don&apos;t see your entity? That means Google hasn&apos;t added your brand to its Knowledge Graph yet. Adding Schema markup to your website and creating a Wikidata page helps Google recognize your entity.</em>
+                    💡 <em>Don&apos;t see your entity? The API may not return a match for the exact query or filters. Try broader entity types or alternate names. Structured data and authoritative references help search engines understand entity relationships over time.</em>
                   </p>
                 </div>
               </div>

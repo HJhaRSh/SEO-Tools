@@ -836,8 +836,8 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'knowledge-graph-search': {
     slug: 'knowledge-graph-search',
     name: 'Knowledge Graph Search',
-    metaTitle: 'Google Knowledge Graph Search & Entity Finder | Indian Marketers',
-    metaDescription: 'Search Google\'s Knowledge Graph to find entity machine IDs (MIDs), schema types, and match scores. Verify brand entity recognition and export findings to CSV.',
+    metaTitle: 'Google Knowledge Graph Checker & Entity Search | Indian Marketers',
+    metaDescription: 'Search Google Knowledge Graph entities for free. Find entity IDs, explore schema types, view descriptions and inspect API relevance scores with Indian Marketers.',
     canonical: `${TOOLS_BASE_URL}/knowledge-graph-search`,
     category: 'Search Appearance',
     softwareCategory: 'DeveloperApplication',
@@ -845,29 +845,41 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
       'Direct connection to Google official Knowledge Graph Search API',
       'Entity lookup by natural language name or exact Machine ID (/m/ or /g/)',
       'Extraction of Schema.org entity categories and official descriptions',
-      'API match relevance score inspection',
+      'Google API match relevance score inspection',
       'Exportable structured entity reports in CSV format'
     ],
     faqs: [
       {
         question: "How do I find an entity's Google Knowledge Graph ID (MID)?",
-        answer: "The easiest way is to use the 'Search by Name' tab right here in this tool! Just type in your brand, company, or person name. If Google has recognized your entity, this tool will find and show your official Entity ID (like /m/045c7b or /g/11b6tq5_3y). You can also search your brand on Wikidata.org and look for the 'Google Knowledge Graph ID' field."
+        answer: "To find an entity's Knowledge Graph identifier using this tool, select the 'Search by Name' tab, enter the brand, company, or individual name, and click 'Search Knowledge Graph'. If a matching entity record is returned by Google's API, its Machine Identifier (such as /m/045c7b or /g/11b6tq5_3y) is displayed alongside its name, types, and description. You can also cross-reference entity IDs on Wikidata by checking the 'Google Knowledge Graph ID' statement on a corresponding item."
       },
       {
-        question: 'What is an Entity ID (MID)?',
-        answer: 'An Entity ID (also called a Machine ID or MID) is a unique permanent ID that Google assigns to a real-world person, company, place, or brand. It usually starts with /m/ or /g/.'
+        question: 'What is an Entity ID (MID) and what do /m/ and /g/ mean?',
+        answer: "An Entity ID (or Machine Identifier / MID) is a unique alphanumeric identifier Google uses to reference specific entities in its Knowledge Graph database. Identifiers starting with '/m/' originated in the legacy Freebase database, while identifiers starting with '/g/' are newer records created directly within Google's Knowledge Graph. They distinguish entities with identical or similar names, such as distinguishing Apple the corporation from apple the fruit."
       },
       {
-        question: 'What does the API Relevance Score mean?',
-        answer: 'The resultScore is a number from Google indicating how closely an entity matched what you searched for. It is an internal match score, not an SEO ranking or domain authority score.'
+        question: 'What is the difference between Google Knowledge Graph and a Knowledge Panel?',
+        answer: "Google's Knowledge Graph is an underlying database containing billions of facts about real-world entities and their relationships. A Google Knowledge Panel is a visual search result box that may appear on Google Search engine results pages (SERPs) when users search for a well-recognized entity. Having an entity record in the Knowledge Graph does not guarantee that Google will display a public Knowledge Panel for any particular query."
       },
       {
-        question: "What if my entity doesn't show up in search?",
-        answer: "If Google doesn't return an Entity ID for your brand, that means Google hasn't officially recognized it as an entity yet. You can help Google recognize your brand by adding Schema markup (Organization or Person) to your website, creating a Wikidata page, and getting consistent mentions on trusted websites."
+        question: 'Does finding an Entity ID guarantee a Google Knowledge Panel?',
+        answer: "No. Finding a matching entity record and ID in Google's Knowledge Graph Search API confirms that Google has a record of the entity in its database, but it does not guarantee that a Knowledge Panel will be shown in search results. Knowledge Panel generation depends on search query intent, user location, algorithmic confidence, and search relevance."
       },
       {
-        question: "Why does the tool show 'Google Knowledge Graph API credentials are not configured'?",
-        answer: "The tool makes genuine server-side calls to Google's Knowledge Graph Search API. To enable live lookups, set the GOOGLE_KG_API_KEY environment variable in your Vercel project settings or .env.local."
+        question: "What does Google's API Relevance Score (resultScore) mean?",
+        answer: "The resultScore is a numerical value returned by Google's Knowledge Graph Search API indicating how closely an entity record matched the query parameters under the API's scoring criteria. It is purely an API query-match score—not a Google Search ranking factor, Domain Authority metric, Knowledge Panel eligibility threshold, or overall measure of brand reputation."
+      },
+      {
+        question: 'Why might a brand or business be missing from Knowledge Graph search results?',
+        answer: "If a query returns no matching entity records, Google's public API may not have a record matching the exact term, selected type filter, or language. An absent API result does not conclusively prove that Google has no understanding of the entity. You can test alternate brand names, broader entity categories, or check related authoritative registries like Wikidata."
+      },
+      {
+        question: 'Can Schema.org structured data help Google recognize my entity?',
+        answer: "Yes. Adding valid Schema.org structured data (such as Organization, LocalBusiness, or Person) to your website helps search engine crawlers understand your brand's official name, website, social profiles, and core identity. While schema markup provides clear machine-readable context, it does not guarantee Knowledge Graph inclusion, an immediate Entity ID, or higher organic rankings."
+      },
+      {
+        question: "Is Indian Marketers' Google Knowledge Graph Search tool free to use?",
+        answer: "Yes. The Google Knowledge Graph Search & Checker on Indian Marketers is completely free to use with no account creation or subscription required. You can search by entity name, look up specific MIDs, inspect Schema.org types, filter by language, and export entity results to CSV."
       }
     ]
   },

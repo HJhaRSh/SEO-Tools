@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx src/test-security-qa.ts && tsx src/test-review-link.ts && tsx src/test-schema-generator.ts && tsx src/test-robots.ts && tsx src/test-robots-regression.ts && tsx src/test-sitemap-nextjs.ts && tsx src/test-mobile-first.ts && tsx src/test-local-search.ts && tsx src/test-schema-checker.ts && tsx src/test-fetch-render-schema.ts && tsx src/test-domain-age.ts && tsx src/test-bulk-google-index-checker.ts && tsx src/test-page-focus.ts && tsx src/test-common-crawl.ts"
+    "test": "tsx src/test-security-qa.ts && tsx src/test-review-link.ts && tsx src/test-schema-generator.ts && tsx src/test-robots.ts && tsx src/test-robots-regression.ts && tsx src/test-sitemap-nextjs.ts && tsx src/test-mobile-first.ts && tsx src/test-local-search.ts && tsx src/test-schema-checker.ts && tsx src/test-fetch-render-schema.ts && tsx src/test-domain-age.ts && tsx src/test-bulk-google-index-checker.ts && tsx src/test-page-focus.ts && tsx src/test-common-crawl.ts && tsx src/test-knowledge-graph-seo.ts"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",
