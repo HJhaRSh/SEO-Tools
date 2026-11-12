@@ -450,14 +450,24 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
 
   'mobile-first-index': {
     slug: 'mobile-first-index',
-    name: 'Mobile-First Index Tool',
-    metaTitle: 'Mobile-First Indexing Checker - Parity Audit | Indian Marketers',
-    metaDescription: 'Audit technical SEO parity between desktop and mobile pages. Compare headings, content, structured data, canonical tags, and internal links for Googlebot.',
+    name: 'Mobile-First Indexing Checker',
+    metaTitle: 'Mobile-First Indexing Checker – Free Tool | Indian Marketers',
+    metaDescription: 'Check mobile-first indexing SEO with our free tool. Compare mobile and desktop content, canonicals, robots.txt, structured data and links to identify parity issues.',
     canonical: `${TOOLS_BASE_URL}/mobile-first-index`,
     category: 'Rendering & Mobile SEO',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'mobile first indexing checker',
+      'mobile first index checker',
+      'mobile first indexing test',
+      'mobile first indexing tool',
+      'google mobile first indexing checker',
+      'mobile SEO parity checker',
+      'mobile desktop content comparison',
+      'googlebot smartphone checker'
+    ],
     features: [
-      'Dual independent HTTP crawls using Desktop Googlebot and Googlebot Smartphone user agents',
+      'Dual independent HTTP requests using Desktop Googlebot and Googlebot Smartphone user agents',
       'Independent RFC 9309 robots.txt verification for desktop and mobile hosts',
       'Parity auditing for Title, Meta Description, H1-H6 headings, text word counts, and canonical URLs',
       'Structured data (JSON-LD) extraction and schema parity comparison',
@@ -466,19 +476,35 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
     faqs: [
       {
         question: 'What is Google Mobile-First Indexing?',
-        answer: "Mobile-first indexing means Google predominantly uses the mobile version of a webpage's content for indexing and ranking. Previously, the desktop version was used. Today, if content or structured data exists only on your desktop version, Google will not index it."
+        answer: "Mobile-first indexing means Google predominantly crawls and indexes the mobile version of a webpage's content for indexing and ranking in search results. Previously, Google used the desktop version to evaluate content relevance. Under mobile-first indexing, search engines evaluate your primary content, headings, structured data, canonical tags, and internal links based on the mobile page."
       },
       {
         question: 'Does changing the User-Agent header make requests come from Googlebot IPs?',
-        answer: "No. This tool sends custom HTTP requests using Googlebot's official User-Agent header string to inspect the markup your server returns to mobile search engine crawlers. It does not originate from verified Google IP addresses."
+        answer: "No. This tool dispatches HTTP requests using Google's official desktop and smartphone User-Agent header strings to inspect the server-delivered HTML markup returned to mobile crawlers. Requests originate from our server infrastructure rather than verified Google IP addresses. To inspect Google's internal index and rendering, use Google Search Console URL Inspection."
       },
       {
         question: 'How should canonical and alternate tags be configured for separate mobile (m-dot) sites?',
-        answer: 'According to Google\'s official guidelines, the desktop page must declare a rel="canonical" tag pointing to itself, along with a rel="alternate" tag pointing to the mobile URL. The mobile page must declare a rel="canonical" tag pointing to the desktop URL (NOT to itself).'
+        answer: 'According to Google\'s official documentation, the desktop webpage must declare a rel="canonical" tag pointing to itself, along with a rel="alternate" media tag pointing to the mobile URL. The separate mobile page must declare a rel="canonical" tag pointing back to the desktop URL (never a self-referencing canonical).'
       },
       {
         question: 'Is this a mobile-friendly usability test or an indexing parity audit?',
-        answer: 'This is a technical Mobile-First Indexing parity audit. Mobile-friendly usability tools inspect touch target spacing and viewport sizing for human readers. This tool checks whether search crawlers receive equivalent HTML markup, content, canonicals, headings, and structured data across desktop and mobile.'
+        answer: 'This is a technical mobile-first indexing parity audit. Mobile-friendly usability tools evaluate viewport settings, touch target tap spacing, and readable font sizes on physical screens. This checker compares whether search engine bots receive equivalent HTML markup, content, headings, canonicals, robots rules, and schema markup across desktop and mobile versions.'
+      },
+      {
+        question: 'How do I check mobile-first indexing issues on my website?',
+        answer: 'Enter your webpage URL into our mobile-first indexing checker. The tool performs dual HTTP requests using desktop and smartphone Googlebot user agents, evaluates RFC 9309 robots.txt permissions, and compares essential SEO signals. Review the comparison matrix and prioritized discrepancy report to identify mismatched canonicals, missing headings, dropped content, or omitted structured data.'
+      },
+      {
+        question: 'What happens if content is missing from the mobile version of a page?',
+        answer: 'If critical body text, heading tags, images, or structured data are omitted from your mobile page, Googlebot Smartphone will not evaluate that missing information when determining organic relevance and rankings. To maintain search performance, ensure that all primary content accessible on desktop is equally present and crawlable on mobile.'
+      },
+      {
+        question: 'Should structured data and schema markup be identical on mobile and desktop?',
+        answer: 'Yes. Google recommends that both mobile and desktop versions include equivalent structured data markup (such as Article, Product, Organization, or BreadcrumbList JSON-LD). Ensure that URLs within mobile structured data reference the correct destination, and verify that mobile layouts do not strip schema markup.'
+      },
+      {
+        question: 'Does mobile-first indexing require a separate mobile URL or responsive design?',
+        answer: 'Mobile-first indexing does not require separate mobile URLs. Google officially recommends responsive web design, where the same URL and HTML are served to all devices while styling adapts across viewports via CSS. If your site does operate a separate m-dot mobile site, both URLs must maintain proper bidirectional canonical and alternate relationships.'
       }
     ]
   },

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import {
   MobileFirstAuditResponse,
@@ -163,39 +164,265 @@ export default function MobileFirstIndexPage() {
       : auditData.discrepancies.filter((d) => d.severity === severityFilter)
     : [];
 
+  const faqItems = [
+    {
+      question: "What is Google Mobile-First Indexing?",
+      answer: "Mobile-first indexing means Google predominantly crawls and indexes the mobile version of a webpage's content for indexing and ranking in search results. Previously, Google used the desktop version to evaluate content relevance. Under mobile-first indexing, search engines evaluate your primary content, headings, structured data, canonical tags, and internal links based on the mobile page."
+    },
+    {
+      question: "Does changing the User-Agent header make requests come from Googlebot IPs?",
+      answer: "No. This tool dispatches HTTP requests using Google's official desktop and smartphone User-Agent header strings to inspect the server-delivered HTML markup returned to mobile crawlers. Requests originate from our server infrastructure rather than verified Google IP addresses. To inspect Google's internal index and rendering, use Google Search Console URL Inspection."
+    },
+    {
+      question: "How should canonical and alternate tags be configured for separate mobile (m-dot) sites?",
+      answer: "According to Google's official documentation, the desktop webpage must declare a rel=\"canonical\" tag pointing to itself, along with a rel=\"alternate\" media tag pointing to the mobile URL. The separate mobile page must declare a rel=\"canonical\" tag pointing back to the desktop URL (never a self-referencing canonical)."
+    },
+    {
+      question: "Is this a mobile-friendly usability test or an indexing parity audit?",
+      answer: "This is a technical mobile-first indexing parity audit. Mobile-friendly usability tools evaluate viewport settings, touch target tap spacing, and readable font sizes on physical screens. This checker compares whether search engine bots receive equivalent HTML markup, content, headings, canonicals, robots rules, and schema markup across desktop and mobile versions."
+    },
+    {
+      question: "How do I check mobile-first indexing issues on my website?",
+      answer: "Enter your webpage URL into our mobile-first indexing checker. The tool performs dual HTTP requests using desktop and smartphone Googlebot user agents, evaluates RFC 9309 robots.txt permissions, and compares essential SEO signals. Review the comparison matrix and prioritized discrepancy report to identify mismatched canonicals, missing headings, dropped content, or omitted structured data."
+    },
+    {
+      question: "What happens if content is missing from the mobile version of a page?",
+      answer: "If critical body text, heading tags, images, or structured data are omitted from your mobile page, Googlebot Smartphone will not evaluate that missing information when determining organic relevance and rankings. To maintain search performance, ensure that all primary content accessible on desktop is equally present and crawlable on mobile."
+    },
+    {
+      question: "Should structured data and schema markup be identical on mobile and desktop?",
+      answer: "Yes. Google recommends that both mobile and desktop versions include equivalent structured data markup (such as Article, Product, Organization, or BreadcrumbList JSON-LD). Ensure that URLs within mobile structured data reference the correct destination, and verify that mobile layouts do not strip schema markup."
+    },
+    {
+      question: "Does mobile-first indexing require a separate mobile URL or responsive design?",
+      answer: "Mobile-first indexing does not require separate mobile URLs. Google officially recommends responsive web design, where the same URL and HTML are served to all devices while styling adapts across viewports via CSS. If your site does operate a separate m-dot mobile site, both URLs must maintain proper bidirectional canonical and alternate relationships."
+    }
+  ];
+
+  const relatedTools = [
+    {
+      name: 'Mobile-Friendly Test',
+      href: '/tools/mobile-friendly-test',
+      desc: 'Test viewport meta tag settings, touch target spacing, and font readability on smartphones.',
+    },
+    {
+      name: 'Fetch & Render',
+      href: '/tools/fetch-render',
+      desc: 'Inspect how search bots execute client-side scripts and render responsive components.',
+    },
+    {
+      name: 'Pre-rendering Tester',
+      href: '/tools/prerendering-tester',
+      desc: 'Detect server response differences across mobile Googlebot and desktop user agents.',
+    },
+  ];
+
+  const extraSections = (
+    <>
+      {/* WHAT DOES OUR MOBILE-FIRST INDEXING CHECKER ANALYSE? */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">What Does Our Mobile-First Indexing Checker Analyse?</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                Mobile and Desktop Content Parity
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Compares text word count and content similarity across desktop and mobile responses. Verifies that primary body copy, H1–H6 heading hierarchies, and meta descriptions remain accessible to Googlebot Smartphone.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                Canonical Tags and Meta Robots
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Audits self-referencing canonicals on responsive URLs and checks rel=&quot;canonical&quot; and rel=&quot;alternate&quot; links for separate mobile configurations. Confirms that noindex directives or restrictive X-Robots-Tags do not block smartphone crawlers.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                Structured Data and Hreflang
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Parses JSON-LD schema graphs across both responses to detect omitted structured data types or missing entities on mobile. Validates that international <Link href="/tools/hreflang-tester" className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">hreflang annotations</Link> point to corresponding device targets.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                Internal Links and Images
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Compares internal link counts to ensure mobile navigation does not orphan important site pages. Checks image counts, alt attributes, and responsive srcset elements so key media assets remain discoverable.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between md:col-span-2 lg:col-span-2">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--im-primary-deep)]"></span>
+                Robots.txt and Crawlability
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+                Independently parses and evaluates <Link href="/tools/robots-txt-tester" className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">robots.txt permissions</Link> under RFC 9309 for desktop and mobile hosts. Verifies that Googlebot Smartphone is permitted to crawl the page and its critical assets.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* UNDERSTANDING MOBILE-FIRST INDEXING AUDIT RESULTS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Understanding Mobile-First Indexing Audit Results</h2>
+        </div>
+        <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-5 sm:p-8 space-y-4 text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+          <p>
+            Our audit engine compares signals extracted from desktop and mobile HTTP payloads and assigns standardized parity status badges across every evaluated dimension:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 my-3">
+            <div className="p-3.5 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 mb-1.5">Match</span>
+              <p className="text-xs text-[var(--im-text)]">Desktop and mobile signals are identical or equivalent (e.g. matching canonical, equal H1, intact schema markup).</p>
+            </div>
+            <div className="p-3.5 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300 mb-1.5">Difference</span>
+              <p className="text-xs text-[var(--im-text)]">A non-critical variance exists between versions (e.g. slight word count variation or adjusted title phrasing).</p>
+            </div>
+            <div className="p-3.5 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 mb-1.5">Warning</span>
+              <p className="text-xs text-[var(--im-text)]">A potential parity concern that may affect indexing (e.g. missing secondary headings or omitted descriptive images).</p>
+            </div>
+            <div className="p-3.5 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 mb-1.5">Critical</span>
+              <p className="text-xs text-[var(--im-text)]">A severe discrepancy directly threatening indexing (e.g. mobile 404/403, mobile noindex, missing H1, or missing schema).</p>
+            </div>
+            <div className="p-3.5 bg-[var(--im-surface)] border border-[var(--im-border)] rounded-xl sm:col-span-2 lg:col-span-2">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 mb-1.5">Both Missing</span>
+              <p className="text-xs text-[var(--im-text)]">The audited SEO signal is absent from both versions (e.g. no hreflang tags declared on single-language pages).</p>
+            </div>
+          </div>
+          <p>
+            Identified issues are compiled into a prioritized discrepancy report categorized by severity (Critical, High, Medium, Low) so technical teams can resolve highest-risk indexing bottlenecks first.
+          </p>
+        </div>
+      </section>
+
+      {/* COMMON MOBILE-FIRST INDEXING PROBLEMS */}
+      <section>
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">Common Mobile-First Indexing Problems</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              Content Stripped on Mobile Viewports
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Hiding descriptive body paragraphs, product specifications, or secondary headings on mobile to save screen space prevents Googlebot Smartphone from evaluating that content for keyword relevance.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              Conflicting Canonicals and Robots Directives
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Serving a self-referencing canonical on a separate m-dot mobile URL or inadvertently deploying a <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">noindex</code> meta robots tag on mobile responses prevents Google from indexing your preferred canonical URL.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              Omitted Schema Structured Data
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Including Product, Article, or FAQPage JSON-LD on desktop pages but omitting schema markup on mobile responses causes the page to lose rich snippet enhancements in Google mobile search results.
+            </p>
+          </div>
+
+          <div className="bg-[var(--im-bg-soft)] border border-[var(--im-border)] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--im-heading)] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              Robots.txt Blocking Googlebot Smartphone
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--im-text)] leading-relaxed">
+              Disallowing crawler access on mobile hosts or blocking CSS and script subresources in <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">robots.txt</code> prevents Google from fetching and understanding mobile page layouts. Use our <Link href="/tools/robots-txt-tester" className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">Robots.txt Tester</Link> to inspect crawler directives.
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
   return (
     <ToolLayout
-      title="Mobile-First Index Tool"
-      description="Perform technical SEO parity audits comparing desktop and mobile responses to prevent ranking drops under Google's mobile-first indexing."
+      title="Free Mobile-First Indexing Checker"
+      description="Use Indian Marketers' free Mobile-First Indexing Checker to compare SEO content and signals across mobile and desktop versions of a webpage. Review headings, canonicals, structured data, robots.txt permissions, internal links and other differences that may affect mobile-first indexing."
       category="Rendering & Mobile SEO"
-      breadcrumbs={[{ label: 'Mobile-First Index Tool' }]}
-      aboutText="Google indexes and ranks webpages using Googlebot Smartphone. If your mobile version strips structured data, alters canonical URLs, hides content, or removes internal links compared to your desktop site, your search rankings will suffer. This tool performs genuine, independent crawls of both desktop and mobile versions to inspect crawlability, canonicals, content, headings, links, images, structured data, and hreflang annotations."
+      breadcrumbs={[{ label: 'Mobile-First Indexing Checker' }]}
+      aboutTitle="What Is Mobile-First Indexing?"
+      aboutText={
+        <div className="space-y-4">
+          <p>
+            <strong>Mobile-first indexing</strong> means Google predominantly crawls and indexes the mobile version of a webpage&apos;s content to determine search rankings. Under this indexing system, Googlebot Smartphone evaluates your primary content, heading tags, canonical annotations, internal links, images, and structured data markup to evaluate organic relevance.
+          </p>
+          <p>
+            Google officially recommends responsive web design, where the same URL and HTML are delivered across desktop and smartphone browsers with presentation adapted through CSS. Content equivalence does not require identical pixel layouts—content placed in mobile tabs or accordions remains crawlable as long as it exists in the delivered HTML. However, omitting essential text, removing schema markup, or mismatching canonical tags on mobile can directly impair search visibility.
+          </p>
+          <div className="p-3.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/70 text-xs text-slate-600 dark:text-slate-300">
+            <strong>Diagnostic simulation notice:</strong> This tool performs dual independent HTTP requests using desktop and smartphone Googlebot user-agent strings to inspect server-delivered HTML and SEO signal parity. It is an independent technical audit and does not originate from verified Googlebot IP addresses. To inspect Google&apos;s internal index and live browser rendering, consult Google Search Console&apos;s URL Inspection tool.
+          </div>
+        </div>
+      }
+      howItWorksTitle="How to Check Mobile-First Indexing Issues"
       howItWorks={[
-        "Enter your webpage URL (and optionally a separate mobile URL if your site operates an m-dot domain).",
-        "The server initiates two independent, secure HTTP crawls using verified Desktop Googlebot and Googlebot Smartphone user agents.",
-        "Robots.txt rules are independently fetched and evaluated for both desktop and mobile origins under RFC 9309.",
-        "SEO signals (titles, descriptions, H1s, text word counts, canonicals, schema JSON-LD, images, and links) are extracted and compared.",
-        "A side-by-side comparison matrix and prioritized discrepancy report highlight issues that impact indexing.",
-        "Export the complete audit report as an RFC 4180 CSV or formatted multi-worksheet XLSX spreadsheet."
+        "Enter your webpage URL (and optionally a separate mobile URL if your website serves mobile users from an m-dot subdomain).",
+        "Select your crawler profile in Advanced Settings (Googlebot desktop/smartphone or standard Chrome desktop/mobile).",
+        "The server initiates two independent HTTP requests using desktop and smartphone user-agent strings to retrieve initial HTML responses.",
+        "Robots.txt rules are independently fetched and evaluated under RFC 9309 for both desktop and mobile host origins.",
+        "SEO signals (titles, descriptions, H1 headings, content similarity, canonical tags, schema JSON-LD, internal links, images, and hreflang) are extracted and compared.",
+        "A side-by-side comparison matrix and prioritized discrepancy report classify issues as Critical, Warning, Difference, or Match.",
+        "Export the complete audit report as an RFC 4180 CSV or formatted multi-worksheet XLSX spreadsheet for technical documentation."
       ]}
-      faq={[
-        {
-          question: "What is Google Mobile-First Indexing?",
-          answer: "Mobile-first indexing means Google predominantly uses the mobile version of a webpage's content for indexing and ranking. Previously, the desktop version was used. Today, if content or structured data exists only on your desktop version, Google will not index it."
-        },
-        {
-          question: "Does changing the User-Agent header make requests come from Googlebot IPs?",
-          answer: "No. This tool sends custom HTTP requests using Googlebot's official User-Agent header string to inspect the markup your server returns to mobile search engine crawlers. It does not originate from verified Google IP addresses."
-        },
-        {
-          question: "How should canonical and alternate tags be configured for separate mobile (m-dot) sites?",
-          answer: "According to Google's official guidelines, the desktop page must declare a rel=\"canonical\" tag pointing to itself, along with a rel=\"alternate\" tag pointing to the mobile URL. The mobile page must declare a rel=\"canonical\" tag pointing to the desktop URL (NOT to itself)."
-        },
-        {
-          question: "Is this a mobile-friendly usability test or an indexing parity audit?",
-          answer: "This is a technical Mobile-First Indexing parity audit. Mobile-friendly usability tools inspect touch target spacing and viewport sizing for human readers. This tool checks whether search crawlers receive equivalent HTML markup, content, canonicals, headings, and structured data across desktop and mobile."
-        }
-      ]}
+      extraSections={extraSections}
+      faqTitle="Frequently Asked Questions"
+      faq={faqItems}
+      relatedTools={relatedTools}
     >
       {/* INPUT FORM CARD */}
       <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-xs mb-8">
