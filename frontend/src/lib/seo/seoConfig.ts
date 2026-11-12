@@ -887,30 +887,69 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
   'schema-generator': {
     slug: 'schema-generator',
     name: 'Schema Markup Generator',
-    metaTitle: 'Schema Markup Generator - Free JSON-LD Creator | Indian Marketers',
-    metaDescription: 'Create valid Schema.org JSON-LD structured data in real time. Generate rich snippet markup for Organizations, Articles, FAQs, Local Businesses, and Products.',
+    metaTitle: 'Free Schema Markup Generator (JSON-LD) | Indian Marketers',
+    metaDescription: 'Generate Schema.org JSON-LD with our free Schema Markup Generator. Create structured data, check fields, import existing code, and copy or download your markup.',
     canonical: `${TOOLS_BASE_URL}/schema-generator`,
     category: 'Search Appearance',
     softwareCategory: 'DeveloperApplication',
+    keywords: [
+      'schema markup generator',
+      'schema generator',
+      'JSON-LD generator',
+      'structured data generator',
+      'schema.org generator',
+      'free schema markup generator',
+      'JSON-LD schema generator',
+      'generate schema markup',
+      'create JSON-LD schema',
+      'organization schema generator',
+      'local business schema generator',
+      'product schema generator',
+      'article schema generator',
+      'breadcrumb schema generator'
+    ],
     features: [
       'Real-time Schema.org JSON-LD generation with syntax highlighting',
-      'Support for Organization, LocalBusiness, Article, FAQPage, Product, Event, JobPosting, Recipe, Person',
-      'Live code preview with one-click copy and JSON download',
-      'Import modal to edit and re-validate existing JSON-LD markup',
-      'Realistic presets to rapidly test schema structures'
+      'Support for 19 Schema.org types including Organization, LocalBusiness, Article, Product, and Breadcrumbs',
+      'Granular subtype selection for Organizations, Local Businesses, and Articles',
+      'Real-time field validation for required properties, URLs, and date formats',
+      'Live code preview with HTML script tag and raw JSON-LD output toggles',
+      'One-click clipboard copy and file download (.html / .json)',
+      'Import modal to parse, edit, and re-validate existing JSON-LD scripts',
+      'One-click external testing shortcuts for Google Rich Results Test and Schema.org Validator'
     ],
     faqs: [
       {
-        question: 'What is JSON-LD?',
-        answer: 'JSON-LD (JavaScript Object Notation for Linked Data) is the format recommended by Google and W3C for implementing structured data.'
+        question: 'What is a Schema Markup Generator?',
+        answer: 'A schema markup generator is a technical SEO tool that produces standardized, machine-readable structured data in JSON-LD format based on inputs you provide in a guided form. It eliminates manual coding errors and creates Schema.org code ready to add to your website.'
       },
       {
-        question: 'Do I need to paste the script tag in the <head> or <body>?',
-        answer: 'Google supports JSON-LD script blocks placed in either the <head> or <body> of the HTML. Placing it inside <head> is the standard industry best practice.'
+        question: 'What is JSON-LD and why is it recommended?',
+        answer: 'JSON-LD (JavaScript Object Notation for Linked Data) is a lightweight Linked Data format that embeds structured data inside a <script type="application/ld+json"> tag. It is the format recommended by Google and the W3C because it remains clean and separate from visible HTML elements.'
       },
       {
-        question: 'Does schema markup guarantee rich snippets in Google search results?',
-        answer: 'No. Structured data makes your site eligible for rich enhancements, but search algorithms determine final display based on query intent, user value, and E-E-A-T relevance.'
+        question: 'Do I need to paste JSON-LD schema into the <head> or <body>?',
+        answer: 'Google supports JSON-LD script blocks placed in either the <head> or the <body> of the HTML document. Placing it in the <head> is traditional industry practice, but placing it in the <body> is fully supported and processed by Googlebot.'
+      },
+      {
+        question: 'Does schema markup guarantee Google rich results or higher rankings?',
+        answer: "No. Valid structured data makes your page eligible for supported Google search enhancements, but Google's algorithms decide whether to display them based on user intent and quality signals. Structured data does not guarantee rich results or higher organic rankings."
+      },
+      {
+        question: 'Which Schema.org types does this generator support?',
+        answer: 'The generator supports 19 primary Schema.org types and numerous subtypes, including Organization (with 12 subtypes), LocalBusiness (with 7 subtypes), Article, Product, BreadcrumbList, Event, Recipe, JobPosting, Person, VideoObject, ImageObject, SoftwareApplication, and WebSite.'
+      },
+      {
+        question: 'Can I import and edit existing JSON-LD code?',
+        answer: 'Yes. Click the "Import / Edit Existing JSON-LD" button, paste your raw JSON-LD or full <script> tag, and the tool will parse your markup, detect the schema type, and populate the editable form fields. Properties outside the supported schema definitions may be omitted.'
+      },
+      {
+        question: 'Does FAQ schema still generate Google FAQ rich results?',
+        answer: 'No. Google discontinued general FAQ rich snippets in May 2026 for commercial and standard websites. FAQPage remains a valid Schema.org vocabulary type for semantic structuring and voice search, but standard websites will not receive accordion rich results.'
+      },
+      {
+        question: 'What is the difference between a Schema Generator and a Schema Checker?',
+        answer: "A Schema Generator creates new Schema.org JSON-LD code from scratch for you to implement on your website. A Schema Checker (such as Indian Marketers' Bulk Schema Checker) inspects already published URLs to detect, extract, and audit deployed structured data."
       }
     ]
   },
