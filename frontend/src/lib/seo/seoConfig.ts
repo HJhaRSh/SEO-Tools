@@ -651,39 +651,74 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
 
   'local-search': {
     slug: 'local-search',
-    name: 'Local Search Tool',
-    metaTitle: 'Local Search Simulator - Geo SERP Audit Tool | Indian Marketers',
-    metaDescription: 'Simulate localized Google Search and Google Maps results from any geographic location using canonical UULE parameters, country bias, and language controls.',
+    name: 'Local SERP Checker',
+    metaTitle: 'Local SERP Checker – Google Location Simulator | Indian Marketers',
+    metaDescription: 'Check Google search results from different locations with our free Local SERP Checker. Simulate city-based searches and inspect localized Google Search and Maps results.',
     canonical: `${TOOLS_BASE_URL}/local-search`,
     category: 'Local SEO',
     softwareCategory: 'BusinessApplication',
+    keywords: [
+      'local SERP checker',
+      'local search results checker',
+      'google search location simulator',
+      'local SERP simulator',
+      'local search checker',
+      'google local search checker',
+      'local search results tool',
+      'google search from another location',
+      'localized google search',
+      'google SERP location checker',
+      'google search location checker',
+      'location based google search',
+      'google location search simulator',
+      'check google results in another city',
+      'local SEO search tool',
+      'google search location changer',
+      'local search simulator',
+      'google maps search simulator',
+      'local SERP analysis tool',
+      'check local google results',
+      'google UULE search tool'
+    ],
     features: [
-      'Canonical Google UULE parameter formulation for precise city/postal-code geo-targeting',
+      'Canonical Google UULE parameter formulation for precise city- and region-targeted searches',
       'Country market bias (gl), interface language controls (hl), and personalization suppression (pws=0)',
-      'Embedded live interactive browser container with desktop and mobile viewport toggles',
-      'Direct 1-click links to live Google Search and Google Maps queries',
-      '100% free client-side tool with no Google Cloud billing or API key requirements'
+      'Embedded live interactive inspection pane with desktop and mobile viewport container toggles',
+      'Direct 1-click external browser tab launches for live Google Search and Google Maps queries',
+      '100% free client-side diagnostic utility requiring no Google Cloud billing, paid proxies, or API keys'
     ],
     faqs: [
       {
-        question: 'How does the embedded live browser pane work?',
-        answer: "The live browser pane embeds the location-targeted Google Search (utilizing the reference 'igu=1' parameter) and Google Maps in an interactive container. This enables you to inspect the localized query directly inside this application without having to switch tabs. You can also toggle between desktop container width and mobile device container view."
+        question: 'What is a local SERP checker?',
+        answer: 'A local SERP checker is a search inspection utility that enables marketers, technical SEOs, and local business owners to view Google search engine results pages (SERPs) associated with a specific geographic location. Because Google tailors results based on geographic signals, a local SERP checker helps audit how organic rankings, Local 3-Packs, Knowledge Panels, and local business listings appear to users in different cities or regions without requiring physical relocation.'
       },
       {
-        question: 'How does Google determine location in these generated search URLs?',
-        answer: "Google uses the canonical 'uule' parameter to associate search queries with a geographic location. This tool formats the location name into Google's standard length-keyed Base64 UULE specification. Combined with the country domain/market parameter (gl) and interface language (hl), Google serves results tailored to the designated region."
+        question: 'How can I check Google search results from another city?',
+        answer: "To check Google results for another city: enter your target search query (e.g., 'plumber' or 'SEO agency'), specify your target city or region in the geographic location field (e.g., 'Austin, Texas, United States' or 'Mumbai, Maharashtra, India'), configure optional country (gl) and language (hl) settings, and click 'Generate & Inspect Local Search'. You can inspect the localized search directly in the embedded interactive pane or click 'Open Tab' to view the live query directly on Google."
       },
       {
-        question: 'Does this simulate exact mobile GPS coordinates or IP addresses?',
-        answer: 'No. Emulating physical GPS signals or residential IP addresses requires specialized browser automation or paid residential proxy networks. This tool leverages Google\'s native location parameter (UULE) and geographic query parameters (gl, hl, pws=0), providing a free, highly effective way to audit localized SERPs without incurring API costs or sending automated traffic in violation of guidelines.'
+        question: 'What is Google UULE and how does it work?',
+        answer: "UULE is an unofficial, widely recognized URL parameter utilized by Google Search to associate queries with a specific canonical geographic location. It encodes the location name using a length-keyed character prefix followed by standard Base64 encoding (e.g., w+CAIQICI...). When appended to a search URL, it instructs Google's search infrastructure to evaluate the query within the specified geographic market, though it operates as a query-level targeting hint rather than an absolute device-level GPS override."
       },
       {
-        question: "What does 'Reduce Personalized Search' (pws=0) do?",
-        answer: "When enabled, Google appends 'pws=0' to the search request, which instructs Google to minimize user search history bias and personalization. While it reduces historical profile customization, modern Google results are still influenced by regional trends and active Google Account sessions."
+        question: 'What is the difference between gl, hl, and pws=0 parameters?',
+        answer: "The 'gl' parameter defines the regional country market (e.g., gl=us for United States, gl=in for India), which determines country-specific domain handling and regional index selection. The 'hl' parameter controls Google's interface and snippet display language (e.g., hl=en for English). The 'pws=0' parameter instructs Google to suppress historical search personalization, helping provide a more standardized search perspective free from past browsing session bias."
       },
       {
-        question: 'Are any API keys or payment accounts required?',
-        answer: 'None. This tool is completely free, runs client-side, and requires no Google Cloud billing, Google Places API keys, or third-party paid subscriptions.'
+        question: 'How does local Google Search differ from Google Maps results?',
+        answer: 'Google Search displays a blended results page featuring traditional organic search listings, localized snippet features, People Also Ask blocks, and an embedded Local Map Pack (typically 3 featured local businesses). Google Maps, conversely, is a dedicated navigation and directory interface focused strictly on geographical business profiles, user reviews, directions, and proximity pins. Our tool generates dedicated links and embedded views for both environments so you can evaluate both organic and map-based visibility.'
+      },
+      {
+        question: 'Does this tool simulate physical GPS coordinates or residential IP addresses?',
+        answer: "No. Simulating physical GPS hardware signals or residential IP addresses requires specialized browser automation software or paid residential proxy networks. This tool leverages Google's native canonical location parameter (UULE) alongside geographic query parameters (gl, hl, pws=0). This provides a fast, frictionless, and free method to audit localized search results without violating Google guidelines or incurring proxy and API expenses."
+      },
+      {
+        question: 'Why do local search results vary across different locations?',
+        answer: "According to Google's official local search documentation, local results are determined primarily by three core ranking factors: relevance (how closely a business profile matches the user's search intent), distance (how far the business is from the user's location or the location specified in the query), and prominence (how well-known, established, and authoritative the business is based on web mentions, reviews, and organic links). Because distance and local relevance change by city, Google dynamically tailors the results."
+      },
+      {
+        question: 'Is this Local SERP Checker completely free to use?',
+        answer: 'Yes, 100% free. The tool runs entirely in your browser without requiring account registration, credit cards, Google Cloud project billing, Google Places API keys, or paid proxy subscriptions.'
       }
     ]
   },

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import {
   generateLocalSearchResults,
@@ -209,42 +210,269 @@ export default function LocalSearchTool() {
     return result.googleSearchUrl;
   }, [result, activeTab, queryMode]);
 
+  const faqItems = [
+    {
+      question: 'What is a local SERP checker?',
+      answer: 'A local SERP checker is a search inspection utility that enables marketers, technical SEOs, and local business owners to view Google search engine results pages (SERPs) associated with a specific geographic location. Because Google tailors results based on geographic signals, a local SERP checker helps audit how organic rankings, Local 3-Packs, Knowledge Panels, and local business listings appear to users in different cities or regions without requiring physical relocation.'
+    },
+    {
+      question: 'How can I check Google search results from another city?',
+      answer: "To check Google results for another city: enter your target search query (e.g., 'plumber' or 'SEO agency'), specify your target city or region in the geographic location field (e.g., 'Austin, Texas, United States' or 'Mumbai, Maharashtra, India'), configure optional country (gl) and language (hl) settings, and click 'Generate & Inspect Local Search'. You can inspect the localized search directly in the embedded interactive pane or click 'Open Tab' to view the live query directly on Google."
+    },
+    {
+      question: 'What is Google UULE and how does it work?',
+      answer: "UULE is an unofficial, widely recognized URL parameter utilized by Google Search to associate queries with a specific canonical geographic location. It encodes the location name using a length-keyed character prefix followed by standard Base64 encoding (e.g., w+CAIQICI...). When appended to a search URL, it instructs Google's search infrastructure to evaluate the query within the specified geographic market, though it operates as a query-level targeting hint rather than an absolute device-level GPS override."
+    },
+    {
+      question: 'What is the difference between gl, hl, and pws=0 parameters?',
+      answer: "The 'gl' parameter defines the regional country market (e.g., gl=us for United States, gl=in for India), which determines country-specific domain handling and regional index selection. The 'hl' parameter controls Google's interface and snippet display language (e.g., hl=en for English). The 'pws=0' parameter instructs Google to suppress historical search personalization, helping provide a more standardized search perspective free from past browsing session bias."
+    },
+    {
+      question: 'How does local Google Search differ from Google Maps results?',
+      answer: 'Google Search displays a blended results page featuring traditional organic search listings, localized snippet features, People Also Ask blocks, and an embedded Local Map Pack (typically 3 featured local businesses). Google Maps, conversely, is a dedicated navigation and directory interface focused strictly on geographical business profiles, user reviews, directions, and proximity pins. Our tool generates dedicated links and embedded views for both environments so you can evaluate both organic and map-based visibility.'
+    },
+    {
+      question: 'Does this tool simulate physical GPS coordinates or residential IP addresses?',
+      answer: "No. Simulating physical GPS hardware signals or residential IP addresses requires specialized browser automation software or paid residential proxy networks. This tool leverages Google's native canonical location parameter (UULE) alongside geographic query parameters (gl, hl, pws=0). This provides a fast, frictionless, and free method to audit localized search results without violating Google guidelines or incurring proxy and API expenses."
+    },
+    {
+      question: 'Why do local search results vary across different locations?',
+      answer: "According to Google's official local search documentation, local results are determined primarily by three core ranking factors: relevance (how closely a business profile matches the user's search intent), distance (how far the business is from the user's location or the location specified in the query), and prominence (how well-known, established, and authoritative the business is based on web mentions, reviews, and organic links). Because distance and local relevance change by city, Google dynamically tailors the results."
+    },
+    {
+      question: 'Is this Local SERP Checker completely free to use?',
+      answer: 'Yes, 100% free. The tool runs entirely in your browser without requiring account registration, credit cards, Google Cloud project billing, Google Places API keys, or paid proxy subscriptions.'
+    }
+  ];
+
+  const relatedTools = [
+    {
+      name: 'Review Link Generator',
+      href: '/tools/review-link-generator',
+      desc: 'Create direct 5-star Google review links and printable QR codes for local customers.'
+    },
+    {
+      name: 'SERP Simulator',
+      href: '/tools/serp-simulator',
+      desc: 'Preview how local business title tags and meta descriptions appear in Google search results.'
+    },
+    {
+      name: 'Schema Markup Generator',
+      href: '/tools/schema-generator',
+      desc: 'Generate LocalBusiness structured data to help search engines understand your address.'
+    }
+  ];
+
+  const extraSections = (
+    <div className="space-y-8 sm:space-y-12">
+      {/* SECTION: HOW DOES OUR SEARCH LOCATION SIMULATOR WORK */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-700 rounded-lg">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A2 2 0 013 15.488V5.092a2 2 0 011.056-1.764L9 1m0 19l6-3m-6 3V1m6 16.276l5.447 2.724A2 2 0 0021 18.092V7.692a2 2 0 00-1.056-1.764L15 3m0 16.276V3m0 0L9 1" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900">
+            How Does Our Google Search Location Simulator Work?
+          </h2>
+        </div>
+        <p className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6">
+          Google personalizes and geo-targets search engine results based on several signals, including IP addresses, browser location settings, device sensors, and explicit search query terms. Our search location simulator constructs authentic, location-encoded query URLs that signal your intended geographic market directly to Google&apos;s search infrastructure.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-5">
+            <h3 className="text-base font-bold text-slate-900 mb-2.5 flex items-center gap-2">
+              <span className="text-blue-600 font-mono text-sm bg-blue-100 px-2 py-0.5 rounded">uule</span>
+              <span>Geographic Location &amp; UULE</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Google uses the canonical <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-xs text-slate-800">uule</code> parameter to represent a geographic location. Our tool calculates the canonical length key and encodes your chosen city, state, and country into standard Base64 format (e.g. <code className="bg-white px-1 py-0.5 rounded border border-slate-200 text-[11px] text-slate-700">w+CAIQICI...</code>), instructing Google to return results aligned with that target region.
+            </p>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-5">
+            <h3 className="text-base font-bold text-slate-900 mb-2.5 flex items-center gap-2">
+              <span className="text-emerald-600 font-mono text-sm bg-emerald-100 px-2 py-0.5 rounded">gl &amp; hl</span>
+              <span>Country &amp; Language Settings</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              The <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-xs text-slate-800">gl</code> parameter sets the two-letter ISO country market bias (e.g., <code className="text-xs">gl=in</code> for India or <code className="text-xs">gl=us</code> for the United States). Meanwhile, <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-xs text-slate-800">hl</code> controls Google&apos;s interface and snippet language, ensuring you view SERPs exactly as local language searchers see them.
+            </p>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-5">
+            <h3 className="text-base font-bold text-slate-900 mb-2.5 flex items-center gap-2">
+              <span className="text-purple-600 font-mono text-sm bg-purple-100 px-2 py-0.5 rounded">pws=0</span>
+              <span>Reduced Personalization</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              When enabled, <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-xs text-slate-800">pws=0</code> asks Google to minimize historical search profiling, cookies, and personalized browsing bias. This provides a cleaner baseline SERP inspection, though active Google Account logins and regional popularity trends may still exert subtle influence.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION: GOOGLE SEARCH VS GOOGLE MAPS LOCAL RESULTS */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 sm:p-2.5 bg-emerald-50 text-emerald-700 rounded-lg">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900">
+            Google Search vs Google Maps Local Results
+          </h2>
+        </div>
+        <p className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6">
+          Local search visibility spans two closely connected but distinct Google environments. Understanding how each ecosystem presents local businesses is essential for comprehensive local SEO audits:
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="border border-slate-200 rounded-xl p-5 bg-slate-50/50">
+            <h3 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
+              <span>🔍</span> Google Search &amp; the Local 3-Pack
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-3">
+              Standard Google Search presents a blended SERP containing organic website links, sponsored ads, rich snippets, and—for local intent queries—a prominent <strong>Local 3-Pack</strong> map snippet. Ranking in the organic search results depends on traditional on-page SEO, technical architecture, and backlink authority, while Local 3-Pack placement heavily factors in Google Business Profile completeness and proximity.
+            </p>
+            <p className="text-xs text-slate-500">
+              💡 <em>Tip: Use our <Link href="/tools/serp-simulator" className="text-blue-600 font-medium hover:underline">SERP Simulator</Link> to preview how your organic title tags and meta descriptions appear alongside local snippets.</em>
+            </p>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl p-5 bg-slate-50/50">
+            <h3 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
+              <span>📍</span> Google Maps Dedicated Interface
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-3">
+              Google Maps is a dedicated geospatial discovery tool designed for navigation, direct store visits, and local directory filtering. In Google Maps, searchers browse extended lists of businesses plotted on an interactive map, sorted primarily by distance radius, customer star ratings, review velocity, opening hours, and category relevance.
+            </p>
+            <p className="text-xs text-slate-500">
+              ⭐ <em>Tip: Strengthen your Google Maps visibility by generating frictionless review invitations with our <Link href="/tools/review-link-generator" className="text-blue-600 font-medium hover:underline">Review Link Generator</Link>.</em>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION: WHY LOCAL SEARCH RESULTS CHANGE BY LOCATION */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-700 rounded-lg">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900">
+            Why Local Search Results Change by Location
+          </h2>
+        </div>
+        <p className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6">
+          According to official Google search documentation, local results are primarily based on three foundational criteria: <strong>relevance</strong>, <strong>distance</strong>, and <strong>prominence</strong>. These factors combine to help Google match searchers with the most helpful nearby businesses:
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="border border-slate-200 rounded-xl p-5 bg-slate-50/50">
+            <div className="text-amber-600 font-bold text-sm mb-1 uppercase tracking-wider">Factor 1</div>
+            <h3 className="text-base font-bold text-slate-900 mb-2">Relevance</h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Relevance measures how well a local business profile matches what someone is searching for. Detailed business descriptions, accurate primary and secondary categories, in-depth service menus, and relevant on-page website copy help Google understand your business and surface it for pertinent local queries.
+            </p>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl p-5 bg-slate-50/50">
+            <div className="text-amber-600 font-bold text-sm mb-1 uppercase tracking-wider">Factor 2</div>
+            <h3 className="text-base font-bold text-slate-900 mb-2">Distance</h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Distance considers how far each potential business location is from the location term used in the search. If a searcher doesn&apos;t specify a location, Google calculates distance based on available location signals. Proximity creates hyper-localized variations, meaning searchers just a few kilometers apart often see different top rankings.
+            </p>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl p-5 bg-slate-50/50">
+            <div className="text-amber-600 font-bold text-sm mb-1 uppercase tracking-wider">Factor 3</div>
+            <h3 className="text-base font-bold text-slate-900 mb-2">Prominence</h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Prominence reflects how well-known or authoritative a business is in the physical world and online. Google assesses prominence through web mentions, articles, local business directory citations, high-quality backlinks, and the volume and score of authentic Google customer reviews.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION: UNDERSTANDING LOCAL SEARCH SIMULATION LIMITATIONS */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 sm:p-2.5 bg-rose-50 text-rose-700 rounded-lg">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900">
+            Understanding Local Search Simulation Limitations
+          </h2>
+        </div>
+        <p className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6">
+          To maintain technical accuracy and transparent SEO methodology, users should understand what an on-demand location simulator can and cannot reproduce:
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm text-slate-600 leading-relaxed">
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <strong className="block text-slate-900 font-bold mb-1">Simulated Parameters vs Physical GPS</strong>
+            This tool formats query parameters (<code className="text-xs">uule</code>, <code className="text-xs">gl</code>, <code className="text-xs">hl</code>) to instruct Google which market to evaluate. It does not spoof hardware-level mobile GPS coordinates or route traffic through residential proxy IP addresses.
+          </div>
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <strong className="block text-slate-900 font-bold mb-1">On-Demand Audit vs Automated Rank Tracking</strong>
+            This is an interactive search inspection utility designed for spot-checking localized SERPs in real time. It is not an automated rank tracker, geogrid matrix crawler, or automated SERP scraper.
+          </div>
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <strong className="block text-slate-900 font-bold mb-1">Viewport Dimensions vs Device Emulation</strong>
+            The Mobile View toggle adjusts container dimensions to preview responsive layout presentation. It does not alter your device&apos;s underlying operating system, browser user-agent header, or touchscreen touch events.
+          </div>
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <strong className="block text-slate-900 font-bold mb-1">Embedded Viewer vs Browser Security Policies</strong>
+            While the embedded pane provides fast in-app inspection using Google&apos;s <code className="text-xs">igu=1</code> reference parameter, certain browsers or extensions may restrict third-party frames. If blocked, clicking <strong>Open Tab</strong> immediately launches the authoritative query directly on Google.
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+
   return (
     <ToolLayout
-      title="Local Search Results Tool"
-      description="Inspect geographically targeted Google Search and Google Maps queries in real-time right inside your browser window without paid APIs or cloud billing."
+      title="Free Local SERP Checker & Search Location Simulator"
+      description="Use Indian Marketers' free Local SERP Checker to inspect Google Search results for different cities and regions. Enter a keyword, choose a geographic location and generate location-targeted Google Search or Maps results to understand how search visibility can vary by location."
       category="Local SEO"
-      breadcrumbs={[{ label: 'Local Search Results Tool' }]}
-      aboutText="Search engine results pages (SERPs) vary significantly based on where a user searches from. Google tailors organic results, Local Map Packs, Knowledge Panels, and local business citations according to location signals. This free tool lets technical SEOs, local marketers, and business owners formulate authentic localized Google search URLs equipped with official canonical location parameters (Google UULE), country market bias (gl), language controls (hl), and reduced personalization (pws=0). You can inspect the live results directly in the embedded interactive browser pane or open them in external browser tabs."
+      breadcrumbs={[{ label: 'Local SERP Checker' }]}
+      aboutTitle="What Is a Local SERP Checker?"
+      aboutText={
+        <div className="space-y-4">
+          <p>
+            A <strong>Local SERP Checker</strong> (or Google search location simulator) is an essential diagnostic utility for technical SEOs, digital agencies, and multi-location businesses. Because Google dynamically customizes search results, Local 3-Packs, Knowledge Panels, and local service ads based on where a searcher is located, evaluating search visibility from your own office or home only reveals your own neighborhood results.
+          </p>
+          <p>
+            Our free <strong>Local SERP Checker</strong> solves this challenge by formulating authentic location-targeted Google Search and Google Maps URLs equipped with canonical Google UULE location parameters, country market bias (<code className="bg-slate-100 px-1 py-0.5 rounded text-xs">gl</code>), interface language controls (<code className="bg-slate-100 px-1 py-0.5 rounded text-xs">hl</code>), and reduced search personalization (<code className="bg-slate-100 px-1 py-0.5 rounded text-xs">pws=0</code>). This allows you to simulate searches from any city or region globally and inspect live search results directly inside an interactive browser pane or in separate browser tabs.
+          </p>
+          <div className="p-3.5 bg-slate-100 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed">
+            <strong>Diagnostic inspection notice:</strong> This utility is designed for on-demand search inspection and local SERP analysis. It formulates search URLs using Google&apos;s canonical UULE specification rather than spoofing physical device GPS hardware or utilizing automated residential proxies. Real search outputs may also be influenced by active Google Account sessions and ISP routing.
+          </div>
+        </div>
+      }
+      howItWorksTitle="How to Check Google Search Results from Different Locations"
       howItWorks={[
-        "Enter your search keyword or phrase (e.g. 'dentist near me', 'SEO services', 'digital marketing agency').",
-        "Specify the search location (e.g. 'Mumbai, Maharashtra, India').",
-        "Adjust advanced options if needed: target country (gl), interface language (hl), and personalization reduction (pws=0).",
-        "Click 'Generate & Inspect Local Search'.",
-        "View the live Google Search or Google Maps results directly in the embedded pane below, toggle between desktop and mobile viewport containers, or open in a new tab."
+        "Enter your target keyword or phrase in the Search Keyword / Query field (e.g., 'dentist near me', 'SEO services', 'plumber in Dallas'). Queries are preserved exactly without alteration.",
+        "Specify your target geographic location in the Geographic Location field (e.g., 'Mumbai, Maharashtra, India' or 'Austin, Texas, United States') using the canonical City, State, Country format or selecting from the dynamic autocomplete dropdown.",
+        "Optionally expand Advanced Options to configure your target country market bias (gl), interface language (hl), and reduced personalization (pws=0).",
+        "Click 'Generate & Inspect Local Search' to compute the length-keyed Base64 Google UULE parameter and generate localized Google Search and Google Maps URLs.",
+        "Inspect the live localized query directly in the embedded interactive browser pane below, switching between Google Search (SERP) and Google Maps tabs.",
+        "Toggle between Desktop and Mobile View container dimensions to inspect how localized search snippets and local packs display across different viewports.",
+        "Click 'Open Tab' or 'Copy' to view or share the authoritative live search query directly in your web browser."
       ]}
-      faq={[
-        {
-          question: "How does the embedded live browser pane work?",
-          answer: "The live browser pane embeds the location-targeted Google Search (utilizing the reference 'igu=1' parameter) and Google Maps in an interactive container. This enables you to inspect the localized query directly inside this application without having to switch tabs. You can also toggle between desktop container width and mobile device container view."
-        },
-        {
-          question: "How does Google determine location in these generated search URLs?",
-          answer: "Google uses the canonical 'uule' parameter to associate search queries with a geographic location. This tool formats the location name into Google's standard length-keyed Base64 UULE specification. Combined with the country domain/market parameter (gl) and interface language (hl), Google serves results tailored to the designated region."
-        },
-        {
-          question: "Does this simulate exact mobile GPS coordinates or IP addresses?",
-          answer: "No. Emulating physical GPS signals or residential IP addresses requires specialized browser automation or paid residential proxy networks. This tool leverages Google's native location parameter (UULE) and geographic query parameters (gl, hl, pws=0), providing a free, highly effective way to audit localized SERPs without incurring API costs or sending automated traffic in violation of guidelines."
-        },
-        {
-          question: "What does 'Reduce Personalized Search' (pws=0) do?",
-          answer: "When enabled, Google appends 'pws=0' to the search request, which instructs Google to minimize user search history bias and personalization. While it reduces historical profile customization, modern Google results are still influenced by regional trends and active Google Account sessions."
-        },
-        {
-          question: "Are any API keys or payment accounts required?",
-          answer: "None. This tool is completely free, runs client-side, and requires no Google Cloud billing, Google Places API keys, or third-party paid subscriptions."
-        }
-      ]}
+      extraSections={extraSections}
+      faqTitle="Frequently Asked Questions"
+      faq={faqItems}
+      relatedTools={relatedTools}
     >
       {/* SECTION 1: SEARCH & LOCATION CONFIGURATION */}
       <div className="card mb-8">
