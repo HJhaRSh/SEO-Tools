@@ -47,7 +47,7 @@ export const NAVIGATION_TOOLS: ToolCategory[] = [
     description: 'Tools to improve your local business visibility.',
     tools: [
       { name: 'Local Search Tool', description: 'Simulate local search results for specific locations.', href: '/tools/local-search' },
-      { name: 'Review Link Generator', description: 'Create direct Google Review links for your business.', href: '/tools/review-link-generator' }
+      { name: 'Google Review Link Generator', description: 'Create direct Google Review links and QR codes for your business.', href: '/tools/review-link-generator' }
     ]
   },
   {

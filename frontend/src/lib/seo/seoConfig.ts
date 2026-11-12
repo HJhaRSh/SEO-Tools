@@ -725,9 +725,9 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
 
   'review-link-generator': {
     slug: 'review-link-generator',
-    name: 'Review Link Generator',
-    metaTitle: 'Google Review Link Generator with QR Code | Indian Marketers',
-    metaDescription: 'Generate direct 5-star Google review links and printable QR codes. Send frictionless review requests to customers via WhatsApp, SMS, and email with zero setup.',
+    name: 'Google Review Link Generator',
+    metaTitle: 'Google Review Link Generator – Free Tool | Indian Marketers',
+    metaDescription: 'Create a free Google review link for your business. Generate a direct review URL and QR code using your Google Place ID, then share it via WhatsApp, SMS or email.',
     canonical: `${TOOLS_BASE_URL}/review-link-generator`,
     category: 'Local SEO',
     softwareCategory: 'BusinessApplication',
@@ -736,20 +736,48 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
       '1-click Place ID identification helper without requiring Google Cloud billing',
       'Instant high-resolution printable QR code generator (PNG and SVG download)',
       'Pre-written outreach message templates formatted for WhatsApp, SMS, and email',
-      'Support for Place IDs, custom business names, and existing Google Maps links'
+      'Support for Place IDs, custom business names, and geographic location search'
     ],
     faqs: [
       {
-        question: 'How does the direct Google review link work?',
-        answer: "It uses Google's official local write-review format: https://search.google.com/local/writereview?placeid=PLACE_ID. When clicked by customers, it opens directly into the 5-star review dialog without requiring extra navigation."
+        question: 'What is a Google Review Link Generator?',
+        answer: 'A Google Review Link Generator is a free tool that creates a direct link taking customers straight to the review dialog for your Google Business Profile. By using your official Google Place ID, it removes navigation friction so customers do not have to manually search for your business on Google Search or Maps.'
+      },
+      {
+        question: 'How do I create a Google review link for my business?',
+        answer: 'Enter your business name and city to look up your listing, or enter your Google Place ID directly if you already have it. If you need your Place ID, click the Place ID helper button to locate and copy it. The tool immediately formats your direct review URL and generates a printable QR code.'
+      },
+      {
+        question: 'Can I generate a Google review link for free?',
+        answer: 'Yes, 100% free. The tool runs directly in your browser without requiring account registration, credit cards, Google Cloud project billing, or paid Google Places API keys.'
       },
       {
         question: 'How do I find my Google Place ID?',
-        answer: "Click the 'Find Place ID in 1 Click' button right above the form. It auto-copies your business name to your clipboard and opens Google's free Place ID finder tool."
+        answer: "Click the 'Find Place ID in 1 Click' button right above the form. It auto-copies your business name to your clipboard and opens Google's free Place ID finder tool. Once you select your business on the map, copy the Place ID (starting with ChIJ) and paste it into the tool."
+      },
+      {
+        question: 'Can I create a QR code for Google reviews?',
+        answer: 'Yes. Every generated review link includes a high-resolution QR code that you can download as a print-ready PNG image. You can place this QR code on receipts, counter cards, window stickers, flyers, and table tents for in-person customer reviews.'
+      },
+      {
+        question: 'How do I share a Google review link on WhatsApp?',
+        answer: 'Once your review link is generated, click the pre-formatted WhatsApp template in the customer request section. It opens WhatsApp or WhatsApp Web with a polite, pre-written review invitation containing your direct link, ready to send with one click.'
+      },
+      {
+        question: 'Does a Google review link automatically give five stars?',
+        answer: 'No. A direct Google review link opens the standard Google review composition interface where customers select their own star rating (1 to 5 stars) and write their feedback. Pre-filling or forcing a specific rating is not supported by Google and violates Google review policies.'
+      },
+      {
+        question: 'Can customers leave a Google review without signing in?',
+        answer: 'No. Google requires reviewers to sign in to an active Google Account before submitting a review. This ensures authenticity, prevents automated spam, and allows users to manage their reviews.'
+      },
+      {
+        question: 'Does Google allow businesses to ask customers for reviews?',
+        answer: "Yes. Google encourages businesses to remind customers to leave reviews. However, Google's policies strictly prohibit offering incentives (such as discounts, gifts, or payments) in exchange for reviews, and prohibit review gating (selectively asking only happy customers to leave Google reviews)."
       },
       {
         question: 'Does this require Google Cloud billing or API keys?',
-        answer: 'No! This tool operates at 100% zero cost. No Google Cloud project, billing accounts, credit cards, or paid APIs are required.'
+        answer: 'No! This tool operates at 100% zero cost. No Google Cloud project setup, billing accounts, credit cards, or paid Google Maps Platform APIs are required.'
       }
     ]
   },

@@ -51,7 +51,7 @@ const TOOLS_DATA = [
     ),
     tools: [
       { name: 'Local Search Tool', description: 'Simulate localized search engine results pages from specific geographic coordinates and postal codes.', href: '/tools/local-search' },
-      { name: 'Review Link Generator', description: 'Create direct, frictionless Google Business Review links for your customers.', href: '/tools/review-link-generator' }
+      { name: 'Google Review Link Generator', description: 'Create direct, frictionless Google Business Review links and QR codes for your customers.', href: '/tools/review-link-generator' }
     ]
   },
   {

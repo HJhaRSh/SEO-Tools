@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import ToolLayout from '@/components/ToolLayout';
 import { GenerateLinkResponse } from '@/lib/seo/reviewLinkTypes';
 import {
@@ -137,30 +138,233 @@ export default function ReviewLinkGeneratorPage() {
 
   return (
     <ToolLayout
-      title="Google Review Link Generator"
-      description="Create direct, 5-star Google Review links for your business with instant QR code, WhatsApp, and SMS sharing — 100% free."
+      title="Free Google Review Link Generator"
+      description="Create a direct Google review link for your business with Indian Marketers' free Google Review Link Generator. Use your Google Place ID to generate a review URL, create a QR code and share the link with customers through WhatsApp, SMS or email."
       category="Local SEO"
-      breadcrumbs={[{ label: 'Review Link Generator' }]}
-      aboutText="Customers are significantly more likely to leave a 5-star Google review when all friction is removed. This tool creates official direct Google review URLs that launch the 5-star rating popup immediately on desktop and mobile — completely free without requiring Google Cloud billing or paid API keys."
+      breadcrumbs={[{ label: 'Google Review Link Generator' }]}
+      aboutTitle="What Is a Google Review Link Generator?"
+      aboutText={
+        <div className="space-y-4">
+          <p>
+            A <strong>Google Review Link Generator</strong> is a free local SEO utility designed to help businesses create a direct URL that takes customers straight to the review composition form on their <strong>Google Business Profile</strong>. By compiling your business&apos;s verified Google Place ID into Google&apos;s official review URL format (<code className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono">https://search.google.com/local/writereview?placeid=YOUR_PLACE_ID</code>), the tool removes unnecessary friction from the review process.
+          </p>
+          <p>
+            Normally, leaving a Google review requires customers to open Google Maps or Search, type the business name, scroll past sponsored ads and local pack competitors, navigate to the business profile, and locate the review button. A direct review link simplifies this entire flow into a single click or QR code scan, making it easier for genuine customers to share their feedback, photos, and ratings.
+          </p>
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-1.5">
+            <strong className="text-slate-800 dark:text-slate-200 block font-semibold">Important Review Integrity &amp; Policy Notice:</strong>
+            <p>
+              A direct Google review link provides frictionless access to Google&apos;s review form. It does not automatically submit a review, pre-select star ratings, or write reviews for customers. Customers must sign in with their own Google Account, choose their rating freely, and submit their own honest assessment. Google evaluates all submitted reviews using automated spam detection systems to ensure authenticity.
+            </p>
+          </div>
+        </div>
+      }
+      howItWorksTitle="How to Create a Google Review Link"
       howItWorks={[
-        "Step 1: Enter your business name and location, or switch to Place ID / Existing Link.",
-        "Step 2: Use the 1-click Place ID helper to quickly identify your business and copy its Place ID.",
-        "Step 3: Generate the official 5-star direct write-review link: https://search.google.com/local/writereview?placeid=...",
-        "Step 4: Download your print-ready QR code or share directly via WhatsApp, SMS, or email."
+        "Step 1: Choose your input mode — enter your business name and city to look up your listing, or select Place ID mode if you already have your Google Place ID.",
+        "Step 2: Retrieve your Place ID — use the integrated 'Find Place ID in 1 Click' helper to search Google's official Place ID Finder, then copy your unique Place ID (starts with ChIJ...).",
+        "Step 3: Generate your direct review link — click 'Generate Direct Review Link' to produce your official review URL: https://search.google.com/local/writereview?placeid=PLACE_ID.",
+        "Step 4: Download your print-ready QR code — access your high-resolution review QR code (available as an instant SVG preview and downloadable 500x500 PNG) for physical marketing materials.",
+        "Step 5: Share with customers across channels — copy pre-formatted, polite customer review request templates or launch WhatsApp, SMS, or email directly with your review link."
       ]}
+      extraSections={
+        <div className="space-y-8 sm:space-y-10 border-t border-[var(--im-border)] pt-8">
+          {/* SECTION 1: UNDERSTANDING GOOGLE PLACE IDS */}
+          <section>
+            <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                Understanding Google Place IDs for Review Links
+              </h2>
+            </div>
+            <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-3">
+              <p>
+                A <strong>Google Place ID</strong> is a unique, persistent alphanumeric identifier assigned by Google Maps to a specific physical location or business entity (for example, <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono">ChIJN1t_tDeuEmsRUsoyG83frY4</code>). Google uses Place IDs across Google Maps Platform, Google Places API, and Google Business Profile infrastructure.
+              </p>
+              <p>
+                Using a Place ID is the most reliable way to construct a direct review link. While regular search-based URLs can return ambiguous search results or showcase competing local businesses, a Place ID directly references your exact business profile in Google&apos;s Knowledge Graph. If you also manage your website markup, you can link your Place ID with our <Link href="/tools/schema-generator" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Schema Markup Generator</Link> to generate <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono">LocalBusiness</code> structured data for enhanced local search visibility.
+              </p>
+            </div>
+          </section>
+
+          {/* SECTION 2: HOW TO SHARE YOUR GOOGLE REVIEW LINK */}
+          <section>
+            <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                How to Share Your Google Review Link
+              </h2>
+            </div>
+            <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-6">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-[var(--im-heading)] mb-2">
+                  Google Review QR Codes for Print &amp; In-Person Touchpoints
+                </h3>
+                <p>
+                  A Google review QR code bridges physical customer experiences with your online Google Business Profile. When printed clearly, customers can simply aim their smartphone camera at the code to open the review dialog instantly without typing URLs. Recommended physical placement includes:
+                </p>
+                <ul className="list-disc list-inside mt-2 space-y-1 text-xs sm:text-sm pl-2">
+                  <li><strong>Point of Sale &amp; Receipts:</strong> Include the QR code at the bottom of printed bills or transaction receipts.</li>
+                  <li><strong>Counter Displays &amp; Table Tents:</strong> Position small standing acrylic displays at checkout counters, restaurant tables, or hotel reception desks.</li>
+                  <li><strong>Packaging &amp; Takeaway Bags:</strong> Add a friendly review sticker or thank-you card to delivery packages and takeaway containers.</li>
+                  <li><strong>Business Cards &amp; Flyers:</strong> Include the QR code on leave-behind marketing collaterals and service completion certificates.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-[var(--im-heading)] mb-2">
+                  WhatsApp, SMS, and Email Direct Sharing
+                </h3>
+                <p>
+                  Digital channels offer a direct and convenient way to follow up with customers after a positive service experience or purchase. When sharing your review link digitally:
+                </p>
+                <ul className="list-disc list-inside mt-2 space-y-1 text-xs sm:text-sm pl-2">
+                  <li><strong>Time your request appropriately:</strong> Send the review invite shortly after service completion or order delivery while the positive experience is fresh.</li>
+                  <li><strong>Keep messages polite and concise:</strong> Use our pre-written template: thank the customer for choosing your business and kindly ask for 30 seconds of their honest feedback.</li>
+                  <li><strong>Respect customer privacy:</strong> Send personalized review requests to individual customers rather than broad, impersonal mass-marketing blasts.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 3: DIRECT REVIEW LINK VS STANDARD MAPS LINK */}
+          <section>
+            <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                Google Review Link vs Google Maps Business Profile Link
+              </h2>
+            </div>
+            <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-3">
+              <p>
+                Understanding the technical difference between a direct review URL and a standard Google Maps profile link helps businesses choose the right URL for each customer touchpoint:
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)] space-y-2">
+                  <h4 className="font-bold text-sm text-[var(--im-heading)]">Direct Review Link (Place ID Format)</h4>
+                  <p className="text-xs text-[var(--im-text)] leading-relaxed">
+                    <strong>URL Format:</strong> <code className="font-mono">search.google.com/local/writereview?placeid=...</code>
+                  </p>
+                  <p className="text-xs text-[var(--im-text)] leading-relaxed">
+                    <strong>Customer Experience:</strong> Automatically launches the interactive review composition modal immediately on screen.
+                  </p>
+                  <p className="text-xs text-[var(--im-text)] leading-relaxed">
+                    <strong>Best Used For:</strong> Post-purchase review requests, QR codes on receipts, follow-up WhatsApp/SMS messages, and customer satisfaction emails.
+                  </p>
+                </div>
+                <div className="p-4 rounded-xl bg-[var(--im-bg-soft)] border border-[var(--im-border)] space-y-2">
+                  <h4 className="font-bold text-sm text-[var(--im-heading)]">Google Maps Profile Listing Link</h4>
+                  <p className="text-xs text-[var(--im-text)] leading-relaxed">
+                    <strong>URL Format:</strong> <code className="font-mono">google.com/maps/place/...</code> or short link
+                  </p>
+                  <p className="text-xs text-[var(--im-text)] leading-relaxed">
+                    <strong>Customer Experience:</strong> Opens the business overview tab showing address, opening hours, photos, and existing reviews.
+                  </p>
+                  <p className="text-xs text-[var(--im-text)] leading-relaxed">
+                    <strong>Best Used For:</strong> Providing driving directions, showcasing store photos, verifying operating hours, and general contact information.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 4: GOOGLE REVIEW POLICIES & ETHICAL LOCAL SEO */}
+          <section>
+            <div className="flex items-center gap-3 mb-3.5 sm:mb-4">
+              <div className="p-2 sm:p-2.5 bg-[var(--im-accent-tint)] text-[var(--im-secondary)] rounded-[var(--im-radius-sm)]">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--im-heading)]">
+                Google Review Policies &amp; Ethical Local SEO
+              </h2>
+            </div>
+            <div className="text-[var(--im-text)] leading-relaxed text-sm sm:text-base space-y-3">
+              <p>
+                Customer reviews are a vital component of local search prominence. According to Google&apos;s local ranking documentation, review count and positive review sentiment contribute to local search ranking. However, businesses must strictly adhere to Google Business Profile review policies:
+              </p>
+              <ul className="list-disc list-inside space-y-2 text-xs sm:text-sm pl-2">
+                <li>
+                  <strong>Review Authenticity:</strong> Reviews must represent genuine, first-hand customer experiences. Never purchase reviews, post fabricated testimonials, or incentivize staff to write fake reviews.
+                </li>
+                <li>
+                  <strong>Prohibition of Review Incentives:</strong> Google strictly bans offering payments, discounts, gift cards, loyalty points, or complimentary goods or services in exchange for customer reviews.
+                </li>
+                <li>
+                  <strong>No Review Gating:</strong> Businesses must not selectively filter customers by asking only satisfied customers for reviews while directing unhappy customers to private feedback forms. All customers should have equal opportunity to share honest feedback.
+                </li>
+                <li>
+                  <strong>Google Account Sign-In:</strong> Reviewers must be signed into an active Google Account to submit feedback. Links cannot bypass authentication, ensuring accountability and protecting listings from bot manipulation.
+                </li>
+              </ul>
+              <p className="pt-2 text-xs sm:text-sm">
+                To evaluate how your business appears across local search queries and map packs, monitor your local search rankings with our <Link href="/tools/local-search" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Local Search Tool</Link> or consult our dedicated <a href="https://indianmarketers.in/seo-service/local-seo/" target="_blank" rel="noopener noreferrer" className="text-[var(--im-primary-deep)] font-semibold hover:underline">Local SEO Services</a> for comprehensive Google Business Profile management.
+              </p>
+            </div>
+          </section>
+        </div>
+      }
+      faqTitle="Frequently Asked Questions"
       faq={[
         {
-          question: "How does the direct Google review link work?",
-          answer: "It uses Google's official local write-review format: https://search.google.com/local/writereview?placeid=PLACE_ID. When clicked by customers, it opens directly into the 5-star review dialog without requiring extra navigation."
+          question: "What is a Google Review Link Generator?",
+          answer: "A Google Review Link Generator is a free tool that creates a direct link taking customers straight to the review dialog for your Google Business Profile. By using your official Google Place ID, it removes navigation friction so customers do not have to manually search for your business on Google Search or Maps."
+        },
+        {
+          question: "How do I create a Google review link for my business?",
+          answer: "Enter your business name and city to look up your listing, or enter your Google Place ID directly if you already have it. If you need your Place ID, click the Place ID helper button to locate and copy it. The tool immediately formats your direct review URL and generates a printable QR code."
+        },
+        {
+          question: "Can I generate a Google review link for free?",
+          answer: "Yes, 100% free. The tool runs directly in your browser without requiring account registration, credit cards, Google Cloud project billing, or paid Google Places API keys."
         },
         {
           question: "How do I find my Google Place ID?",
-          answer: "Click the 'Find Place ID in 1 Click' button right above the form. It auto-copies your business name to your clipboard and opens Google's free Place ID finder tool."
+          answer: "Click the 'Find Place ID in 1 Click' button right above the form. It auto-copies your business name to your clipboard and opens Google's free Place ID finder tool. Once you select your business on the map, copy the Place ID (starting with ChIJ) and paste it into the tool."
+        },
+        {
+          question: "Can I create a QR code for Google reviews?",
+          answer: "Yes. Every generated review link includes a high-resolution QR code that you can download as a print-ready PNG image. You can place this QR code on receipts, counter cards, window stickers, flyers, and table tents for in-person customer reviews."
+        },
+        {
+          question: "How do I share a Google review link on WhatsApp?",
+          answer: "Once your review link is generated, click the pre-formatted WhatsApp template in the customer request section. It opens WhatsApp or WhatsApp Web with a polite, pre-written review invitation containing your direct link, ready to send with one click."
+        },
+        {
+          question: "Does a Google review link automatically give five stars?",
+          answer: "No. A direct Google review link opens the standard Google review composition interface where customers select their own star rating (1 to 5 stars) and write their feedback. Pre-filling or forcing a specific rating is not supported by Google and violates Google review policies."
+        },
+        {
+          question: "Can customers leave a Google review without signing in?",
+          answer: "No. Google requires reviewers to sign in to an active Google Account before submitting a review. This ensures authenticity, prevents automated spam, and allows users to manage their reviews."
+        },
+        {
+          question: "Does Google allow businesses to ask customers for reviews?",
+          answer: "Yes. Google encourages businesses to remind customers to leave reviews. However, Google's policies strictly prohibit offering incentives (such as discounts, gifts, or payments) in exchange for reviews, and prohibit review gating (selectively asking only happy customers to leave Google reviews)."
         },
         {
           question: "Does this require Google Cloud billing or API keys?",
-          answer: "No! This tool operates at 100% zero cost. No Google Cloud project, billing accounts, credit cards, or paid APIs are required."
+          answer: "No! This tool operates at 100% zero cost. No Google Cloud project setup, billing accounts, credit cards, or paid Google Maps Platform APIs are required."
         }
+      ]}
+      relatedTools={[
+        { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Simulate localized Google Search and Maps results from specific city coordinates.' },
+        { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview your title tags, meta descriptions, and review star ratings in Google SERP snippets.' },
+        { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness structured data to help search engines understand your address.' }
       ]}
     >
       <div className="space-y-8">

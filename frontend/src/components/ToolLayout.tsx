@@ -75,12 +75,12 @@ const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; de
     { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Simulate location-specific search engine results pages across target international countries.' }
   ],
   'local search tool': [
-    { name: 'Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct 5-star Google review links and printable QR codes for local customers.' },
+    { name: 'Google Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct Google review links and printable QR codes for local customers.' },
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how local business title tags and meta descriptions appear in Google search results.' },
     { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness structured data to help search engines understand your address.' }
   ],
   'local search results tool': [
-    { name: 'Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct 5-star Google review links and printable QR codes for local customers.' },
+    { name: 'Google Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct Google review links and printable QR codes for local customers.' },
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how local business title tags and meta descriptions appear in Google search results.' },
     { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness structured data to help search engines understand your address.' }
   ],
@@ -90,6 +90,11 @@ const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; de
     { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness JSON-LD markup to reinforce local business identity.' }
   ],
   'google review link generator': [
+    { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Audit localized Google Search and Google Maps results from specific city locations.' },
+    { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how your business snippet and review rating stars display in Google SERPs.' },
+    { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness JSON-LD markup to reinforce local business identity.' }
+  ],
+  'free google review link generator': [
     { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Audit localized Google Search and Google Maps results from specific city locations.' },
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview how your business snippet and review rating stars display in Google SERPs.' },
     { name: 'Schema Markup Generator', href: '/tools/schema-generator', desc: 'Generate LocalBusiness JSON-LD markup to reinforce local business identity.' }
@@ -189,7 +194,7 @@ const RELATED_TOOLS_MAP: Record<string, { name: string; href: string; desc: stri
   ],
   'Local SEO': [
     { name: 'Local Search Tool', href: '/tools/local-search', desc: 'Simulate localized search results using canonical Google UULE.' },
-    { name: 'Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct 5-star Google Review links and QR codes.' },
+    { name: 'Google Review Link Generator', href: '/tools/review-link-generator', desc: 'Create direct Google Review links and QR codes.' },
     { name: 'SERP Simulator', href: '/tools/serp-simulator', desc: 'Preview title tags, meta descriptions, and search snippets.' }
   ],
   'Search Appearance': [
