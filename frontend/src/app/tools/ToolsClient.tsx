@@ -17,7 +17,8 @@ const TOOLS_DATA = [
       { name: 'XML Sitemap Generator', description: 'Create and download XML sitemaps by crawling websites, uploading CSV or Excel files, or pasting URLs.', href: '/tools/sitemap-generator' },
       { name: 'Domain Age Checker', description: 'Check domain registration age, creation date, expiry details, and more for single or multiple domains.', href: '/tools/domain-age-checker' },
       { name: 'Bulk Google Index Checker', description: "Check Google's indexing status for multiple URLs with Search Console and view live meta titles and descriptions.", href: '/tools/bulk-google-index-checker' },
-      { name: 'Common Crawl Checker', description: 'Check whether your website appears in Common Crawl, review historical captures, inspect CCBot access and compare sitemap coverage.', href: '/tools/common-crawl-checker' }
+      { name: 'Common Crawl Checker', description: 'Check whether your website appears in Common Crawl, review historical captures, inspect CCBot access and compare sitemap coverage.', href: '/tools/common-crawl-checker' },
+      { name: '499 Timeout Risk Checker', description: 'Check AI fetch timeout risk by comparing response times, redirects, and cache behaviour for ChatGPT, Claude, and Perplexity user agents.', href: '/tools/499-checker' }
     ]
   },
   {
@@ -116,7 +117,7 @@ export default function ToolsClient() {
           Free Technical <span className="text-[var(--im-primary)]">SEO Tools</span> Directory
         </h1>
         <p className="text-xs sm:text-sm md:text-base text-[var(--im-text-muted)] max-w-2xl mx-auto mb-4 sm:mb-5 leading-relaxed font-normal">
-          A comprehensive suite of 19 free technical SEO tools engineered for marketers, agencies, and developers. Audit crawl directives, inspect JavaScript rendering, validate Schema.org structured data, and verify Google indexing without subscriptions.
+          A comprehensive suite of 20 free technical SEO tools engineered for marketers, agencies, and developers. Audit crawl directives, inspect JavaScript rendering, validate Schema.org structured data, and verify Google indexing without subscriptions.
         </p>
 
         {/* Search Bar */}

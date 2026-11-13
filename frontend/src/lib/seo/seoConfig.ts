@@ -1314,6 +1314,74 @@ export const TOOLS_REGISTRY: Record<string, ToolSeoData> = {
         answer: 'Yes. Our tool allows you to input your XML sitemap URL alongside your domain audit. It extracts all sitemap URLs and compares them directly against archived Common Crawl captures in the selected collections, calculating a sitemap coverage percentage and highlighting specific URLs that have never been captured.'
       }
     ]
+  },
+
+  '499-checker': {
+    slug: '499-checker',
+    name: '499 Timeout Risk Checker',
+    metaTitle: '499 Timeout Risk Checker – Free Tool | Indian Marketers',
+    metaDescription: 'Check AI fetch timeout risk with our free 499 checker. Compare response times, redirects and cache behaviour for ChatGPT, Claude and Perplexity user agents.',
+    canonical: `${TOOLS_BASE_URL}/499-checker`,
+    category: 'Crawling & Access',
+    softwareCategory: 'DeveloperApplication',
+    keywords: [
+      '499 checker',
+      '499 timeout risk',
+      '499 timeout risk checker',
+      '499 error checker',
+      'ai crawler timeout checker',
+      'ttfb checker',
+      'chatgpt crawler response time',
+      'claude crawler timeout',
+      'perplexity timeout check',
+      'ai bot response timing'
+    ],
+    features: [
+      'Sequential simulated HTTP probes using ChatGPT-User, Claude-User, and Perplexity-User identities',
+      'Dedicated response-header timing (TTFB approximation) measured with monotonic timers',
+      'Separate bounded streaming body download timing and decoded HTML size tracking',
+      'Cache-busting probe comparison with explicit cold-cache limitations',
+      'Multi-hop redirect chain tracking and relative Location header resolution',
+      'Extraction and cautious interpretation of cache response headers (Cache-Control, Age, CF-Cache-Status, Vary, Server-Timing)',
+      'Median TTFB calculation over eligible standard probes with heuristic diagnostic timing bands',
+      'Access and blocking issue isolation (WAF challenges, 403s, 429s, rate limiting, timeouts)',
+      'Actionable recommendations without speculative root-cause claims',
+      'Formula-injection safe CSV export and structured clipboard summary copying'
+    ],
+    faqs: [
+      {
+        question: 'What is a 499 error?',
+        answer: 'A 499 status code is a non-standard HTTP response used by some web servers (notably Nginx) to indicate that the client closed the connection before the server finished sending the response. In the context of AI fetchers, a 499 can occur when a time-sensitive crawler (e.g. ChatGPT, Claude, or Perplexity) abandons a request because the server took too long to respond. A 499 is recorded in server logs — the client never receives the status code itself.'
+      },
+      {
+        question: 'Can this tool detect actual 499 errors?',
+        answer: 'No. A 499 is logged server-side when the client disconnects. This tool cannot access your server logs and therefore cannot confirm whether actual 499 events have occurred. What this tool does measure is how quickly your server responds to requests using simulated AI user-agent strings, which helps estimate whether slow responses could contribute to timeout risk.'
+      },
+      {
+        question: 'Does it send real AI-provider requests?',
+        answer: 'No. This tool sends HTTP GET requests using the documented user-agent strings of ChatGPT-User, Claude-User, and Perplexity-User. These requests originate from our server infrastructure — not from OpenAI, Anthropic, or Perplexity IP addresses. Sending their user-agent string does not reproduce their verified identities, infrastructure, geographic distribution, or internal timeout policies.'
+      },
+      {
+        question: 'What response-time target does it use?',
+        answer: 'This tool uses heuristic timing bands: Fast (below 500 ms), Moderate (500–999 ms), Slow (1,000–1,999 ms), and Very Slow (2,000 ms or more). These are diagnostic thresholds chosen for this tool — they are not published AI-provider timeout deadlines and do not represent a probability of receiving a 499.'
+      },
+      {
+        question: 'Does cache-busting guarantee a cold cache?',
+        answer: 'No. The cache-busting probe appends a unique query parameter to the URL. While many CDNs treat URLs with different query strings as distinct cache keys, this behaviour varies. Some CDN configurations ignore query parameters, while others may still serve from cache based on different criteria. The comparison between standard and cache-busting probes is directional, not a verified cold-cache measurement.'
+      },
+      {
+        question: 'Why can results vary between checks?',
+        answer: 'Response times are influenced by server load, geographic distance between our server and yours, CDN caching state, network conditions, DNS resolution time, and request ordering effects. Running the same check twice may produce different timing measurements. This is a small directional sample, not a statistically representative performance benchmark.'
+      },
+      {
+        question: 'How is this different from AI Bot Access Tester?',
+        answer: 'The AI Bot Access Tester checks whether AI crawlers are permitted or blocked by inspecting robots.txt policies, HTTP status codes, and WAF challenges across 35 bot identities. The 499 Timeout Risk Checker focuses specifically on response speed — measuring how quickly your server delivers response headers to three AI user-agent identities to estimate timeout risk. Use both tools together for a comprehensive AI crawl-readiness assessment.'
+      },
+      {
+        question: 'How can I investigate slow responses?',
+        answer: 'Start by reviewing your server access logs for the specific URL and time window tested. Check CDN analytics for cache hit rates and origin response times. Use server monitoring tools to inspect backend processing duration, database query times, and server-side rendering latency. Review your CDN edge caching rules and ensure appropriate Cache-Control headers are set. If using Cloudflare, check Server-Timing headers and the CF-Cache-Status to understand cache behaviour.'
+      }
+    ]
   }
 };
 

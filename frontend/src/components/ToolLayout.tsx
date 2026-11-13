@@ -173,6 +173,16 @@ const TOOL_SPECIFIC_RELATED_MAP: Record<string, { name: string; href: string; de
     { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Verify whether AI crawlers like GPTBot and ClaudeBot can access your site.' },
     { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect RFC 9309 rules, specificity tie-breaking, and live robots.txt directives.' },
     { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate and validate XML sitemaps to maximize crawler discoverability.' }
+  ],
+  '499 timeout risk checker': [
+    { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Verify whether AI crawlers like GPTBot and ClaudeBot can access your site.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect RFC 9309 rules, specificity tie-breaking, and live robots.txt directives.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'See how search engine crawlers render your JavaScript content and compare with source HTML.' }
+  ],
+  '499-checker': [
+    { name: 'AI Bot Access Tester', href: '/tools/ai-bot-access-tester', desc: 'Verify whether AI crawlers like GPTBot and ClaudeBot can access your site.' },
+    { name: 'robots.txt Tester', href: '/tools/robots-txt-tester', desc: 'Inspect RFC 9309 rules, specificity tie-breaking, and live robots.txt directives.' },
+    { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'See how search engine crawlers render your JavaScript content and compare with source HTML.' }
   ]
 };
 
@@ -189,7 +199,8 @@ const RELATED_TOOLS_MAP: Record<string, { name: string; href: string; desc: stri
     { name: 'Sitemap Generator', href: '/tools/sitemap-generator', desc: 'Generate and validate standard XML sitemaps.' },
     { name: 'Domain Age Checker', href: '/tools/domain-age-checker', desc: 'Check domain registration age, creation date, and expiry details.' },
     { name: 'Bulk Google Index Checker', href: '/tools/bulk-google-index-checker', desc: "Check Google's indexing status for multiple URLs with Search Console and view live meta titles and descriptions." },
-    { name: 'Common Crawl Visibility Checker', href: '/tools/common-crawl-checker', desc: 'Check webpage presence across official Common Crawl archives and AI training datasets.' }
+    { name: 'Common Crawl Visibility Checker', href: '/tools/common-crawl-checker', desc: 'Check webpage presence across official Common Crawl archives and AI training datasets.' },
+    { name: '499 Timeout Risk Checker', href: '/tools/499-checker', desc: 'Assess AI fetch timeout risk by measuring simulated response-header timings.' }
   ],
   'Rendering & Mobile SEO': [
     { name: 'Fetch & Render', href: '/tools/fetch-render', desc: 'See how Googlebot and crawlers render JavaScript content.' },
@@ -359,7 +370,7 @@ export default function ToolLayout({
               <p className="text-xs sm:text-sm text-[var(--im-text-muted)] mt-0.5">Explore complementary technical SEO utilities and workflows.</p>
             </div>
             <Link href="/tools" className="text-xs sm:text-sm font-bold text-[var(--im-primary-deep)] hover:underline hidden sm:inline-block">
-              View all 19 tools &rarr;
+              View all 20 tools &rarr;
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
