@@ -138,6 +138,12 @@
       }
     },
     {
+      "source": "/api/seo/499-checker/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"

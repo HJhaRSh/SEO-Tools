@@ -18,7 +18,7 @@ import type { TimeoutRiskCheckApiResponse } from '@/lib/seo/timeout-risk/types';
 
 // Runtime configuration for Vercel serverless
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+export const dynamic = 'force-dynamic';
 
 // ─── In-memory rate limiter ────────────────────────────────────────
 // NOTE: In serverless environments this only limits within a single
@@ -29,6 +29,17 @@ const requestLog = new Map<string, number[]>();
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
+  const cutoff = now - REQUEST_WINDOW_MS;
+
+  // Prune expired entries inline (avoids top-level setInterval in serverless)
+  if (requestLog.size > 200) {
+    for (const [k, timestamps] of requestLog.entries()) {
+      const fresh = timestamps.filter((t) => t > cutoff);
+      if (fresh.length === 0) requestLog.delete(k);
+      else requestLog.set(k, fresh);
+    }
+  }
+
   const timestamps = requestLog.get(ip) || [];
   const recent = timestamps.filter((t) => now - t < REQUEST_WINDOW_MS);
   if (recent.length >= MAX_REQUESTS_PER_WINDOW) {
@@ -39,19 +50,6 @@ function isRateLimited(ip: string): boolean {
   requestLog.set(ip, recent);
   return false;
 }
-
-// Periodic cleanup (every 5 minutes)
-setInterval(() => {
-  const cutoff = Date.now() - REQUEST_WINDOW_MS;
-  for (const [ip, timestamps] of requestLog.entries()) {
-    const fresh = timestamps.filter((t) => t > cutoff);
-    if (fresh.length === 0) {
-      requestLog.delete(ip);
-    } else {
-      requestLog.set(ip, fresh);
-    }
-  }
-}, 5 * 60_000);
 
 // ─── Response headers ──────────────────────────────────────────────
 function secureHeaders(): Record<string, string> {

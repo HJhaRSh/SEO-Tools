@@ -78,6 +78,10 @@ const nextConfig: NextConfig = {
         destination: '/api/seo/local-search/:path*'
       },
       {
+        source: '/api/seo/499-checker/:path*',
+        destination: '/api/seo/499-checker/:path*'
+      },
+      {
         source: '/api/:path*',
         destination: `${backendTarget.replace(/\/$/, '')}/api/:path*`
       }
