@@ -48,8 +48,11 @@ export function getTrustedOrigin(candidate?: string | null): string {
         return parsed.origin;
       }
 
-      // Permit production domain and any subdomains
-      if (hostname === 'indianmarketers.in' || hostname.endsWith('.indianmarketers.in')) {
+      // Permit production domain and any subdomains, normalizing apex and www to canonical production origin
+      if (hostname === 'indianmarketers.in' || hostname === 'www.indianmarketers.in') {
+        return DEFAULT_PRODUCTION_ORIGIN;
+      }
+      if (hostname.endsWith('.indianmarketers.in')) {
         return `https://${parsed.host}`;
       }
     } catch {

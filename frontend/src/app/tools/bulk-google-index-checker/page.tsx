@@ -83,11 +83,20 @@ export default function BulkGoogleIndexCheckerPage() {
         showNotice('Successfully connected to Google Search Console!', 'success');
         window.history.replaceState({}, '', window.location.pathname);
       } else if (errParam) {
+        const reasonParam = params.get('reason');
+        const reasonDetails: Record<string, string> = {
+          redirect_uri_mismatch: 'Redirect URI mismatch with Google Cloud Console.',
+          invalid_client: 'Invalid OAuth Client ID or Client Secret.',
+          invalid_grant: 'Authorization code expired or already used. Please try again.',
+          unauthorized_client: 'OAuth client not authorized for this request.',
+        };
         const errorMessages: Record<string, string> = {
           OAUTH_NOT_CONFIGURED: 'Google OAuth is not configured on the server.',
           CSRF_STATE_MISMATCH: 'Authorization security state mismatch. Please try connecting again.',
           MISSING_AUTHORIZATION_CODE: 'Google authorization was canceled or did not return a valid code.',
-          TOKEN_EXCHANGE_FAILED: 'Could not complete token exchange with Google. Please retry.',
+          TOKEN_EXCHANGE_FAILED: reasonParam && reasonDetails[reasonParam]
+            ? `Google token exchange failed: ${reasonDetails[reasonParam]}`
+            : 'Could not complete token exchange with Google. Please retry.',
         };
         showNotice(errorMessages[errParam] || `Authentication error: ${errParam}`, 'error');
         window.history.replaceState({}, '', window.location.pathname);

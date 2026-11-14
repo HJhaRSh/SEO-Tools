@@ -3,6 +3,7 @@ import crypto from 'crypto';
 export const COOKIE_NAME = 'gsc_auth_session';
 export const STATE_COOKIE_NAME = 'gsc_oauth_state';
 export const VERIFIER_COOKIE_NAME = 'gsc_pkce_verifier';
+export const REDIRECT_URI_COOKIE_NAME = 'gsc_oauth_redirect_uri';
 
 export interface GscSessionData {
   accessToken: string;

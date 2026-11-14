@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   STATE_COOKIE_NAME,
   VERIFIER_COOKIE_NAME,
+  REDIRECT_URI_COOKIE_NAME,
   generatePkcePair,
   generateCsrfState,
 } from '@/lib/seo/bulk-google-index-checker/sessionUtils';
@@ -18,8 +19,9 @@ export async function GET(req: NextRequest) {
   const forwardedHost = req.headers.get('x-forwarded-host');
   const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
   const candidate = forwardedHost ? `${forwardedProto}://${forwardedHost.split(',')[0].trim()}` : req.nextUrl.origin;
+  const isCandidateVercel = candidate.includes('vercel.app');
   const trustedOrigin = getTrustedOrigin(candidate);
-  const config = getGoogleConfig(trustedOrigin);
+  const config = getGoogleConfig(isCandidateVercel ? candidate : trustedOrigin, { allowVercelRollback: isCandidateVercel });
 
   if (!config) {
     return NextResponse.json(
@@ -47,6 +49,7 @@ export async function GET(req: NextRequest) {
 
   response.cookies.set(STATE_COOKIE_NAME, state, cookieOptions);
   response.cookies.set(VERIFIER_COOKIE_NAME, verifier, cookieOptions);
+  response.cookies.set(REDIRECT_URI_COOKIE_NAME, config.redirectUri, cookieOptions);
 
   return response;
 }

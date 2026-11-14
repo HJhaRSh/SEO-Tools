@@ -3,6 +3,7 @@ import {
   COOKIE_NAME,
   STATE_COOKIE_NAME,
   VERIFIER_COOKIE_NAME,
+  REDIRECT_URI_COOKIE_NAME,
   encryptSession,
   GscSessionData,
 } from '@/lib/seo/bulk-google-index-checker/sessionUtils';
@@ -19,14 +20,20 @@ export async function GET(req: NextRequest) {
   const forwardedHost = req.headers.get('x-forwarded-host');
   const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
   const candidate = forwardedHost ? `${forwardedProto}://${forwardedHost.split(',')[0].trim()}` : req.nextUrl.origin;
-  const isVercelHost = candidate.includes('vercel.app') || req.nextUrl.origin.includes('vercel.app');
+  const isCandidateVercel = candidate.includes('vercel.app');
   const trustedOrigin = getTrustedOrigin(candidate);
-  const config = getGoogleConfig(isVercelHost ? req.nextUrl.origin : trustedOrigin, { allowVercelRollback: isVercelHost });
+  const config = getGoogleConfig(isCandidateVercel ? candidate : trustedOrigin, { allowVercelRollback: isCandidateVercel });
   const redirectTarget = new URL('/tools/bulk-google-index-checker', trustedOrigin);
 
   if (!config) {
     redirectTarget.searchParams.set('error', 'OAUTH_NOT_CONFIGURED');
     return NextResponse.redirect(redirectTarget);
+  }
+
+  // If login route stored the exact redirect_uri sent to Google in the cookie, enforce it
+  const storedRedirectUri = req.cookies.get(REDIRECT_URI_COOKIE_NAME)?.value;
+  if (storedRedirectUri && (storedRedirectUri.startsWith('http://') || storedRedirectUri.startsWith('https://'))) {
+    config.redirectUri = storedRedirectUri;
   }
 
   const searchParams = req.nextUrl.searchParams;
@@ -96,10 +103,26 @@ export async function GET(req: NextRequest) {
     // Clear one-time state and PKCE cookies
     response.cookies.delete(STATE_COOKIE_NAME);
     response.cookies.delete(VERIFIER_COOKIE_NAME);
+    response.cookies.delete(REDIRECT_URI_COOKIE_NAME);
 
     return response;
   } catch (err: any) {
+    console.error('[Google OAuth Token Exchange Error]', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    let reason = '';
+    if (msg.includes('redirect_uri_mismatch')) reason = 'redirect_uri_mismatch';
+    else if (msg.includes('invalid_client')) reason = 'invalid_client';
+    else if (msg.includes('invalid_grant')) reason = 'invalid_grant';
+    else if (msg.includes('unauthorized_client')) reason = 'unauthorized_client';
+
     redirectTarget.searchParams.set('error', 'TOKEN_EXCHANGE_FAILED');
-    return NextResponse.redirect(redirectTarget);
+    if (reason) {
+      redirectTarget.searchParams.set('reason', reason);
+    }
+    const response = NextResponse.redirect(redirectTarget);
+    response.cookies.delete(STATE_COOKIE_NAME);
+    response.cookies.delete(VERIFIER_COOKIE_NAME);
+    response.cookies.delete(REDIRECT_URI_COOKIE_NAME);
+    return response;
   }
 }
